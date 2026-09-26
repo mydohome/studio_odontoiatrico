@@ -20,12 +20,12 @@ function styleHeader(ws: ExcelJS.Worksheet) {
 /** Converte una data ISO in una Date UTC, così Excel mostra il giorno corretto. */
 const isoToExcelDate = (iso: string) => new Date(`${iso}T00:00:00Z`)
 
-function addServicesSheet(wb: ExcelJS.Workbook, services: Service[]) {
+function addServicesSheet(wb: ExcelJS.Workbook, services: Service[], showPrices: boolean) {
   const ws = wb.addWorksheet('Prestazioni')
   ws.columns = [
     { header: 'Prestazione', key: 'name', width: 34 },
     { header: 'Categoria', key: 'cat', width: 30 },
-    { header: 'Prezzo medio (€)', key: 'price', width: 18 },
+    ...(showPrices ? [{ header: 'Prezzo medio (€)', key: 'price', width: 18 }] : []),
   ]
   for (const s of services) ws.addRow({ name: s.name, cat: CATEGORY_BY_ID[s.category]?.label ?? s.category, price: s.price })
   styleHeader(ws)
@@ -36,7 +36,7 @@ async function toBuffer(wb: ExcelJS.Workbook): Promise<Buffer> {
   return Buffer.from(await wb.xlsx.writeBuffer())
 }
 
-export async function buildTemplate(services: Service[], exampleDate: string): Promise<Buffer> {
+export async function buildTemplate(services: Service[], exampleDate: string, showPrices = true): Promise<Buffer> {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'Studio Odontoiatrico'
   const active = services.filter((s) => s.active)
@@ -51,7 +51,7 @@ export async function buildTemplate(services: Service[], exampleDate: string): P
   examples.forEach((s, i) => ws.addRow({ d: isoToExcelDate(exampleDate), s: s.name, q: [4, 6, 2][i] }))
   styleHeader(ws)
 
-  const list = addServicesSheet(wb, active)
+  const list = addServicesSheet(wb, active, showPrices)
   const listRange = `Prestazioni!$A$2:$A$${Math.max(2, active.length + 1)}`
   for (let r = 2; r <= 1500; r++) {
     ws.getCell(`A${r}`).dataValidation = {
@@ -94,7 +94,7 @@ export async function buildTemplate(services: Service[], exampleDate: string): P
   return toBuffer(wb)
 }
 
-export async function buildExport(services: Service[], records: RecordRow[]): Promise<Buffer> {
+export async function buildExport(services: Service[], records: RecordRow[], showPrices = true): Promise<Buffer> {
   const wb = new ExcelJS.Workbook()
   const names = new Map(services.map((s) => [s.id, s.name]))
   const ws = wb.addWorksheet('Dati')
@@ -105,7 +105,7 @@ export async function buildExport(services: Service[], records: RecordRow[]): Pr
   ]
   for (const r of records) ws.addRow({ d: isoToExcelDate(r.d), s: names.get(r.s) ?? r.s, q: r.q })
   styleHeader(ws)
-  addServicesSheet(wb, services)
+  addServicesSheet(wb, services, showPrices)
   return toBuffer(wb)
 }
 

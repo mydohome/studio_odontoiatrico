@@ -1,5 +1,11 @@
 import type { CampaignResponse, ImportResult, RecordRow, Service } from '../../../shared/types.ts'
 
+export interface AppSettings {
+  studioName: string
+  /** Mostra prezzi e fatturato stimato nelle viste. */
+  showPrices: boolean
+}
+
 export interface SessionUser {
   username: string
   email: string | null
@@ -49,8 +55,8 @@ export const api = {
     request<{ ok: boolean; user: SessionUser }>('POST', '/api/login', { username, password }),
   logout: () => request<{ ok: boolean }>('POST', '/api/logout', {}),
 
-  settings: () => request<{ studioName: string }>('GET', '/api/settings'),
-  saveSettings: (studioName: string) => request<{ studioName: string }>('PUT', '/api/settings', { studioName }),
+  settings: () => request<AppSettings>('GET', '/api/settings'),
+  saveSettings: (changes: Partial<AppSettings>) => request<AppSettings>('PUT', '/api/settings', changes),
 
   services: () => request<Service[]>('GET', '/api/services'),
   createService: (s: Partial<Service>) => request<Service>('POST', '/api/services', s),

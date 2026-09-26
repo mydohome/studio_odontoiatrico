@@ -8,7 +8,7 @@ proposte di **campagne marketing** mese per mese calcolate sui dati raccolti.
 | **Registra** | Inserimento giornaliero delle quantità per prestazione (igiene orale, visita di controllo, ortopanoramica…), con pulsanti +/−, elenco delle ultime giornate e salvataggio rapido (Ctrl/Cmd + S). |
 | **Dashboard** | Riepilogo per giorno, settimana o mese: totale prestazioni, fatturato stimato, media per giorno lavorato, andamento per categoria (grafico a colonne), dettaglio per prestazione con confronto sul periodo precedente. |
 | **Campagne** | Per i prossimi 12 mesi propone le campagne più convenienti con punteggio, offerta, target, canali e motivazioni. Mostra la previsione per categoria e la mappa della stagionalità. |
-| **Impostazioni** | Template Excel scaricabile, import da Excel, export completo, gestione delle prestazioni (nome, categoria, prezzo medio, attiva/disattiva), dati dimostrativi, nome dello studio. |
+| **Impostazioni** | Template Excel scaricabile, import da Excel, export completo, gestione delle prestazioni (nome, categoria, prezzo medio, attiva/disattiva), opzione **Mostra prezzi** (nasconde prezzi e fatturato stimato in tutte le viste e nei file Excel), dati dimostrativi, nome dello studio. |
 
 ## Architettura
 
@@ -183,17 +183,40 @@ ortodonzia, chirurgia/implantologia, protesi, pedodonzia):
 Per ogni mese vengono mostrate le 5 campagne con il punteggio più alto. L'affidabilità cresce con lo storico:
 bassa sotto i 6 mesi, media fino a 18, alta oltre.
 
-## Backup e aggiornamenti
+## Aggiornamenti
+
+`update.sh` installa l'ultima versione pubblicata su GitHub:
 
 ```bash
-# Backup del database
+./update.sh                  # mostra le novità e chiede conferma
+./update.sh --check          # controlla soltanto (exit 0 = aggiornato, 10 = aggiornamento disponibile)
+./update.sh --yes            # aggiorna senza domande
+./update.sh --install-cron   # aggiornamento automatico ogni notte alle 04:30 (oppure: --install-cron 03:15)
+./update.sh --remove-cron    # disattiva l'aggiornamento automatico
+```
+
+Cosa fa, in ordine:
+
+1. controlla che non ci siano modifiche locali ai file del repository e scarica le novità (solo *fast-forward*);
+2. mostra l'elenco delle modifiche;
+3. salva un **backup del database** in `backups/pre-update-<data>-<versione>.sql.gz` (conserva gli ultimi 10);
+4. aggiorna il codice e, se il template usato per `docker-compose.yml` è cambiato, lo rigenera salvando una copia del
+   precedente (se l'hai personalizzato a mano non lo tocca e ti avvisa);
+5. ricostruisce le immagini con l'app ancora in funzione, poi riavvia: il fermo dura pochi secondi;
+6. verifica che API e interfaccia rispondano. **Se l'avvio fallisce torna da solo alla versione precedente**; quella
+   versione non viene riprovata in automatico finché su GitHub non ne arriva una più recente.
+
+Con l'aggiornamento automatico il log finisce in `update.log`. Se il repository è privato, il server deve poter
+eseguire `git fetch` senza password (chiave SSH di deploy o token salvato).
+
+## Backup
+
+```bash
+# Backup manuale del database
 docker compose exec -T db pg_dump -U studio studio | gzip > backup-$(date +%F).sql.gz
 
-# Ripristino
-gunzip -c backup-AAAA-MM-GG.sql.gz | docker compose exec -T db psql -U studio studio
-
-# Aggiornamento dell'app (docker-compose.yml non è versionato: rilancia setup.sh se i template cambiano)
-git pull && ./setup.sh --start
+# Ripristino (anche dei backup creati da update.sh)
+gunzip -c backups/pre-update-AAAAMMGG-HHMMSS-xxxxxxx.sql.gz | docker compose exec -T db psql -U studio studio
 ```
 
 In alternativa, *Esporta tutto in Excel* produce un file reimportabile con tutte le registrazioni.

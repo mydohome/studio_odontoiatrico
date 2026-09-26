@@ -77,7 +77,7 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
             <span className="brand-logo">
               <Tooth size={20} />
             </span>
-            <span className="brand-name">{data.studioName}</span>
+            <span className="brand-name">{data.settings.studioName}</span>
           </div>
           <nav className="tabs" role="tablist" aria-label="Sezioni">
             {TABS.map((t) => (

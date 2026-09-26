@@ -10,3 +10,9 @@ dist
 # generati da setup.sh
 /docker-compose.yml
 *.bak-*
+
+# generati da update.sh
+/backups/
+update.log
+.update.lock
+.update-failed

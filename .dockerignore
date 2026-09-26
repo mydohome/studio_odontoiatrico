@@ -3,3 +3,5 @@
 .git
 *.md
 db
+backups
+update.log

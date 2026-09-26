@@ -1,0 +1,425 @@
+import { Database, Download, FileSpreadsheet, LogOut, Plus, Save, Sparkles, Trash2, Upload } from 'lucide-react'
+import { useRef, useState, type DragEvent } from 'react'
+import { CATEGORIES } from '../../../shared/catalog.ts'
+import type { CategoryId, ImportResult, Service } from '../../../shared/types.ts'
+import { useToast } from '../components/Toast.tsx'
+import { api, EXPORT_URL, TEMPLATE_URL } from '../lib/api.ts'
+import type { AppDataState } from '../lib/useData.ts'
+
+interface Props {
+  data: AppDataState
+  authRequired: boolean
+  onLogout: () => void
+}
+
+export default function Impostazioni({ data, authRequired, onLogout }: Props) {
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Impostazioni</h1>
+          <p>Prestazioni, importazione da Excel e gestione dei dati.</p>
+        </div>
+        {authRequired && (
+          <button
+            className="btn"
+            onClick={async () => {
+              await api.logout().catch(() => {})
+              onLogout()
+            }}
+          >
+            <LogOut size={16} /> Esci
+          </button>
+        )}
+      </div>
+      <div className="grid grid-2-even" style={{ alignItems: 'start' }}>
+        <div className="grid">
+          <ImportCard data={data} />
+          <StudioCard data={data} />
+          <DataCard data={data} />
+        </div>
+        <ServicesCard data={data} />
+      </div>
+    </>
+  )
+}
+
+function StudioCard({ data }: { data: AppDataState }) {
+  const notify = useToast()
+  const [name, setName] = useState(data.studioName)
+  return (
+    <div className="card">
+      <h2>Studio</h2>
+      <p className="sub">Nome mostrato nell'intestazione.</p>
+      <form
+        className="settings-row"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          try {
+            const r = await api.saveSettings(name)
+            data.setStudioName(r.studioName)
+            notify('Nome salvato')
+          } catch (err) {
+            notify((err as Error).message, 'error')
+          }
+        }}
+      >
+        <input className="input" style={{ flex: 1 }} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+        <button className="btn btn-primary" disabled={!name.trim() || name === data.studioName}>
+          <Save size={16} /> Salva
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function ImportCard({ data }: { data: AppDataState }) {
+  const notify = useToast()
+  const input = useRef<HTMLInputElement>(null)
+  const [mode, setMode] = useState<'replace' | 'sum'>('replace')
+  const [busy, setBusy] = useState(false)
+  const [over, setOver] = useState(false)
+  const [result, setResult] = useState<ImportResult | null>(null)
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return
+    if (!/\.xlsx$/i.test(file.name)) {
+      notify('Seleziona un file Excel .xlsx', 'error')
+      return
+    }
+    setBusy(true)
+    setResult(null)
+    try {
+      const r = await api.importExcel(file, mode)
+      setResult(r)
+      notify(`Importate ${r.imported} righe su ${r.days} giornate`)
+      data.reload()
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+      if (input.current) input.current.value = ''
+    }
+  }
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault()
+    setOver(false)
+    upload(e.dataTransfer.files[0])
+  }
+
+  return (
+    <div className="card">
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <FileSpreadsheet size={17} /> Importa da Excel
+      </h2>
+      <p className="sub">
+        Scarica il template, compilalo (Data · Prestazione · Quantità) e caricalo qui. È accettato anche il formato con una
+        colonna per ogni prestazione.
+      </p>
+      <div className="settings-row" style={{ marginBottom: 12 }}>
+        <a className="btn" href={TEMPLATE_URL} download>
+          <Download size={16} /> Scarica template Excel
+        </a>
+      </div>
+      <div
+        className={`drop ${over ? 'over' : ''}`}
+        onClick={() => input.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault()
+          setOver(true)
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={onDrop}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && input.current?.click()}
+      >
+        <Upload size={22} />
+        <div>{busy ? 'Importazione in corso…' : 'Trascina qui il file .xlsx o clicca per selezionarlo'}</div>
+        <input
+          ref={input}
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+          onChange={(e) => upload(e.target.files?.[0])}
+        />
+      </div>
+      <fieldset style={{ border: 0, padding: 0, margin: '12px 0 0', display: 'grid', gap: 6 }} className="small">
+        <legend className="muted" style={{ marginBottom: 6 }}>
+          Se una giornata è già presente:
+        </legend>
+        <label>
+          <input type="radio" name="mode" checked={mode === 'replace'} onChange={() => setMode('replace')} /> sostituisci i
+          dati della giornata con quelli del file
+        </label>
+        <label>
+          <input type="radio" name="mode" checked={mode === 'sum'} onChange={() => setMode('sum')} /> somma le quantità a
+          quelle esistenti
+        </label>
+      </fieldset>
+      {result && (
+        <div className={`alert ${result.errors.length ? 'alert-warn' : 'alert-good'}`} style={{ marginTop: 12 }}>
+          <div>
+            <strong>
+              {result.rows} righe lette, {result.days} giornate, {result.imported} valori importati.
+            </strong>
+            {result.errors.length > 0 && (
+              <ul>
+                {result.errors.map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DataCard({ data }: { data: AppDataState }) {
+  const notify = useToast()
+  const [busy, setBusy] = useState(false)
+  const days = new Set(data.records.map((r) => r.d)).size
+
+  const run = async (fn: () => Promise<string>) => {
+    setBusy(true)
+    try {
+      notify(await fn())
+      data.reload()
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Database size={17} /> Dati
+      </h2>
+      <p className="sub">
+        {days} giornate registrate · {data.records.reduce((a, r) => a + r.q, 0)} prestazioni in totale.
+      </p>
+      <div className="settings-row">
+        <a className="btn" href={EXPORT_URL} download>
+          <Download size={16} /> Esporta tutto in Excel
+        </a>
+        <button
+          className="btn"
+          disabled={busy}
+          onClick={() => {
+            if (!window.confirm('Generare 2 anni di dati dimostrativi? Le giornate esistenti nel periodo verranno sostituite.')) return
+            run(async () => {
+              const r = await api.demo()
+              return `Generate ${r.days} giornate dimostrative`
+            })
+          }}
+        >
+          <Sparkles size={16} /> Genera dati demo
+        </button>
+        <button
+          className="btn btn-danger"
+          disabled={busy || !days}
+          onClick={() => {
+            const ok = window.prompt('Operazione irreversibile. Scrivi ELIMINA per cancellare tutte le registrazioni.')
+            if (ok !== 'ELIMINA') return
+            run(async () => {
+              await api.deleteAll()
+              return 'Tutte le registrazioni sono state eliminate'
+            })
+          }}
+        >
+          <Trash2 size={16} /> Elimina tutti i dati
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ServicesCard({ data }: { data: AppDataState }) {
+  const notify = useToast()
+  const [draft, setDraft] = useState({ name: '', category: 'prevenzione' as CategoryId, price: '' })
+
+  const update = async (s: Service, patch: Partial<Service>) => {
+    try {
+      await api.updateService(s.id, { ...s, ...patch })
+      data.reload()
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    }
+  }
+
+  const remove = async (s: Service) => {
+    if (!window.confirm(`Eliminare "${s.name}"? Se ha registrazioni verrà solo disattivata.`)) return
+    try {
+      const r = await api.deleteService(s.id)
+      notify(r.deleted ? 'Prestazione eliminata' : 'Prestazione disattivata (ha dati storici)')
+      data.reload()
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    }
+  }
+
+  const add = async () => {
+    try {
+      await api.createService({
+        name: draft.name,
+        category: draft.category,
+        price: draft.price === '' ? null : Number(draft.price),
+        active: true,
+      })
+      setDraft({ ...draft, name: '', price: '' })
+      notify('Prestazione aggiunta')
+      data.reload()
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Prestazioni</h2>
+      <p className="sub">
+        Tipologie disponibili nella registrazione e nel template Excel. Il prezzo medio serve a stimare il fatturato.
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome e categoria</th>
+              <th className="r">Prezzo €</th>
+              <th>Attiva</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {data.services.map((s) => (
+              <ServiceRow key={`${s.id}-${data.version}`} s={s} onUpdate={update} onRemove={remove} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <form
+        className="settings-row"
+        style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}
+        onSubmit={(e) => {
+          e.preventDefault()
+          add()
+        }}
+      >
+        <input
+          className="input"
+          style={{ flex: '2 1 160px' }}
+          placeholder="Nuova prestazione"
+          value={draft.name}
+          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          maxLength={80}
+        />
+        <select
+          className="input"
+          style={{ flex: '1 1 150px' }}
+          value={draft.category}
+          onChange={(e) => setDraft({ ...draft, category: e.target.value as CategoryId })}
+          aria-label="Categoria"
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <input
+          className="input"
+          style={{ width: 90 }}
+          type="number"
+          min={0}
+          placeholder="€"
+          value={draft.price}
+          onChange={(e) => setDraft({ ...draft, price: e.target.value })}
+          aria-label="Prezzo medio"
+        />
+        <button className="btn btn-primary" disabled={!draft.name.trim()}>
+          <Plus size={16} /> Aggiungi
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function ServiceRow({
+  s,
+  onUpdate,
+  onRemove,
+}: {
+  s: Service
+  onUpdate: (s: Service, p: Partial<Service>) => void
+  onRemove: (s: Service) => void
+}) {
+  const [name, setName] = useState(s.name)
+  const [price, setPrice] = useState(s.price === null ? '' : String(s.price))
+
+  const commitName = () => {
+    if (name.trim() && name !== s.name) onUpdate(s, { name: name.trim() })
+    else setName(s.name)
+  }
+  const commitPrice = () => {
+    const p = price === '' ? null : Number(price)
+    if (p !== s.price) onUpdate(s, { price: p })
+  }
+
+  return (
+    <tr style={{ opacity: s.active ? 1 : 0.55 }}>
+      <td>
+        <input
+          className="input"
+          style={{ width: '100%', padding: '5px 8px' }}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={commitName}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          aria-label="Nome prestazione"
+        />
+        <select
+          className="input small"
+          style={{ width: '100%', padding: '3px 6px', marginTop: 4, color: 'var(--text-2)' }}
+          value={s.category}
+          onChange={(e) => onUpdate(s, { category: e.target.value as CategoryId })}
+          aria-label="Categoria"
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className="r">
+        <input
+          className="input num"
+          style={{ width: 80, padding: '5px 8px', textAlign: 'right' }}
+          type="number"
+          min={0}
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          onBlur={commitPrice}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          aria-label="Prezzo medio"
+        />
+      </td>
+      <td>
+        <label className="switch" title={s.active ? 'Attiva' : 'Disattivata'}>
+          <input type="checkbox" checked={s.active} onChange={(e) => onUpdate(s, { active: e.target.checked })} />
+          <span />
+        </label>
+      </td>
+      <td className="r">
+        <button className="btn btn-icon btn-ghost btn-danger" onClick={() => onRemove(s)} aria-label={`Elimina ${s.name}`}>
+          <Trash2 size={16} />
+        </button>
+      </td>
+    </tr>
+  )
+}

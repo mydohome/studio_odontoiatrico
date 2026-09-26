@@ -29,10 +29,25 @@ Le immagini sono multi-architettura: funzionano sia su OCI **Ampere A1 (ARM)** s
 
 ```bash
 git clone <questo repository> studio && cd studio
-cp .env.example .env
-nano .env            # imposta almeno POSTGRES_PASSWORD e APP_PASSWORD
-docker compose up -d --build
+./setup.sh
 ```
+
+`setup.sh` crea il file `.env` (permessi `600`):
+
+- **genera in automatico** la password del database e la chiave delle sessioni;
+- **chiede** la password di accesso all'app (premi invio per farla generare), la porta HTTP (predefinita 80, oppure 8080 se la 80 è già occupata) e il fuso orario (predefinito `Europe/Rome`);
+- mostra un riepilogo con l'indirizzo e, se generata, la password dell'app da conservare;
+- propone di avviare subito lo stack con `docker compose up -d --build`.
+
+Opzioni: `--yes` (nessuna domanda, valori predefiniti e password generate), `--start` (avvia senza chiedere),
+`--force` (ricrea un `.env` esistente senza chiedere). In modalità `--yes` si possono passare i valori come variabili:
+`APP_PASSWORD=... HTTP_PORT=8080 ./setup.sh --yes --start`.
+
+Se rilanci lo script con un `.env` già presente, il vecchio file viene salvato come `.env.bak-<data>` e la password
+del database viene **mantenuta** (PostgreSQL la imposta solo alla prima creazione del volume). Se il `.env` è andato
+perso ma il database esiste ancora, lo script chiede la password del database esistente.
+
+In alternativa puoi configurare a mano: `cp .env.example .env`, modifica i valori e poi `docker compose up -d --build`.
 
 Apri `http://<ip-del-server>/`. Per provare subito l'app vai in **Impostazioni → Genera dati demo** (2 anni di dati simulati),
 poi cancellali con **Elimina tutti i dati** prima di iniziare a usarla davvero.
@@ -67,7 +82,7 @@ poi cancellali con **Elimina tutti i dati** prima di iniziare a usarla davvero.
    sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
    ```
-6. Esegui l'**Avvio rapido** qui sopra.
+6. Esegui l'**Avvio rapido** qui sopra (`./setup.sh`).
 
 ### HTTPS (consigliato)
 

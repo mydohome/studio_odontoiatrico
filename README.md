@@ -90,6 +90,25 @@ sudo iptables -I INPUT 6 -p tcp -s <IP-server-NPM> --dport 80 -j ACCEPT && sudo 
 | `studio-odontoiatrico-api` | solo `backend` | `no-new-privileges`, `cap_drop: ALL`, utente non root |
 | `studio-odontoiatrico-db` | solo `backend` | `no-new-privileges` |
 
+## Volantini (beta)
+
+Ogni campagna proposta nella scheda **Campagne** ha il pulsante **Genera volantino**. Si apre un editor con l'anteprima
+in tempo reale di un volantino verticale (800×1200, esportato in PNG a 1600×2400) già compilato in base alla campagna:
+
+- **titolo** con il mese, **banner** e **nome dell'offerta** scelti in base alla categoria e al tipo di campagna (per le
+  campagne stagionali un testo dedicato a ogni mese, es. "Mese della PREVENZIONE" in ottobre);
+- **periodo** "dal 01 al 31 Ottobre", modificabile con le date di inizio e fine;
+- **voci dell'offerta** con icone ricavate dal testo della campagna (igiene, check-up, ortopanoramica, sbiancamento, …);
+- **etichetta prezzo** proposta dal testo (GRATIS, -25%, A RATE) oppure scritta a mano (es. 90€), o nascosta;
+- **telefono/WhatsApp** dello studio, che si può memorizzare per i volantini successivi;
+- 5 combinazioni di colori, e tutti i testi (slogan, parole chiave, nome dello studio) modificabili.
+
+Il PNG si scarica con **Scarica PNG**; su smartphone **Condividi** lo invia direttamente a WhatsApp o ad altre app.
+I font sono inclusi nell'app, quindi funziona anche senza accesso a Google Fonts.
+
+La funzione è sul branch `beta/genera-volantino`. Per provarla sul server: `git checkout beta/genera-volantino && ./update.sh --rebuild`;
+per tornare indietro: `git checkout main && ./update.sh --rebuild`.
+
 ## Utenti
 
 Si accede con **nome utente e password**. Le password sono salvate con hash scrypt; cambiando la password o eliminando

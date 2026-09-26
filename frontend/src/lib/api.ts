@@ -4,6 +4,8 @@ export interface AppSettings {
   studioName: string
   /** Mostra prezzi e fatturato stimato nelle viste. */
   showPrices: boolean
+  /** Telefono / WhatsApp dello studio (volantini). */
+  phone: string
 }
 
 export interface SessionUser {

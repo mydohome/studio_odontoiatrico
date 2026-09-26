@@ -163,12 +163,15 @@ interface Settings {
   studioName: string
   /** Mostra prezzi e fatturato stimato nelle viste e nei file Excel. */
   showPrices: boolean
+  /** Telefono / WhatsApp dello studio, usato nei volantini. */
+  phone: string
 }
 
 async function readSettings(): Promise<Settings> {
   return {
     studioName: (await getSetting('studioName')) ?? 'Studio Odontoiatrico',
     showPrices: (await getSetting('showPrices')) !== 'false',
+    phone: (await getSetting('phone')) ?? '',
   }
 }
 
@@ -176,7 +179,7 @@ app.get('/api/settings', async () => readSettings())
 
 // Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown }
   if (body.studioName !== undefined) {
     const name = String(body.studioName).trim().slice(0, 80)
     if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
@@ -185,6 +188,11 @@ app.put('/api/settings', async (req) => {
   if (body.showPrices !== undefined) {
     if (typeof body.showPrices !== 'boolean') throw new HttpError(400, 'Valore di showPrices non valido')
     await setSetting('showPrices', String(body.showPrices))
+  }
+  if (body.phone !== undefined) {
+    const phone = String(body.phone).trim()
+    if (phone && !/^\+?[0-9 ./-]{6,20}$/.test(phone)) throw new HttpError(400, 'Numero di telefono non valido')
+    await setSetting('phone', phone)
   }
   return readSettings()
 })

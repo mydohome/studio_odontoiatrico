@@ -1,12 +1,15 @@
-import { CalendarRange, Info, Lightbulb, Loader2, Megaphone, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { CalendarRange, ImagePlus, Info, Lightbulb, Loader2, Megaphone, RefreshCw } from 'lucide-react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { CATEGORY_BY_ID } from '../../../shared/catalog.ts'
 import { formatMonth, MONTHS_SHORT, monthIndex } from '../../../shared/dates.ts'
-import type { CampaignResponse, CampaignType } from '../../../shared/types.ts'
+import type { CampaignResponse, CampaignSuggestion, CampaignType } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
 import { api } from '../lib/api.ts'
 import { fmt } from '../lib/stats.ts'
 import type { AppDataState } from '../lib/useData.ts'
+
+// Editor dei volantini (beta): caricato solo quando serve.
+const FlyerEditor = lazy(() => import('../flyer/FlyerEditor.tsx'))
 
 const TYPE_LABEL: Record<CampaignType, { label: string; cls: string }> = {
   calo: { label: 'Riempi l\'agenda', cls: 'badge-warn' },
@@ -36,6 +39,7 @@ export default function Campagne({ data }: { data: AppDataState }) {
   const [res, setRes] = useState<CampaignResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [sel, setSel] = useState(0)
+  const [flyerFor, setFlyerFor] = useState<CampaignSuggestion | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -168,6 +172,11 @@ export default function Campagne({ data }: { data: AppDataState }) {
                     <li key={j}>{r}</li>
                   ))}
                 </ul>
+                <div>
+                  <button className="btn" onClick={() => setFlyerFor(c)}>
+                    <ImagePlus size={16} /> Genera volantino <span className="beta-tag">beta</span>
+                  </button>
+                </div>
               </article>
             )
           })}
@@ -295,6 +304,18 @@ export default function Campagne({ data }: { data: AppDataState }) {
             </table>
           </div>
         </div>
+      )}
+
+      {flyerFor && (
+        <Suspense fallback={null}>
+          <FlyerEditor
+            campaign={flyerFor}
+            month={plan.month}
+            settings={data.settings}
+            onSettingsChange={data.setSettings}
+            onClose={() => setFlyerFor(null)}
+          />
+        </Suspense>
       )}
     </>
   )

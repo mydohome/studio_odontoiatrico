@@ -1,0 +1,114 @@
+import { BarChart3, ClipboardPlus, Loader2, Megaphone, Settings } from 'lucide-react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { ToastProvider } from './components/Toast.tsx'
+import { Tooth } from './components/Tooth.tsx'
+import { api, setUnauthorizedHandler } from './lib/api.ts'
+import { useAppData } from './lib/useData.ts'
+import Campagne from './pages/Campagne.tsx'
+import Impostazioni from './pages/Impostazioni.tsx'
+import Login from './pages/Login.tsx'
+import Registra from './pages/Registra.tsx'
+
+// La dashboard include la libreria dei grafici: caricata solo quando serve.
+const Dashboard = lazy(() => import('./pages/Dashboard.tsx'))
+
+type TabId = 'registra' | 'dashboard' | 'campagne' | 'impostazioni'
+
+const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
+  { id: 'registra', label: 'Registra', icon: <ClipboardPlus size={17} /> },
+  { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={17} /> },
+  { id: 'campagne', label: 'Campagne', icon: <Megaphone size={17} /> },
+  { id: 'impostazioni', label: 'Impostazioni', icon: <Settings size={17} /> },
+]
+
+const tabFromHash = (): TabId => {
+  const h = window.location.hash.replace('#', '') as TabId
+  return TABS.some((t) => t.id === h) ? h : 'registra'
+}
+
+export default function App() {
+  const [auth, setAuth] = useState<{ required: boolean; ok: boolean } | null>(null)
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setAuth((a) => (a ? { ...a, ok: false } : a)))
+    api
+      .me()
+      .then((m) => setAuth({ required: m.authRequired, ok: m.authenticated }))
+      .catch(() => setAuth({ required: false, ok: true }))
+  }, [])
+
+  if (!auth) return <FullLoader />
+  if (!auth.ok) return <Login onLogin={() => setAuth({ ...auth, ok: true })} />
+  return (
+    <ToastProvider>
+      <Shell authRequired={auth.required} onLogout={() => setAuth({ ...auth, ok: false })} />
+    </ToastProvider>
+  )
+}
+
+function FullLoader() {
+  return (
+    <div className="login">
+      <Loader2 className="spin" size={28} />
+    </div>
+  )
+}
+
+function Shell({ authRequired, onLogout }: { authRequired: boolean; onLogout: () => void }) {
+  const [tab, setTab] = useState<TabId>(tabFromHash)
+  const data = useAppData()
+
+  useEffect(() => {
+    const onHash = () => setTab(tabFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  const go = (id: TabId) => {
+    window.location.hash = id
+    setTab(id)
+  }
+
+  return (
+    <>
+      <header className="app-header">
+        <div className="app-header-inner">
+          <div className="brand">
+            <span className="brand-logo">
+              <Tooth size={20} />
+            </span>
+            <span className="brand-name">{data.studioName}</span>
+          </div>
+          <nav className="tabs" role="tablist" aria-label="Sezioni">
+            {TABS.map((t) => (
+              <button key={t.id} className="tab" role="tab" aria-selected={tab === t.id} onClick={() => go(t.id)}>
+                {t.icon}
+                <span className="tab-label">{t.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
+      <main>
+        {data.loading ? (
+          <div className="empty">
+            <Loader2 size={24} /> Caricamento…
+          </div>
+        ) : data.error ? (
+          <div className="alert alert-danger">Impossibile contattare il server: {data.error}</div>
+        ) : (
+          <>
+            {tab === 'registra' && <Registra data={data} />}
+            {tab === 'dashboard' && (
+              <Suspense fallback={<div className="empty">Caricamento…</div>}>
+                <Dashboard data={data} onGoRegistra={() => go('registra')} />
+              </Suspense>
+            )}
+            {tab === 'campagne' && <Campagne data={data} />}
+            {tab === 'impostazioni' && <Impostazioni data={data} authRequired={authRequired} onLogout={onLogout} />}
+          </>
+        )}
+      </main>
+    </>
+  )
+}

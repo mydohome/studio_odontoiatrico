@@ -13,53 +13,108 @@ proposte di **campagne marketing** mese per mese calcolate sui dati raccolti.
 ## Architettura
 
 ```
-Browser ──► frontend (Nginx + React)  ──/api──►  backend (Node 24 + Fastify)  ──►  db (PostgreSQL 16)
-             porta 80                             porta 3000 (interna)             volume pgdata
+Browser ──► NPM ──► app (Nginx + React) ──/api──► api (Node 24 + Fastify) ──► db (PostgreSQL 16)
+                     studio-odontoiatrico-app       studio-odontoiatrico-api      studio-odontoiatrico-db
+                                            └──────── rete interna "backend" ────────┘
 ```
 
-- **frontend/**: React + Vite, compilato in file statici serviti da Nginx, che inoltra `/api` al backend.
-- **backend/**: API REST in TypeScript eseguito direttamente da Node 24 (niente build), algoritmo campagne, import/export Excel (exceljs).
+- **frontend/**: React + Vite, compilato in file statici serviti da Nginx, che inoltra `/api` alle API.
+- **backend/**: API REST in TypeScript eseguito direttamente da Node 24 (niente build), algoritmo campagne, import/export Excel (exceljs), utenti.
 - **shared/**: tipi, date e catalogo delle categorie usati sia dal frontend sia dal backend.
-- **db**: PostgreSQL 16 alpine con parametri ridotti per consumare poca memoria.
+- **db**: PostgreSQL 16 alpine con parametri ridotti; i dati stanno in `./db/data` (escluso da git).
+- API e database stanno su una rete Docker interna (`internal: true`): niente porte pubblicate e niente accesso a Internet.
 
-A riposo, con due anni di dati, lo stack usa circa **75 MB di RAM** (db ~25 MB, backend ~45 MB, Nginx ~5 MB).
+A riposo, con due anni di dati, lo stack usa circa **75–100 MB di RAM**.
 Le immagini sono multi-architettura: funzionano sia su OCI **Ampere A1 (ARM)** sia su **VM.Standard.E2.1.Micro (AMD, 1 GB)**.
 
 ## Avvio rapido
 
 ```bash
-git clone <questo repository> studio && cd studio
+git clone https://github.com/mydohome/studio_odontoiatrico.git /home/ubuntu/docker/studio-odontoiatrico
+cd /home/ubuntu/docker/studio-odontoiatrico
 ./setup.sh
 ```
 
-`setup.sh` crea il file `.env` (permessi `600`):
+`setup.sh` ti guida in 5 passi:
 
-- **genera in automatico** la password del database e la chiave delle sessioni;
-- **chiede** la password di accesso all'app (premi invio per farla generare), la porta HTTP (predefinita 80, oppure 8080 se la 80 è già occupata) e il fuso orario (predefinito `Europe/Rome`);
-- mostra un riepilogo con l'indirizzo e, se generata, la password dell'app da conservare;
-- propone di avviare subito lo stack con `docker compose up -d --build`.
+1. **Tipo di deploy**: dove si trova Nginx Proxy Manager (NPM)?
+   - *Su un host diverso* (o non usi NPM) → usa `_deploy_network_example.yml`: l'app pubblica una porta HTTP (predefinita 80).
+   - *Sullo stesso host* → usa `_deploy_npm_example.yml`: l'app si collega alla rete Docker `proxy-net` e non apre porte.
+     Se la rete `proxy-net` esiste già, lo script propone questa scelta come predefinita.
+2. **Configurazione**: crea `.env` (permessi `600`) generando **in automatico** la password del database e la chiave
+   delle sessioni; chiede la porta HTTP (solo nel primo caso) e il fuso orario (predefinito `Europe/Rome`).
+3. **docker-compose.yml**: lo crea copiando il template scelto. Se ne esiste già uno diverso, ne salva una copia.
+4. **Primo utente**: nome utente, email (facoltativa) e password inserita due volte (invio = generata automaticamente).
+5. **Avvio**: esegue `docker compose up -d --build`, aspetta che le API siano pronte e crea l'utente. Alla fine mostra
+   come configurare il Proxy Host in NPM.
 
-Opzioni: `--yes` (nessuna domanda, valori predefiniti e password generate), `--start` (avvia senza chiedere),
-`--force` (ricrea un `.env` esistente senza chiedere). In modalità `--yes` si possono passare i valori come variabili:
-`APP_PASSWORD=... HTTP_PORT=8080 ./setup.sh --yes --start`.
+Opzioni: `--mode npm|network` (salta la domanda sul tipo di deploy), `--yes` (nessuna domanda: valori predefiniti e
+password generate), `--start` (avvia senza chiedere), `--force` (aggiorna `.env` e `docker-compose.yml` senza chiedere).
+Con `--yes` i valori si passano come variabili:
 
-Se rilanci lo script con un `.env` già presente, il vecchio file viene salvato come `.env.bak-<data>` e la password
-del database viene **mantenuta** (PostgreSQL la imposta solo alla prima creazione del volume). Se il `.env` è andato
-perso ma il database esiste ancora, lo script chiede la password del database esistente.
+```bash
+FIRST_USER=mario FIRST_EMAIL=mario@studio.it FIRST_PASSWORD='...' ./setup.sh --mode npm --yes
+```
 
-In alternativa puoi configurare a mano: `cp .env.example .env`, modifica i valori e poi `docker compose up -d --build`.
+Se rilanci lo script su un'installazione esistente, le password del database e delle sessioni vengono **mantenute**
+(PostgreSQL imposta la password solo alla prima creazione del database), i file sostituiti vengono salvati come
+`*.bak-<data>` e puoi aggiungere un nuovo utente. Se il `.env` è andato perso ma `db/data` esiste ancora, lo script
+chiede la password del database esistente.
 
-Apri `http://<ip-del-server>/`. Per provare subito l'app vai in **Impostazioni → Genera dati demo** (2 anni di dati simulati),
-poi cancellali con **Elimina tutti i dati** prima di iniziare a usarla davvero.
+Per provare subito l'app vai in **Impostazioni → Genera dati demo** (2 anni di dati simulati), poi cancellali con
+**Elimina tutti i dati** prima di iniziare a usarla davvero.
+
+### Collegare Nginx Proxy Manager
+
+Crea un **Proxy Host** in NPM (`http://127.0.0.1:81` tramite tunnel SSH, se l'interfaccia non è esposta):
+
+| Deploy | Scheme | Forward Hostname | Forward Port |
+|---|---|---|---|
+| NPM sullo stesso host (`proxy-net`) | `http` | `studio-odontoiatrico-app` | `80` |
+| NPM su un altro host | `http` | IP di questo server | `HTTP_PORT` (predefinita 80) |
+
+Nella scheda **SSL** richiedi il certificato Let's Encrypt e attiva *Force SSL*. Dietro HTTPS il cookie di sessione viene
+marcato `Secure` in automatico grazie all'header `X-Forwarded-Proto` inviato da NPM.
+
+Con NPM su un altro host, apri `HTTP_PORT` nel firewall **solo verso l'IP del server NPM**, ad esempio:
+
+```bash
+sudo iptables -I INPUT 6 -p tcp -s <IP-server-NPM> --dport 80 -j ACCEPT && sudo netfilter-persistent save
+```
+
+### Sicurezza dei container
+
+| Container | Reti | Protezioni |
+|---|---|---|
+| `studio-odontoiatrico-app` | `proxy-net` oppure porta pubblicata, + `backend` | `no-new-privileges`, `cap_drop: ALL` con solo `CHOWN`/`SETUID`/`SETGID` (necessari a Nginx) |
+| `studio-odontoiatrico-api` | solo `backend` | `no-new-privileges`, `cap_drop: ALL`, utente non root |
+| `studio-odontoiatrico-db` | solo `backend` | `no-new-privileges` |
+
+## Utenti
+
+Si accede con **nome utente e password**. Le password sono salvate con hash scrypt; cambiando la password o eliminando
+un utente le sue sessioni aperte vengono chiuse subito. Dopo un tentativo errato, i successivi per lo stesso
+nome utente vengono rallentati sempre di più (fino a 5 secondi).
+
+```bash
+./manage-users.sh                 # menu interattivo
+./manage-users.sh list            # elenco (con data di creazione e ultimo accesso)
+./manage-users.sh create mario --email mario@studio.it
+./manage-users.sh edit mario      # cambia nome utente e/o email ("-" rimuove l'email)
+./manage-users.sh passwd mario    # cambia password
+./manage-users.sh delete mario    # chiede di riscrivere il nome per conferma
+```
+
+Le password vengono chieste due volte senza mostrarle; da uno script si possono passare sullo standard input
+(`echo 'password' | ./manage-users.sh create mario`). Non è possibile eliminare l'ultimo utente rimasto.
 
 ### Variabili (`.env`)
 
 | Variabile | Descrizione |
 |---|---|
-| `POSTGRES_PASSWORD` | Password del database (obbligatoria). |
-| `APP_PASSWORD` | Password di accesso all'app. **Impostala sempre se il server è raggiungibile da Internet.** Vuota = nessun login. |
-| `SESSION_SECRET` | Chiave per firmare i cookie di sessione (facoltativa; se vuota ne viene derivata una dalla password). |
-| `HTTP_PORT` | Porta pubblicata sull'host (predefinita 80). |
+| `POSTGRES_PASSWORD` | Password del database (generata da `setup.sh`). |
+| `SESSION_SECRET` | Chiave per firmare i cookie di sessione (generata; cambiandola si chiudono tutte le sessioni). |
+| `HTTP_PORT` | Porta pubblicata sull'host, solo con `_deploy_network_example.yml` (predefinita 80). |
 | `TZ` | Fuso orario, determina il "giorno di oggi" (predefinito `Europe/Rome`). |
 
 ## Deploy su OCI Always Free
@@ -82,12 +137,13 @@ poi cancellali con **Elimina tutti i dati** prima di iniziare a usarla davvero.
    sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
    ```
-6. Esegui l'**Avvio rapido** qui sopra (`./setup.sh`).
+6. Esegui l'**Avvio rapido** qui sopra (`./setup.sh`). Se scegli il deploy dietro NPM sullo stesso host,
+   i passi 2–3 servono solo per le porte 80/443 di NPM.
 
-### HTTPS (consigliato)
+### HTTPS senza NPM
 
-Se hai un dominio che punta all'IP del server, il modo più semplice è mettere [Caddy](https://caddyserver.com) davanti
-all'app: imposta `HTTP_PORT=8080` nel `.env` e usa un `Caddyfile` come questo, che ottiene il certificato in automatico.
+Se non usi NPM, puoi mettere [Caddy](https://caddyserver.com) davanti all'app: scegli il deploy "host diverso" con
+`HTTP_PORT=8080` e usa un `Caddyfile` come questo, che ottiene il certificato in automatico.
 
 ```
 tuodominio.it {
@@ -136,8 +192,8 @@ docker compose exec -T db pg_dump -U studio studio | gzip > backup-$(date +%F).s
 # Ripristino
 gunzip -c backup-AAAA-MM-GG.sql.gz | docker compose exec -T db psql -U studio studio
 
-# Aggiornamento dell'app
-git pull && docker compose up -d --build
+# Aggiornamento dell'app (docker-compose.yml non è versionato: rilancia setup.sh se i template cambiano)
+git pull && ./setup.sh --start
 ```
 
 In alternativa, *Esporta tutto in Excel* produce un file reimportabile con tutte le registrazioni.

@@ -3,3 +3,10 @@ dist
 *.local
 .DS_Store
 .env
+
+# dati del database del deploy dietro Nginx Proxy Manager
+/db/
+
+# generati da setup.sh
+/docker-compose.yml
+*.bak-*

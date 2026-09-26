@@ -1,18 +1,18 @@
-import { Database, Download, FileSpreadsheet, LogOut, Plus, Save, Sparkles, Trash2, Upload } from 'lucide-react'
+import { Database, Download, FileSpreadsheet, LogOut, Plus, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 import { CATEGORIES } from '../../../shared/catalog.ts'
 import type { CategoryId, ImportResult, Service } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
-import { api, EXPORT_URL, TEMPLATE_URL } from '../lib/api.ts'
+import { api, EXPORT_URL, TEMPLATE_URL, type SessionUser } from '../lib/api.ts'
 import type { AppDataState } from '../lib/useData.ts'
 
 interface Props {
   data: AppDataState
-  authRequired: boolean
+  user: SessionUser
   onLogout: () => void
 }
 
-export default function Impostazioni({ data, authRequired, onLogout }: Props) {
+export default function Impostazioni({ data, user, onLogout }: Props) {
   return (
     <>
       <div className="page-head">
@@ -20,7 +20,10 @@ export default function Impostazioni({ data, authRequired, onLogout }: Props) {
           <h1>Impostazioni</h1>
           <p>Prestazioni, importazione da Excel e gestione dei dati.</p>
         </div>
-        {authRequired && (
+        <div className="toolbar">
+          <span className="badge" title={user.email ?? undefined}>
+            <User size={13} /> {user.username}
+          </span>
           <button
             className="btn"
             onClick={async () => {
@@ -30,7 +33,7 @@ export default function Impostazioni({ data, authRequired, onLogout }: Props) {
           >
             <LogOut size={16} /> Esci
           </button>
-        )}
+        </div>
       </div>
       <div className="grid grid-2-even" style={{ alignItems: 'start' }}>
         <div className="grid">

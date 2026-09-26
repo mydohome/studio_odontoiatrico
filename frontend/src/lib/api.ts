@@ -1,5 +1,10 @@
 import type { CampaignResponse, ImportResult, RecordRow, Service } from '../../../shared/types.ts'
 
+export interface SessionUser {
+  username: string
+  email: string | null
+}
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {
@@ -39,8 +44,9 @@ async function request<T>(method: string, url: string, body?: unknown, raw?: Blo
 }
 
 export const api = {
-  me: () => request<{ authRequired: boolean; authenticated: boolean }>('GET', '/api/me'),
-  login: (password: string) => request<{ ok: boolean }>('POST', '/api/login', { password }),
+  me: () => request<{ authenticated: boolean; user: SessionUser | null; hasUsers: boolean }>('GET', '/api/me'),
+  login: (username: string, password: string) =>
+    request<{ ok: boolean; user: SessionUser }>('POST', '/api/login', { username, password }),
   logout: () => request<{ ok: boolean }>('POST', '/api/logout', {}),
 
   settings: () => request<{ studioName: string }>('GET', '/api/settings'),

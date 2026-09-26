@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
 import { CATEGORIES } from '../../shared/catalog.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
@@ -7,10 +7,9 @@ import { buildCampaigns } from './campaigns.ts'
 import { getSetting, listRecords, listServices, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
+import { authenticate, countUsers, getUserById, migrateUsers, type User } from './users.ts'
 
 const PORT = Number(process.env.PORT ?? 3000)
-const PASSWORD = process.env.APP_PASSWORD ?? ''
-const SECRET = createHmac('sha256', 'studio-odontoiatrico').update(process.env.SESSION_SECRET || PASSWORD).digest()
 const SESSION_DAYS = 30
 const CAT_IDS = new Set<string>(CATEGORIES.map((c) => c.id))
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -37,7 +36,20 @@ app.setErrorHandler((err: Error & { status?: number; statusCode?: number }, _req
   reply.status(status).send({ error: status >= 500 ? 'Errore interno del server' : err.message })
 })
 
-// ---------- Autenticazione (opzionale, attiva se APP_PASSWORD è impostata) ----------
+// ---------- Autenticazione ----------
+// Sessione in un cookie firmato: <id utente>.<versione sessione>.<scadenza>.<firma>.
+// La versione aumenta quando cambia la password: le sessioni precedenti smettono di valere.
+
+let SECRET: Buffer = Buffer.alloc(0)
+
+async function loadSecret() {
+  let secret = process.env.SESSION_SECRET || (await getSetting('sessionSecret'))
+  if (!secret) {
+    secret = randomBytes(32).toString('base64url')
+    await setSetting('sessionSecret', secret)
+  }
+  SECRET = createHmac('sha256', 'studio-odontoiatrico').update(secret).digest()
+}
 
 const sign = (payload: string) => createHmac('sha256', SECRET).update(payload).digest('base64url')
 
@@ -50,41 +62,49 @@ function readCookie(req: FastifyRequest, name: string): string | null {
   return null
 }
 
-function isAuthed(req: FastifyRequest): boolean {
-  if (!PASSWORD) return true
+async function sessionUser(req: FastifyRequest): Promise<User | null> {
   const token = readCookie(req, 'sid')
-  if (!token) return false
-  const [exp, sig] = token.split('.')
-  if (!exp || !sig || Number(exp) < Date.now()) return false
+  if (!token) return null
+  const parts = token.split('.')
+  if (parts.length !== 4) return null
+  const [uid, ver, exp, sig] = parts
+  if (Number(exp) < Date.now()) return null
   const a = Buffer.from(sig)
-  const b = Buffer.from(sign(exp))
-  return a.length === b.length && timingSafeEqual(a, b)
+  const b = Buffer.from(sign(`${uid}.${ver}.${exp}`))
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null
+  const user = await getUserById(Number(uid))
+  return user && user.sessionVersion === Number(ver) ? user : null
 }
 
-function setSession(reply: FastifyReply, req: FastifyRequest) {
+function setSession(reply: FastifyReply, req: FastifyRequest, user: User) {
   const exp = String(Date.now() + SESSION_DAYS * 86400000)
+  const payload = `${user.id}.${user.sessionVersion}.${exp}`
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''
   reply.header(
     'set-cookie',
-    `sid=${exp}.${sign(exp)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}${secure}`,
+    `sid=${payload}.${sign(payload)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}${secure}`,
   )
 }
 
-let failedLogins = 0
+const publicUser = (u: User) => ({ username: u.username, email: u.email })
+
+// Tentativi falliti per nome utente: ogni errore aumenta l'attesa (max 5 s).
+const failures = new Map<string, { n: number; at: number }>()
+
 app.post('/api/login', async (req, reply) => {
-  const { password } = (req.body ?? {}) as { password?: string }
-  if (!PASSWORD) return { ok: true }
-  // Rallenta i tentativi ripetuti.
-  await new Promise((r) => setTimeout(r, Math.min(5000, 300 * failedLogins)))
-  const a = Buffer.from(createHmac('sha256', SECRET).update(String(password ?? '')).digest())
-  const b = Buffer.from(createHmac('sha256', SECRET).update(PASSWORD).digest())
-  if (!timingSafeEqual(a, b)) {
-    failedLogins++
-    throw new HttpError(401, 'Password errata')
+  const { username, password } = (req.body ?? {}) as { username?: string; password?: string }
+  const key = String(username ?? '').trim().toLowerCase()
+  const f = failures.get(key)
+  if (f && Date.now() - f.at < 15 * 60000) await new Promise((r) => setTimeout(r, Math.min(5000, 400 * f.n)))
+  const user = await authenticate(String(username ?? ''), String(password ?? ''))
+  if (!user) {
+    failures.set(key, { n: (f?.n ?? 0) + 1, at: Date.now() })
+    if (failures.size > 1000) failures.clear()
+    throw new HttpError(401, 'Nome utente o password errati')
   }
-  failedLogins = 0
-  setSession(reply, req)
-  return { ok: true }
+  failures.delete(key)
+  setSession(reply, req, user)
+  return { ok: true, user: publicUser(user) }
 })
 
 app.post('/api/logout', async (_req, reply) => {
@@ -97,12 +117,15 @@ app.get('/api/health', async () => {
   return { ok: true }
 })
 
-app.get('/api/me', async (req) => ({ authRequired: !!PASSWORD, authenticated: isAuthed(req) }))
+app.get('/api/me', async (req) => {
+  const user = await sessionUser(req)
+  return { authenticated: !!user, user: user ? publicUser(user) : null, hasUsers: (await countUsers()) > 0 }
+})
 
 app.addHook('onRequest', async (req) => {
   const open = ['/api/login', '/api/logout', '/api/health', '/api/me']
   if (open.includes(req.url.split('?')[0])) return
-  if (!isAuthed(req)) throw new HttpError(401, 'Accesso richiesto')
+  if (!(await sessionUser(req))) throw new HttpError(401, 'Accesso richiesto')
 })
 
 // ---------- Validazione ----------
@@ -303,6 +326,7 @@ async function start() {
   for (let attempt = 1; ; attempt++) {
     try {
       await migrate()
+      await migrateUsers()
       break
     } catch (e) {
       if (attempt >= 30) throw e
@@ -310,8 +334,11 @@ async function start() {
       await new Promise((r) => setTimeout(r, 2000))
     }
   }
+  await loadSecret()
   await app.listen({ port: PORT, host: '0.0.0.0' })
-  console.log(`Backend in ascolto sulla porta ${PORT}${PASSWORD ? ' (accesso protetto da password)' : ''}`)
+  const n = await countUsers()
+  console.log(`Backend in ascolto sulla porta ${PORT} · utenti configurati: ${n}`)
+  if (n === 0) console.log('Nessun utente: creane uno con ./manage-users.sh create')
 }
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

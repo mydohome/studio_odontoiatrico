@@ -2,7 +2,7 @@ import { BarChart3, ClipboardPlus, Loader2, Megaphone, Settings } from 'lucide-r
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from './components/Toast.tsx'
 import { Tooth } from './components/Tooth.tsx'
-import { api, setUnauthorizedHandler } from './lib/api.ts'
+import { api, setUnauthorizedHandler, type SessionUser } from './lib/api.ts'
 import { useAppData } from './lib/useData.ts'
 import Campagne from './pages/Campagne.tsx'
 import Impostazioni from './pages/Impostazioni.tsx'
@@ -27,21 +27,21 @@ const tabFromHash = (): TabId => {
 }
 
 export default function App() {
-  const [auth, setAuth] = useState<{ required: boolean; ok: boolean } | null>(null)
+  const [auth, setAuth] = useState<{ user: SessionUser | null; hasUsers: boolean } | null>(null)
 
   useEffect(() => {
-    setUnauthorizedHandler(() => setAuth((a) => (a ? { ...a, ok: false } : a)))
+    setUnauthorizedHandler(() => setAuth((a) => (a ? { ...a, user: null } : a)))
     api
       .me()
-      .then((m) => setAuth({ required: m.authRequired, ok: m.authenticated }))
-      .catch(() => setAuth({ required: false, ok: true }))
+      .then((m) => setAuth({ user: m.user, hasUsers: m.hasUsers }))
+      .catch(() => setAuth({ user: null, hasUsers: true }))
   }, [])
 
   if (!auth) return <FullLoader />
-  if (!auth.ok) return <Login onLogin={() => setAuth({ ...auth, ok: true })} />
+  if (!auth.user) return <Login hasUsers={auth.hasUsers} onLogin={(user) => setAuth({ ...auth, user })} />
   return (
     <ToastProvider>
-      <Shell authRequired={auth.required} onLogout={() => setAuth({ ...auth, ok: false })} />
+      <Shell user={auth.user} onLogout={() => setAuth({ ...auth, user: null })} />
     </ToastProvider>
   )
 }
@@ -54,7 +54,7 @@ function FullLoader() {
   )
 }
 
-function Shell({ authRequired, onLogout }: { authRequired: boolean; onLogout: () => void }) {
+function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const [tab, setTab] = useState<TabId>(tabFromHash)
   const data = useAppData()
 
@@ -105,7 +105,7 @@ function Shell({ authRequired, onLogout }: { authRequired: boolean; onLogout: ()
               </Suspense>
             )}
             {tab === 'campagne' && <Campagne data={data} />}
-            {tab === 'impostazioni' && <Impostazioni data={data} authRequired={authRequired} onLogout={onLogout} />}
+            {tab === 'impostazioni' && <Impostazioni data={data} user={user} onLogout={onLogout} />}
           </>
         )}
       </main>

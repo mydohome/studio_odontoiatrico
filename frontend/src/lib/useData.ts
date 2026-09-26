@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { RecordRow, Service } from '../../../shared/types.ts'
-import { api } from './api.ts'
+import { api, type AppSettings } from './api.ts'
 
 /** Dati condivisi tra le schede: elenco prestazioni e registrazioni. */
 export function useAppData() {
   const [services, setServices] = useState<Service[]>([])
   const [records, setRecords] = useState<RecordRow[]>([])
-  const [studioName, setStudioName] = useState('Studio Odontoiatrico')
+  const [settings, setSettings] = useState<AppSettings>({ studioName: 'Studio Odontoiatrico', showPrices: true })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
@@ -16,7 +16,7 @@ export function useAppData() {
       const [s, r, st] = await Promise.all([api.services(), api.records(), api.settings()])
       setServices(s)
       setRecords(r)
-      setStudioName(st.studioName)
+      setSettings(st)
       setError(null)
       setVersion((v) => v + 1)
     } catch (e) {
@@ -30,7 +30,7 @@ export function useAppData() {
     reload()
   }, [reload])
 
-  return { services, records, studioName, setStudioName, loading, error, reload, version }
+  return { services, records, settings, setSettings, loading, error, reload, version }
 }
 
 export type AppDataState = ReturnType<typeof useAppData>

@@ -159,14 +159,34 @@ function slugify(s: string) {
 
 // ---------- Impostazioni ----------
 
-app.get('/api/settings', async () => ({ studioName: (await getSetting('studioName')) ?? 'Studio Odontoiatrico' }))
+interface Settings {
+  studioName: string
+  /** Mostra prezzi e fatturato stimato nelle viste e nei file Excel. */
+  showPrices: boolean
+}
 
+async function readSettings(): Promise<Settings> {
+  return {
+    studioName: (await getSetting('studioName')) ?? 'Studio Odontoiatrico',
+    showPrices: (await getSetting('showPrices')) !== 'false',
+  }
+}
+
+app.get('/api/settings', async () => readSettings())
+
+// Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const { studioName } = (req.body ?? {}) as { studioName?: string }
-  const name = String(studioName ?? '').trim().slice(0, 80)
-  if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
-  await setSetting('studioName', name)
-  return { studioName: name }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown }
+  if (body.studioName !== undefined) {
+    const name = String(body.studioName).trim().slice(0, 80)
+    if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
+    await setSetting('studioName', name)
+  }
+  if (body.showPrices !== undefined) {
+    if (typeof body.showPrices !== 'boolean') throw new HttpError(400, 'Valore di showPrices non valido')
+    await setSetting('showPrices', String(body.showPrices))
+  }
+  return readSettings()
 })
 
 // ---------- Prestazioni ----------
@@ -288,12 +308,14 @@ function sendXlsx(reply: FastifyReply, filename: string, buf: Buffer) {
 }
 
 app.get('/api/excel/template', async (_req, reply) => {
-  return sendXlsx(reply, 'template-prestazioni.xlsx', await buildTemplate(await listServices(), today()))
+  const { showPrices } = await readSettings()
+  return sendXlsx(reply, 'template-prestazioni.xlsx', await buildTemplate(await listServices(), today(), showPrices))
 })
 
 app.get('/api/excel/export', async (_req, reply) => {
   const [services, records] = await Promise.all([listServices(), listRecords()])
-  return sendXlsx(reply, `prestazioni-${today()}.xlsx`, await buildExport(services, records))
+  const { showPrices } = await readSettings()
+  return sendXlsx(reply, `prestazioni-${today()}.xlsx`, await buildExport(services, records, showPrices))
 })
 
 app.post('/api/excel/import', async (req): Promise<ImportResult> => {

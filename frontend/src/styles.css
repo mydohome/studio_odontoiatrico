@@ -224,6 +224,29 @@ main {
   gap: 16px;
 }
 
+.kpis.kpis-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.setting-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.setting-toggle label[for] {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.setting-toggle p {
+  margin: 2px 0 0;
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -986,7 +1009,8 @@ tbody tr:last-child td {
   .grid-2-even {
     grid-template-columns: minmax(0, 1fr);
   }
-  .kpis {
+  .kpis,
+  .kpis.kpis-3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

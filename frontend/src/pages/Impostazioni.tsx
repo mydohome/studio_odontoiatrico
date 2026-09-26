@@ -49,7 +49,22 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
 
 function StudioCard({ data }: { data: AppDataState }) {
   const notify = useToast()
-  const [name, setName] = useState(data.studioName)
+  const [name, setName] = useState(data.settings.studioName)
+  const [savingPrices, setSavingPrices] = useState(false)
+  const { showPrices } = data.settings
+
+  const togglePrices = async (value: boolean) => {
+    setSavingPrices(true)
+    try {
+      data.setSettings(await api.saveSettings({ showPrices: value }))
+      notify(value ? 'Prezzi visibili' : 'Prezzi nascosti')
+    } catch (err) {
+      notify((err as Error).message, 'error')
+    } finally {
+      setSavingPrices(false)
+    }
+  }
+
   return (
     <div className="card">
       <h2>Studio</h2>
@@ -59,8 +74,7 @@ function StudioCard({ data }: { data: AppDataState }) {
         onSubmit={async (e) => {
           e.preventDefault()
           try {
-            const r = await api.saveSettings(name)
-            data.setStudioName(r.studioName)
+            data.setSettings(await api.saveSettings({ studioName: name }))
             notify('Nome salvato')
           } catch (err) {
             notify((err as Error).message, 'error')
@@ -68,10 +82,28 @@ function StudioCard({ data }: { data: AppDataState }) {
         }}
       >
         <input className="input" style={{ flex: 1 }} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
-        <button className="btn btn-primary" disabled={!name.trim() || name === data.studioName}>
+        <button className="btn btn-primary" disabled={!name.trim() || name === data.settings.studioName}>
           <Save size={16} /> Salva
         </button>
       </form>
+      <div className="setting-toggle">
+        <div>
+          <label htmlFor="show-prices">Mostra prezzi</label>
+          <p className="small muted">
+            Prezzi medi e fatturato stimato nella dashboard, nell'elenco delle prestazioni e nei file Excel.
+          </p>
+        </div>
+        <label className="switch">
+          <input
+            id="show-prices"
+            type="checkbox"
+            checked={showPrices}
+            disabled={savingPrices}
+            onChange={(e) => togglePrices(e.target.checked)}
+          />
+          <span />
+        </label>
+      </div>
     </div>
   )
 }
@@ -245,6 +277,7 @@ function DataCard({ data }: { data: AppDataState }) {
 function ServicesCard({ data }: { data: AppDataState }) {
   const notify = useToast()
   const [draft, setDraft] = useState({ name: '', category: 'prevenzione' as CategoryId, price: '' })
+  const { showPrices } = data.settings
 
   const update = async (s: Service, patch: Partial<Service>) => {
     try {
@@ -271,7 +304,7 @@ function ServicesCard({ data }: { data: AppDataState }) {
       await api.createService({
         name: draft.name,
         category: draft.category,
-        price: draft.price === '' ? null : Number(draft.price),
+        price: !showPrices || draft.price === '' ? null : Number(draft.price),
         active: true,
       })
       setDraft({ ...draft, name: '', price: '' })
@@ -286,21 +319,22 @@ function ServicesCard({ data }: { data: AppDataState }) {
     <div className="card">
       <h2>Prestazioni</h2>
       <p className="sub">
-        Tipologie disponibili nella registrazione e nel template Excel. Il prezzo medio serve a stimare il fatturato.
+        Tipologie disponibili nella registrazione e nel template Excel.
+        {showPrices ? ' Il prezzo medio serve a stimare il fatturato.' : ' I prezzi sono nascosti: attiva "Mostra prezzi" per modificarli.'}
       </p>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Nome e categoria</th>
-              <th className="r">Prezzo €</th>
+              {showPrices && <th className="r">Prezzo €</th>}
               <th>Attiva</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {data.services.map((s) => (
-              <ServiceRow key={`${s.id}-${data.version}`} s={s} onUpdate={update} onRemove={remove} />
+              <ServiceRow key={`${s.id}-${data.version}`} s={s} showPrice={showPrices} onUpdate={update} onRemove={remove} />
             ))}
           </tbody>
         </table>
@@ -334,16 +368,18 @@ function ServicesCard({ data }: { data: AppDataState }) {
             </option>
           ))}
         </select>
-        <input
-          className="input"
-          style={{ width: 90 }}
-          type="number"
-          min={0}
-          placeholder="€"
-          value={draft.price}
-          onChange={(e) => setDraft({ ...draft, price: e.target.value })}
-          aria-label="Prezzo medio"
-        />
+        {showPrices && (
+          <input
+            className="input"
+            style={{ width: 90 }}
+            type="number"
+            min={0}
+            placeholder="€"
+            value={draft.price}
+            onChange={(e) => setDraft({ ...draft, price: e.target.value })}
+            aria-label="Prezzo medio"
+          />
+        )}
         <button className="btn btn-primary" disabled={!draft.name.trim()}>
           <Plus size={16} /> Aggiungi
         </button>
@@ -354,10 +390,12 @@ function ServicesCard({ data }: { data: AppDataState }) {
 
 function ServiceRow({
   s,
+  showPrice,
   onUpdate,
   onRemove,
 }: {
   s: Service
+  showPrice: boolean
   onUpdate: (s: Service, p: Partial<Service>) => void
   onRemove: (s: Service) => void
 }) {
@@ -399,19 +437,21 @@ function ServiceRow({
           ))}
         </select>
       </td>
-      <td className="r">
-        <input
-          className="input num"
-          style={{ width: 80, padding: '5px 8px', textAlign: 'right' }}
-          type="number"
-          min={0}
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          onBlur={commitPrice}
-          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          aria-label="Prezzo medio"
-        />
-      </td>
+      {showPrice && (
+        <td className="r">
+          <input
+            className="input num"
+            style={{ width: 80, padding: '5px 8px', textAlign: 'right' }}
+            type="number"
+            min={0}
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            onBlur={commitPrice}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            aria-label="Prezzo medio"
+          />
+        </td>
+      )}
       <td>
         <label className="switch" title={s.active ? 'Attiva' : 'Disattivata'}>
           <input type="checkbox" checked={s.active} onChange={(e) => onUpdate(s, { active: e.target.checked })} />

@@ -70,6 +70,7 @@ export default function Dashboard({ data, onGoRegistra }: { data: AppDataState; 
     () => trendSeries(records, services, periodsEndingAt(type, anchor, TREND_COUNT[type])),
     [records, services, type, anchor],
   )
+  const showPrices = data.settings.showPrices
   const hasPrices = services.some((s) => (s.price ?? 0) > 0)
   const isFuture = shiftAnchor(type, anchor, 1) > today()
 
@@ -129,7 +130,7 @@ export default function Dashboard({ data, onGoRegistra }: { data: AppDataState; 
         </div>
       </div>
 
-      <div className="kpis">
+      <div className={`kpis ${showPrices ? '' : 'kpis-3'}`}>
         <div className="card">
           <div className="kpi-label">
             <Activity size={15} /> Prestazioni totali
@@ -137,17 +138,19 @@ export default function Dashboard({ data, onGoRegistra }: { data: AppDataState; 
           <div className="kpi-value">{fmt(cur.total)}</div>
           <Delta value={delta(cur.total, prev.total)} label={PREV_LABEL[type]} />
         </div>
-        <div className="card">
-          <div className="kpi-label">
-            <Euro size={15} /> Fatturato stimato
+        {showPrices && (
+          <div className="card">
+            <div className="kpi-label">
+              <Euro size={15} /> Fatturato stimato
+            </div>
+            <div className="kpi-value">{hasPrices ? eur(cur.revenue) : '—'}</div>
+            {hasPrices ? (
+              <Delta value={delta(cur.revenue, prev.revenue)} label={PREV_LABEL[type]} />
+            ) : (
+              <span className="kpi-foot">imposta i prezzi in Impostazioni</span>
+            )}
           </div>
-          <div className="kpi-value">{hasPrices ? eur(cur.revenue) : '—'}</div>
-          {hasPrices ? (
-            <Delta value={delta(cur.revenue, prev.revenue)} label={PREV_LABEL[type]} />
-          ) : (
-            <span className="kpi-foot">imposta i prezzi in Impostazioni</span>
-          )}
-        </div>
+        )}
         <div className="card">
           <div className="kpi-label">
             <CalendarCheck size={15} /> {type === 'giorno' ? 'Categorie trattate' : 'Media per giorno lavorato'}

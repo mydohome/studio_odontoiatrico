@@ -1,0 +1,120 @@
+# Deploy dietro Nginx Proxy Manager (NPM) sulla rete Docker condivisa "proxy-net".
+#
+# Passi:
+# 1) Clona il repository nella cartella dei servizi:
+#      git clone https://github.com/mydohome/studio_odontoiatrico.git /home/ubuntu/docker/studio-odontoiatrico
+#      cd /home/ubuntu/docker/studio-odontoiatrico
+# 2) Genera il file .env:          ./setup.sh --npm
+#    (oppure a mano: cp .env.example .env e imposta almeno POSTGRES_PASSWORD e APP_PASSWORD)
+# 3) Avvia:                         docker compose -f docker-compose.npm.yml up -d --build
+# 4) In NPM (http://127.0.0.1:81 via tunnel SSH) crea un "Proxy Host":
+#      Domain:          il tuo dominio (es. studio.tuodominio.it)
+#      Scheme/Host/Port: http  /  studio-odontoiatrico-app  /  80
+#      SSL:             richiedi il certificato Let's Encrypt e attiva "Force SSL"
+#
+# Regole applicate:
+# - Solo "app" (Nginx con l'interfaccia) sta su proxy-net: e' l'unico raggiungibile da NPM.
+# - "api" e "db" stanno SOLO sulla rete interna "backend" (internal: true), senza accesso
+#   a Internet e invisibili agli altri servizi su proxy-net.
+# - Nessuna porta pubblicata sull'host: si entra solo passando da NPM.
+
+name: studio-odontoiatrico
+
+services:
+  # Interfaccia web + reverse proxy verso le API. E' il container a cui punta NPM.
+  app:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: studio-odontoiatrico-app:latest
+    container_name: studio-odontoiatrico-app
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - proxy-net
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Il processo principale di Nginx gira come root e poi passa all'utente "nginx":
+    # servono solo questi permessi (la porta 80 interna non richiede NET_BIND_SERVICE).
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    mem_limit: 64m
+    cpus: 0.5
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # API Node.js: raggiungibile solo da "app" attraverso la rete interna.
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: studio-odontoiatrico-api:latest
+    container_name: studio-odontoiatrico-api
+    restart: unless-stopped
+    # Solo le variabili che servono (evita di passare tutto il .env al container).
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-studio}:${POSTGRES_PASSWORD:?Imposta POSTGRES_PASSWORD nel file .env}@db:5432/${POSTGRES_DB:-studio}
+      APP_PASSWORD: ${APP_PASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      TZ: ${TZ:-Europe/Rome}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      backend:
+        aliases: [studio-api] # nome usato da Nginx per raggiungere le API
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 224m
+    cpus: 1.0
+    logging: *logging
+
+  db:
+    image: postgres:16-alpine
+    container_name: studio-odontoiatrico-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-studio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Imposta POSTGRES_PASSWORD nel file .env}
+      POSTGRES_DB: ${POSTGRES_DB:-studio}
+      TZ: ${TZ:-Europe/Rome}
+    # Parametri ridotti per consumare poca memoria
+    command: >
+      postgres
+      -c shared_buffers=32MB
+      -c effective_cache_size=96MB
+      -c work_mem=2MB
+      -c maintenance_work_mem=16MB
+      -c max_connections=20
+      -c wal_buffers=1MB
+    volumes:
+      - ./db/data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 1.0
+    logging: *logging
+
+networks:
+  proxy-net:
+    external: true
+  backend:
+    internal: true

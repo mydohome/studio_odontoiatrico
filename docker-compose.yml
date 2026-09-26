@@ -1,5 +1,6 @@
 # Stack leggero per istanze piccole (es. OCI Always Free, AMD 1 GB o Ampere ARM).
-# Avvio:  cp .env.example .env  &&  docker compose up -d --build
+# Avvio:  ./setup.sh   (oppure: cp .env.example .env  &&  docker compose up -d --build)
+# Per il deploy dietro Nginx Proxy Manager usa docker-compose.npm.yml.
 
 services:
   db:
@@ -44,6 +45,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      default:
+        aliases: [studio-api] # nome usato da Nginx per raggiungere le API
     mem_limit: 224m
     logging: *logging
 

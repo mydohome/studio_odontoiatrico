@@ -6,6 +6,7 @@
 #   ./setup.sh --yes      nessuna domanda: usa i valori predefiniti e genera tutte le password
 #   ./setup.sh --start    avvia docker compose al termine senza chiederlo
 #   ./setup.sh --force    sovrascrive un .env esistente senza chiederlo (ne salva una copia)
+#   ./setup.sh --npm      deploy dietro Nginx Proxy Manager (docker-compose.npm.yml, rete proxy-net)
 #
 # In modalità --yes i valori si possono passare come variabili d'ambiente:
 #   APP_PASSWORD=... HTTP_PORT=8080 TZ=Europe/Rome ./setup.sh --yes
@@ -20,13 +21,15 @@ ENV_FILE=.env
 ASSUME_YES=0
 FORCE=0
 START=0
+NPM=''
 for arg in "$@"; do
   case "$arg" in
     -y | --yes) ASSUME_YES=1 ;;
     -f | --force) FORCE=1 ;;
     -s | --start) START=1 ;;
+    --npm) NPM=1 ;;
     -h | --help)
-      sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -124,6 +127,19 @@ volume_name() {
   printf '%s_pgdata' "$project"
 }
 
+# Dice se il database è già stato inizializzato (e quindi ha già una password).
+db_exists() {
+  if [ "$NPM" = 1 ]; then
+    [ -d db/data ]
+  else
+    [ "$HAVE_DOCKER" -eq 1 ] && docker volume inspect "$(volume_name)" >/dev/null 2>&1
+  fi
+}
+
+db_location() {
+  if [ "$NPM" = 1 ]; then printf 'cartella db/data'; else printf 'volume %s' "$(volume_name)"; fi
+}
+
 # ---------- Controlli preliminari ----------
 
 printf '\n%s\n\n' "${B}Configurazione Studio Odontoiatrico${N}"
@@ -143,6 +159,28 @@ else
   warn "Il file .env verrà comunque creato."
 fi
 
+# Modalità di deploy: stack autonomo con porta pubblicata, oppure dietro Nginx Proxy Manager.
+HAVE_PROXY_NET=0
+if [ "$HAVE_DOCKER" -eq 1 ] && docker network inspect proxy-net >/dev/null 2>&1; then
+  HAVE_PROXY_NET=1
+fi
+if [ -z "$NPM" ]; then
+  NPM=0
+  if [ "$HAVE_PROXY_NET" -eq 1 ] && [ "$ASSUME_YES" -eq 0 ]; then
+    info "Ho trovato la rete Docker proxy-net: sul server sembra esserci Nginx Proxy Manager."
+    confirm "Vuoi pubblicare l'app dietro Nginx Proxy Manager (nessuna porta aperta sull'host)?" s && NPM=1
+    echo
+  fi
+fi
+if [ "$NPM" = 1 ]; then
+  COMPOSE="docker compose -f docker-compose.npm.yml"
+  info "Modalità: dietro Nginx Proxy Manager (docker-compose.npm.yml)."
+else
+  COMPOSE="docker compose"
+  info "Modalità: stack autonomo con porta HTTP pubblicata (docker-compose.yml)."
+fi
+echo
+
 # Valori esistenti da mantenere.
 KEEP_DB_PASSWORD=''
 KEEP_DB_USER=''
@@ -155,7 +193,7 @@ OLD_TZ=''
 if [ -f "$ENV_FILE" ]; then
   warn "Esiste già un file $ENV_FILE."
   if [ "$FORCE" -eq 0 ] && ! confirm "Vuoi ricrearlo? La password del database verrà mantenuta" n; then
-    info "Nessuna modifica. Per avviare l'app: docker compose up -d --build"
+    info "Nessuna modifica. Per avviare l'app: $COMPOSE up -d --build"
     exit 0
   fi
   KEEP_DB_PASSWORD=$(env_get POSTGRES_PASSWORD "$ENV_FILE")
@@ -168,16 +206,16 @@ if [ -f "$ENV_FILE" ]; then
   BACKUP="$ENV_FILE.bak-$(date +%Y%m%d-%H%M%S)"
   cp -p "$ENV_FILE" "$BACKUP"
   ok "Copia del file precedente salvata in $BACKUP"
-elif [ "$HAVE_DOCKER" -eq 1 ] && docker volume inspect "$(volume_name)" >/dev/null 2>&1; then
+elif db_exists; then
   # Il database esiste già ma il .env è andato perso: la password va reinserita,
   # perché PostgreSQL la imposta solo alla prima inizializzazione.
-  warn "Esiste già il volume del database ($(volume_name)) ma manca il file $ENV_FILE."
+  warn "Il database esiste già ($(db_location)) ma manca il file $ENV_FILE."
   if [ "$ASSUME_YES" -eq 1 ]; then
-    die "Serve la password del database esistente: esegui lo script in modo interattivo oppure elimina il volume con 'docker compose down -v' (cancella i dati)."
+    die "Serve la password del database esistente: esegui lo script in modo interattivo oppure elimina il database ($(db_location)) per ripartire da zero (cancella i dati)."
   fi
   read -r -s -p "Password del database esistente (invio = annulla): " KEEP_DB_PASSWORD </dev/tty
   echo
-  [ -n "$KEEP_DB_PASSWORD" ] || die "Annullato. Per ripartire da zero: docker compose down -v (cancella i dati)."
+  [ -n "$KEEP_DB_PASSWORD" ] || die "Annullato. Per ripartire da zero elimina il database ($(db_location)): cancella i dati."
 fi
 
 # ---------- Domande ----------
@@ -226,13 +264,15 @@ if [ -z "$APP_PW" ]; then
 fi
 valid_value "$APP_PW" || die "APP_PASSWORD non può contenere apici singoli."
 
-# Porta HTTP.
+# Porta HTTP (non serve dietro NPM: nessuna porta viene pubblicata).
 DEFAULT_PORT=${HTTP_PORT:-${OLD_PORT:-80}}
-if [ -z "$OLD_PORT" ] && [ -z "${HTTP_PORT:-}" ] && port_in_use 80; then
+if [ "$NPM" = 1 ]; then
+  PORT=$DEFAULT_PORT
+elif [ -z "$OLD_PORT" ] && [ -z "${HTTP_PORT:-}" ] && port_in_use 80; then
   warn "La porta 80 risulta già occupata sul server (es. da un altro web server o da Caddy)."
   DEFAULT_PORT=8080
 fi
-while :; do
+while [ "$NPM" != 1 ]; do
   PORT=$(ask "Porta HTTP su cui pubblicare l'app" "$DEFAULT_PORT")
   if [[ "$PORT" =~ ^[0-9]+$ ]] && [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ]; then
     break
@@ -296,7 +336,11 @@ URL="http://${HOST_IP:-<ip-del-server>}"
 
 echo
 echo "${B}Riepilogo${N}"
-echo "  Indirizzo:          $URL  (su OCI usa l'IP pubblico dell'istanza)"
+if [ "$NPM" = 1 ]; then
+  echo "  Indirizzo:          il dominio che configurerai in Nginx Proxy Manager"
+else
+  echo "  Indirizzo:          $URL  (su OCI usa l'IP pubblico dell'istanza)"
+fi
 if [ "$APP_PW_GENERATED" -eq 1 ]; then
   echo "  Password dell'app:  ${B}$APP_PW${N}  ${Y}← generata ora, salvala in un posto sicuro${N}"
 else
@@ -307,22 +351,49 @@ if [ -n "$KEEP_DB_PASSWORD" ]; then
 else
   echo "  Password database:  generata e salvata in $ENV_FILE"
 fi
-echo "  Porta / fuso:       $PORT / $TIMEZONE"
+if [ "$NPM" = 1 ]; then
+  echo "  Fuso orario:        $TIMEZONE"
+else
+  echo "  Porta / fuso:       $PORT / $TIMEZONE"
+fi
 echo
 echo "  Per rivedere le password:  grep PASSWORD $ENV_FILE"
-echo "  Su OCI apri la porta $PORT nella Security List e con iptables (vedi README)."
+if [ "$NPM" = 1 ]; then
+  echo
+  echo "  ${B}In Nginx Proxy Manager${N} crea un Proxy Host con:"
+  echo "    Scheme: http   Forward Hostname: studio-odontoiatrico-app   Forward Port: 80"
+  echo "    Scheda SSL: richiedi il certificato Let's Encrypt e attiva Force SSL."
+else
+  echo "  Su OCI apri la porta $PORT nella Security List e con iptables (vedi README)."
+fi
 echo
 
 # ---------- Avvio ----------
 
-if [ "$HAVE_DOCKER" -eq 1 ]; then
-  if [ "$START" -eq 1 ] || { [ "$ASSUME_YES" -eq 0 ] && confirm "Avviare ora l'app con docker compose (la prima build richiede qualche minuto)?" s; }; then
-    docker compose up -d --build
-    echo
-    ok "App avviata: $URL"
+CAN_START=$HAVE_DOCKER
+if [ "$HAVE_DOCKER" -eq 1 ] && [ "$NPM" = 1 ] && [ "$HAVE_PROXY_NET" -eq 0 ]; then
+  warn "La rete Docker proxy-net non esiste: di solito la crea lo stack di Nginx Proxy Manager."
+  if [ "$ASSUME_YES" -eq 0 ] && confirm "Crearla ora? (poi collega anche il container di NPM a proxy-net)" n; then
+    docker network create proxy-net >/dev/null
+    ok "Rete proxy-net creata."
   else
-    info "Per avviare l'app: docker compose up -d --build"
+    info "Creala con 'docker network create proxy-net' (o avvia prima NPM), poi: $COMPOSE up -d --build"
+    CAN_START=0
   fi
-else
-  info "Quando Docker è disponibile avvia l'app con: docker compose up -d --build"
+fi
+
+if [ "$CAN_START" -eq 1 ]; then
+  if [ "$START" -eq 1 ] || { [ "$ASSUME_YES" -eq 0 ] && confirm "Avviare ora l'app con docker compose (la prima build richiede qualche minuto)?" s; }; then
+    $COMPOSE up -d --build
+    echo
+    if [ "$NPM" = 1 ]; then
+      ok "App avviata: ora configura il Proxy Host in Nginx Proxy Manager."
+    else
+      ok "App avviata: $URL"
+    fi
+  else
+    info "Per avviare l'app: $COMPOSE up -d --build"
+  fi
+elif [ "$HAVE_DOCKER" -eq 0 ]; then
+  info "Quando Docker è disponibile avvia l'app con: $COMPOSE up -d --build"
 fi

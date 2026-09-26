@@ -40,7 +40,7 @@ git clone <questo repository> studio && cd studio
 - propone di avviare subito lo stack con `docker compose up -d --build`.
 
 Opzioni: `--yes` (nessuna domanda, valori predefiniti e password generate), `--start` (avvia senza chiedere),
-`--force` (ricrea un `.env` esistente senza chiedere). In modalità `--yes` si possono passare i valori come variabili:
+`--force` (ricrea un `.env` esistente senza chiedere), `--npm` (deploy dietro Nginx Proxy Manager, vedi sotto). In modalità `--yes` si possono passare i valori come variabili:
 `APP_PASSWORD=... HTTP_PORT=8080 ./setup.sh --yes --start`.
 
 Se rilanci lo script con un `.env` già presente, il vecchio file viene salvato come `.env.bak-<data>` e la password
@@ -83,6 +83,41 @@ poi cancellali con **Elimina tutti i dati** prima di iniziare a usarla davvero.
    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
    ```
 6. Esegui l'**Avvio rapido** qui sopra (`./setup.sh`).
+
+## Deploy dietro Nginx Proxy Manager
+
+Se sul server gira già [Nginx Proxy Manager](https://nginxproxymanager.com) (NPM) con la rete Docker condivisa
+`proxy-net`, usa `docker-compose.npm.yml` al posto di quello principale.
+
+```bash
+git clone https://github.com/mydohome/studio_odontoiatrico.git /home/ubuntu/docker/studio-odontoiatrico
+cd /home/ubuntu/docker/studio-odontoiatrico
+./setup.sh --npm        # genera il .env; se trova proxy-net lo propone anche senza --npm
+docker compose -f docker-compose.npm.yml up -d --build
+```
+
+Poi in NPM (`http://127.0.0.1:81` tramite tunnel SSH) crea un **Proxy Host**:
+
+| Campo | Valore |
+|---|---|
+| Domain Names | il tuo dominio, es. `studio.tuodominio.it` |
+| Scheme / Forward Hostname / Forward Port | `http` / `studio-odontoiatrico-app` / `80` |
+| SSL | richiedi il certificato Let's Encrypt e attiva *Force SSL* |
+
+Com'è organizzato:
+
+| Container | Reti | Note |
+|---|---|---|
+| `studio-odontoiatrico-app` (Nginx + interfaccia) | `proxy-net`, `backend` | l'unico raggiungibile da NPM; `cap_drop: ALL` con solo `CHOWN`/`SETUID`/`SETGID`, necessari a Nginx |
+| `studio-odontoiatrico-api` (Node) | `backend` | utente non root, `cap_drop: ALL`, nessun accesso a Internet |
+| `studio-odontoiatrico-db` (PostgreSQL) | `backend` | dati in `./db/data` (escluso da git) |
+
+- La rete `backend` è interna (`internal: true`): API e database non sono visibili dagli altri servizi su `proxy-net` e non escono su Internet.
+- Nessuna porta è pubblicata sull'host: si entra solo passando da NPM. Su OCI basta aprire le porte 80/443 di NPM.
+- Dietro HTTPS il cookie di sessione viene marcato `Secure` in automatico, grazie all'header `X-Forwarded-Proto` inviato da NPM.
+
+Backup e aggiornamenti funzionano come descritto sotto, aggiungendo `-f docker-compose.npm.yml` ai comandi
+(es. `docker compose -f docker-compose.npm.yml exec -T db pg_dump -U studio studio | gzip > backup.sql.gz`).
 
 ### HTTPS (consigliato)
 

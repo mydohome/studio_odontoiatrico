@@ -2,7 +2,7 @@
 # Configurazione iniziale del server:
 #   - sceglie il tipo di deploy e crea docker-compose.yml dal template corrispondente
 #   - genera il file .env con le password necessarie
-#   - avvia l'app e crea il primo utente
+#   - avvia l'app, crea il primo utente e attiva il backup giornaliero del database
 #
 #   ./setup.sh                  modalità interattiva (consigliata)
 #   ./setup.sh --mode npm       Nginx Proxy Manager sullo stesso host (rete Docker proxy-net)
@@ -14,6 +14,7 @@
 #
 # Con --yes i valori si possono passare come variabili d'ambiente:
 #   FIRST_USER=mario FIRST_EMAIL=mario@studio.it FIRST_PASSWORD=... HTTP_PORT=8080 TZ=Europe/Rome INSTANCE=studio-rossi
+#   BACKUP=no (non attiva il backup giornaliero)
 
 set -euo pipefail
 
@@ -48,7 +49,7 @@ while [ $# -gt 0 ]; do
     --instance=*) ARG_INSTANCE=${1#--instance=} ;;
     --network) MODE=network ;;
     -h | --help)
-      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -522,6 +523,24 @@ if [ "$CAN_START" -eq 1 ]; then
   fi
 fi
 
+# ---------- 6. Backup ----------
+
+# Backup giornaliero incrementale (backup.sh) con rotazione su 15 giorni; si ripristina con recovery.sh.
+BACKUP_STATUS='non attivo (./backup.sh --install-cron)'
+if [ "$STARTED" -eq 1 ] && command -v crontab >/dev/null 2>&1; then
+  title "6. Backup automatico"
+  if crontab -l 2>/dev/null | grep -qF "# studio-odontoiatrico backup.sh $PWD"; then
+    ok "Il backup giornaliero è già attivo."
+    BACKUP_STATUS='giornaliero, già attivo'
+  elif [ "${BACKUP:-yes}" != no ] && confirm "Attivare il backup giornaliero del database (ogni notte alle 02:30, conservati 15 giorni)?" s; then
+    if ./backup.sh --install-cron 02:30 && ./backup.sh; then
+      BACKUP_STATUS='ogni giorno alle 02:30, ultimi 15 giorni in backups/daily'
+    else
+      warn "Backup automatico non attivato: riprova con ./backup.sh --install-cron"
+    fi
+  fi
+fi
+
 # ---------- Riepilogo ----------
 
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}') || true
@@ -549,6 +568,7 @@ if [ "$CREATE_USER" -eq 1 ]; then
   fi
 fi
 echo "  Fuso orario:    $TIMEZONE"
+echo "  Backup:         $BACKUP_STATUS"
 echo
 if [ "$MODE" = npm ]; then
   echo "  ${B}In Nginx Proxy Manager${N} crea un Proxy Host con:"
@@ -562,6 +582,7 @@ else
 fi
 echo
 echo "  Gestione utenti:  ./manage-users.sh"
+echo "  Ripristino:       ./recovery.sh (sceglie da un elenco dei backup disponibili)"
 if [ "$STARTED" -eq 1 ]; then
   echo "  Log dell'app:     docker compose logs -f"
 else

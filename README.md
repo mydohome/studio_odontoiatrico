@@ -126,7 +126,7 @@ In **Impostazioni → Studio → Logo** scegli il logo che compare sui volantini
 
 - tre loghi pronti, che si colorano in automatico con la combinazione di colori del volantino: **Famiglia di dentini**
   (papà, mamma e due figli), **Dente sorridente**, **Dente con cuore**, **Dente stilizzato** (contorno pulito con
-  sorriso nel colore d'accento, pensato per il modello Tech);
+  sorriso nel colore d'accento, pensato per il modello Mint);
 - **Carica logo**: PNG, JPG, WebP o SVG fino a 1 MB (meglio un PNG con sfondo trasparente, alto almeno 300 px). Il logo
   caricato compare anche nell'intestazione dell'app e si può sostituire o eliminare (si torna alla famiglia di dentini).
   Gli SVG con script, contenuti incorporati o collegamenti esterni vengono rifiutati.
@@ -140,6 +140,9 @@ Oltre alle proposte dell'algoritmo puoi creare le tue campagne dalla scheda **Ca
 - **Nuova campagna** (o *Crea per &lt;mese&gt;*): titolo, categoria, periodo dal/al (anche su più mesi), offerta, a chi è
   rivolta, canali (scelta rapida o canali liberi) e note interne che non compaiono sul volantino;
 - **Personalizza** su una proposta dell'algoritmo la copia tra le tue campagne, già compilata, per modificarla;
+- **Duplica** su una tua campagna ne crea una nuova uguale (titolo "… (copia)"), da adattare nel modulo che si apre:
+  di solito si cambia il periodo per ripetere la stessa promozione. Viene copiato anche il volantino già preparato,
+  con date e mese aggiornati al nuovo periodo (lo stesso succede modificando le date di una campagna);
 - le tue campagne compaiono in cima a ogni mese che toccano, con *Modifica*, *Elimina* e *Genera volantino*; nella
   striscia dei mesi un contatore indica quante ce ne sono;
 - il volantino di una campagna personalizzata usa il suo periodo e il suo titolo, e i testi modificati nell'editor si
@@ -165,24 +168,24 @@ l'anteprima direttamente nella chat. Con la freccetta accanto si sceglie **PNG**
 oppure **PDF** (pagina A4 pronta da stampare, ~300 dpi; su WhatsApp arriva come documento, senza anteprima grande).
 L'ultimo formato scelto viene ricordato. Su smartphone **Condividi** invia sempre il JPG, quindi come foto.
 
-### Modelli: Smile e Tech
+### Modelli: Smile e Mint
 
 In **Impostazioni → Studio → Modello dei volantini** si sceglie la grafica usata da tutti i volantini dello studio:
 
 - **Smile** (predefinito): colorato e allegro, con pennellate, scritte a mano e 5 combinazioni di colori che cambiano
   in base alla categoria della campagna;
-- **Tech**: pulito e tecnologico, con riquadro sfumato, schede per le voci dell'offerta, disco del prezzo e caratteri
+- **Mint**: pulito e tecnologico, con riquadro sfumato, schede per le voci dell'offerta, disco del prezzo e caratteri
   moderni. Il nome dello studio diventa un logotipo in due colori (es. **Dental**Capri *srl*: si divide al primo
   spazio o alla maiuscola interna, e la forma giuridica va in piccolo). Tre combinazioni: *Blu e acquamarina*
-  (predefinita), *Notte* (sfondo scuro) e *Menta*. Scegliendo Tech il logo diventa il **Dente stilizzato**, se non
+  (predefinita), *Notte* (sfondo scuro) e *Verde acqua*. Scegliendo Mint il logo diventa il **Dente stilizzato**, se non
   hai caricato il tuo.
 
-Con un logo caricato che contiene già il nome dello studio, nel modello Tech puoi svuotare il campo *Nome dello studio*
+Con un logo caricato che contiene già il nome dello studio, nel modello Mint puoi svuotare il campo *Nome dello studio*
 nell'editor per mostrare solo il logo. I testi salvati con una campagna restano validi cambiando modello; i colori
 tornano quelli predefiniti del nuovo modello.
 
 I font (Lobster per i titoli corsivi, Kalam per le scritte a pennarello, Fredoka per banner e contatti, Nunito per il
-modello Tech) sono inclusi nell'app, quindi funziona anche senza accesso a Google Fonts.
+modello Mint) sono inclusi nell'app, quindi funziona anche senza accesso a Google Fonts.
 
 La versione precedente all'introduzione dei volantini è marcata con il tag `v1-prima-dei-volantini`. Per tornarci
 temporaneamente sul server: `git checkout v1-prima-dei-volantini && ./update.sh --rebuild` (poi `git checkout main` per
@@ -310,13 +313,56 @@ eseguire `git fetch` senza password (chiave SSH di deploy o token salvato).
 
 ## Backup
 
-```bash
-# Backup manuale del database
-docker compose exec -T db pg_dump -U studio studio | gzip > backup-$(date +%F).sql.gz
+### Backup giornaliero
 
-# Ripristino (anche dei backup creati da update.sh)
-gunzip -c backups/pre-update-AAAAMMGG-HHMMSS-xxxxxxx.sql.gz | docker compose exec -T db psql -U studio studio
+`setup.sh` propone di attivarlo alla fine dell'installazione; in alternativa:
+
+```bash
+./backup.sh --install-cron          # ogni notte alle 02:30 (oppure: --install-cron 03:15)
+./backup.sh                         # backup immediato
+./backup.sh --list                  # elenco
+./backup.sh --remove-cron           # disattiva il backup automatico
 ```
+
+- Ogni backup è una cartella in `backups/daily/AAAA-MM-GG_hhmmss` con un file per tabella, verificato subito dopo la
+  creazione.
+- È **incrementale**: le tabelle che non sono cambiate dal backup precedente non vengono copiate di nuovo ma collegate
+  (hard link), quindi occupano spazio una volta sola. Ogni cartella resta comunque completa e ripristinabile da sola.
+  Dopo un ripristino o un aggiornamento che cambia le tabelle, il primo backup è di nuovo una copia completa.
+- Si conservano gli **ultimi 15 giorni**: ogni notte i backup più vecchi vengono cancellati (mai l'ultimo rimasto).
+  Per cambiare la durata imposta `BACKUP_KEEP_DAYS=30` nel file `.env`.
+- Il database comprende tutto: registrazioni, campagne e volantini salvati, utenti, impostazioni e logo caricato.
+- Il log si trova in `backup.log`. Con più studi sullo stesso server il backup va attivato in ogni cartella.
+
+I backup restano sullo stesso server: per proteggerti anche da un guasto del disco copiali altrove, per esempio con
+`rsync -aH backups/ utente@altro-server:backup-studio/` (`-H` mantiene i collegamenti, quindi anche lo spazio ridotto).
+
+### Ripristino
+
+```bash
+./recovery.sh
+```
+
+Mostra i backup disponibili dal più recente e chiede quale ripristinare:
+
+```
+  N.  Data                           Tipo                                 Dimensione
+  1   27/09/2026 02:30  oggi         giornaliero                          60K
+  2   26/09/2026 02:30  ieri         giornaliero                          60K
+  3   20/09/2026 04:30  7 giorni fa  prima dell'aggiornamento (a1b2c3d)   24K
+```
+
+Sono elencati i backup giornalieri, quelli fatti da `update.sh` prima di ogni aggiornamento e le copie "prima di un
+ripristino". Dopo la scelta chiede di scrivere `RIPRISTINA` per conferma, poi:
+
+1. salva una **copia di sicurezza** dello stato attuale (`backups/pre-restore`, ultime 5), così il ripristino si può
+   annullare rilanciando `./recovery.sh`;
+2. ferma le API, ripristina il database **in un'unica transazione** (se qualcosa va storto il database resta com'era)
+   e riavvia l'app;
+3. mostra quante registrazioni contiene il database ripristinato.
+
+Altre opzioni: `--list` (solo elenco), `--latest` (il più recente), `--file PERCORSO` (una cartella di backup o un file
+`.sql.gz`, anche copiati da un altro server), `--yes` (senza domande, con `--latest` o `--file`).
 
 In alternativa, *Esporta tutto in Excel* produce un file reimportabile con tutte le registrazioni.
 

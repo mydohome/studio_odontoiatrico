@@ -1,9 +1,9 @@
 import { forwardRef, type CSSProperties } from 'react'
 import { fit, FitBox, FitLine, splitAddress } from './fit.tsx'
 import { FLYER_HEIGHT, FLYER_WIDTH } from './Flyer.tsx'
-import { formatPeriod, TECH_THEME_BY_ID, type FlyerData, type TechThemeId } from './flyerModel.ts'
+import { formatPeriod, MINT_THEME_BY_ID, type FlyerData, type MintThemeId } from './flyerModel.ts'
 import { LineToothLogo, MapPin, OfferIcon, StudioLogo, WhatsApp } from './shapes.tsx'
-import './flyer-tech.css'
+import './flyer-mint.css'
 
 // Forme giuridiche mostrate in piccolo dopo il nome (es. "DentalCapri srl").
 const LEGAL_SUFFIX = /^(.*?)[\s,]+(s\.?r\.?l\.?s?|s\.?n\.?c\.?|s\.?a\.?s\.?|s\.?p\.?a\.?|s\.?t\.?p\.?)$/i
@@ -38,7 +38,7 @@ function Dots({ cols, rows, gap, color, r = 3.2, style }: { cols: number; rows: 
   )
 }
 
-/** Calendario a linea, nello stile delle altre icone Tech. */
+/** Calendario a linea, nello stile delle altre icone Mint. */
 function CalendarLine({ color, size }: { color: string; size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -49,8 +49,8 @@ function CalendarLine({ color, size }: { color: string; size: number }) {
   )
 }
 
-const FlyerTech = forwardRef<HTMLDivElement, { data: FlyerData; logoSrc?: string | null }>(function FlyerTech({ data, logoSrc }, ref) {
-  const t = TECH_THEME_BY_ID[data.theme as TechThemeId] ?? TECH_THEME_BY_ID.capri
+const FlyerMint = forwardRef<HTMLDivElement, { data: FlyerData; logoSrc?: string | null }>(function FlyerMint({ data, logoSrc }, ref) {
+  const t = MINT_THEME_BY_ID[data.theme as MintThemeId] ?? MINT_THEME_BY_ID.capri
   const vars = {
     '--t-bg': t.bg,
     '--t-surface': t.surface,
@@ -71,7 +71,7 @@ const FlyerTech = forwardRef<HTMLDivElement, { data: FlyerData; logoSrc?: string
   const tags = data.tags.map((s) => s.trim()).filter(Boolean).slice(0, 3)
 
   return (
-    <div ref={ref} className="flyer-tech" style={{ ...vars, width: FLYER_WIDTH, height: FLYER_HEIGHT }}>
+    <div ref={ref} className="flyer-mint" style={{ ...vars, width: FLYER_WIDTH, height: FLYER_HEIGHT }}>
       {/* Decorazioni di sfondo */}
       <Dots cols={7} rows={4} gap={22} color={t.accent} style={{ right: 34, top: 34, opacity: 0.45 }} />
       <div className="t-abs t-ring" style={{ right: -150, top: 120, width: 340, height: 340 }} />
@@ -211,4 +211,4 @@ const FlyerTech = forwardRef<HTMLDivElement, { data: FlyerData; logoSrc?: string
   )
 })
 
-export default FlyerTech
+export default FlyerMint

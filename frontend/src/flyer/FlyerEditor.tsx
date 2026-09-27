@@ -7,7 +7,7 @@ import { useToast } from '../components/Toast.tsx'
 import { api, type AppSettings } from '../lib/api.ts'
 import { useCustomLogo } from '../lib/logo.ts'
 import Flyer, { FLYER_HEIGHT, FLYER_WIDTH } from './Flyer.tsx'
-import FlyerTech from './FlyerTech.tsx'
+import FlyerMint from './FlyerMint.tsx'
 import { LOGO_OPTIONS } from './shapes.tsx'
 import { buildFlyer, FLYER_STYLES, flyerBackground, ICON_LABELS, mergeFlyer, themeSwatches, type FlyerData, type IconId } from './flyerModel.ts'
 
@@ -55,7 +55,7 @@ const slug = (s: string) =>
 export default function FlyerEditor({ campaign, month, settings, onSettingsChange, onClose, period, saved, onSave }: Props) {
   const notify = useToast()
   const style = settings.flyerStyle ?? 'smile'
-  const FlyerView = style === 'tech' ? FlyerTech : Flyer
+  const FlyerView = style === 'mint' ? FlyerMint : Flyer
   // Testi proposti automaticamente (usati anche da "Ripristina testi proposti").
   const initial = useMemo(
     () =>
@@ -391,7 +391,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
             <fieldset>
               <legend>Altri testi</legend>
               <label>
-                {style === 'tech' ? 'Nome dello studio (in due colori, es. DentalCapri srl; vuoto se il logo caricato contiene già il nome)' : 'Nome dello studio'}
+                {style === 'mint' ? 'Nome dello studio (in due colori, es. DentalCapri srl; vuoto se il logo caricato contiene già il nome)' : 'Nome dello studio'}
                 <input className="input" value={data.studioName} onChange={(e) => set('studioName', e.target.value)} maxLength={30} />
               </label>
               <label>
@@ -414,7 +414,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
                 <input className="input" value={data.doctor} onChange={(e) => set('doctor', e.target.value)} maxLength={60} placeholder="es. Dott.ssa Maria Rossi" />
               </label>
               <label>
-                {style === 'tech' ? 'Frase sotto il nome dello studio' : 'Frase in alto a destra'}
+                {style === 'mint' ? 'Frase sotto il nome dello studio' : 'Frase in alto a destra'}
                 <input className="input" value={data.topQuote} onChange={(e) => set('topQuote', e.target.value)} maxLength={60} />
               </label>
               <label>

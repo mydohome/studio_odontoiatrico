@@ -6,7 +6,7 @@ import { useToast } from '../components/Toast.tsx'
 import { api, EXPORT_URL, TEMPLATE_URL, type SessionUser } from '../lib/api.ts'
 import type { AppDataState } from '../lib/useData.ts'
 import { useCustomLogo } from '../lib/logo.ts'
-import { FLYER_STYLES, TECH_THEME_BY_ID, THEME_BY_ID, type FlyerStyle } from '../flyer/flyerModel.ts'
+import { FLYER_STYLES, MINT_THEME_BY_ID, THEME_BY_ID, type FlyerStyle } from '../flyer/flyerModel.ts'
 import { LOGO_OPTIONS, StudioLogo, type LogoType } from '../flyer/shapes.tsx'
 
 interface Props {
@@ -168,25 +168,25 @@ function StudioCard({ data }: { data: AppDataState }) {
   )
 }
 
-// Colori per le anteprime dei loghi pronti: tema rosa per Smile, blu e acquamarina per Tech.
+// Colori per le anteprime dei loghi pronti: tema rosa per Smile, blu e acquamarina per Mint.
 const PREVIEW = THEME_BY_ID.rosa
-const TECH = TECH_THEME_BY_ID.capri
+const MINT = MINT_THEME_BY_ID.capri
 const PREVIEWS = {
   smile: { bg: PREVIEW.bg, colors: { face: PREVIEW.heading, outline: PREVIEW.bg2, accent: PREVIEW.accent, accent2: PREVIEW.heading, bow: PREVIEW.light } },
-  tech: {
-    bg: TECH.surface,
-    colors: { face: TECH.primary, outline: TECH.primary, accent: TECH.accent, accent2: TECH.primary, bow: TECH.accent, line: TECH.primary, lineSmile: TECH.accent },
+  mint: {
+    bg: MINT.surface,
+    colors: { face: MINT.primary, outline: MINT.primary, accent: MINT.accent, accent2: MINT.primary, bow: MINT.accent, line: MINT.primary, lineSmile: MINT.accent },
   },
 }
 
 /** Miniatura schematica di un modello di volantino. */
 function StyleThumb({ style }: { style: FlyerStyle }) {
-  return style === 'tech' ? (
-    <span className="style-thumb style-thumb-tech" aria-hidden="true">
-      <i className="st-head" style={{ background: `linear-gradient(90deg, ${TECH.primary} 55%, ${TECH.accent} 55%)` }} />
-      <i className="st-hero" style={{ background: `linear-gradient(128deg, ${TECH.primary}, ${TECH.accent})` }} />
+  return style === 'mint' ? (
+    <span className="style-thumb style-thumb-mint" aria-hidden="true">
+      <i className="st-head" style={{ background: `linear-gradient(90deg, ${MINT.primary} 55%, ${MINT.accent} 55%)` }} />
+      <i className="st-hero" style={{ background: `linear-gradient(128deg, ${MINT.primary}, ${MINT.accent})` }} />
       <i className="st-cards" />
-      <i className="st-pill" style={{ background: TECH.primary }} />
+      <i className="st-pill" style={{ background: MINT.primary }} />
     </span>
   ) : (
     <span className="style-thumb style-thumb-smile" aria-hidden="true" style={{ background: PREVIEW.bg }}>
@@ -208,9 +208,9 @@ function StylePicker({ data }: { data: AppDataState }) {
     if (style === current) return
     setBusy(true)
     try {
-      // Passando a Tech, un logo pronto di Smile diventa il "Dente stilizzato" (il logo caricato resta).
+      // Passando a Mint, un logo pronto di Smile diventa il "Dente stilizzato" (il logo caricato resta).
       const { logoType } = data.settings
-      const switchLogo = style === 'tech' && logoType !== 'custom' && logoType !== 'linea'
+      const switchLogo = style === 'mint' && logoType !== 'custom' && logoType !== 'linea'
       data.setSettings(await api.saveSettings(switchLogo ? { flyerStyle: style, logoType: 'linea' } : { flyerStyle: style }))
       notify(`Modello dei volantini: ${FLYER_STYLES.find((f) => f.id === style)?.label}${switchLogo ? ' (logo: Dente stilizzato)' : ''}`)
     } catch (e) {

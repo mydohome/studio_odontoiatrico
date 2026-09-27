@@ -21,8 +21,8 @@ export interface AppSettings {
   logoType: 'famiglia' | 'dente' | 'cuore' | 'linea' | 'custom'
   /** Versione del logo caricato, 0 se non c'è. */
   logoVersion: number
-  /** Modello grafico dei volantini: "Smile" (colorato) o "Tech" (pulito, tecnologico). */
-  flyerStyle: 'smile' | 'tech'
+  /** Modello grafico dei volantini: "Smile" (colorato) o "Mint" (pulito, tecnologico). */
+  flyerStyle: 'smile' | 'mint'
 }
 
 export interface SessionUser {

@@ -11,8 +11,10 @@ dist
 /docker-compose.yml
 *.bak-*
 
-# generati da update.sh
+# generati da update.sh e backup.sh
 /backups/
 update.log
 .update.lock
 .update-failed
+backup.log
+.backup.lock

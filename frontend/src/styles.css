@@ -1341,11 +1341,11 @@ tbody tr:last-child td {
   display: block;
 }
 
-.style-thumb-tech {
+.style-thumb-mint {
   background: #fff;
 }
 
-.style-thumb-tech .st-head {
+.style-thumb-mint .st-head {
   left: 6px;
   top: 6px;
   width: 30px;
@@ -1353,7 +1353,7 @@ tbody tr:last-child td {
   border-radius: 3px;
 }
 
-.style-thumb-tech .st-hero {
+.style-thumb-mint .st-hero {
   left: 5px;
   right: 5px;
   top: 16px;
@@ -1361,7 +1361,7 @@ tbody tr:last-child td {
   border-radius: 6px;
 }
 
-.style-thumb-tech .st-cards {
+.style-thumb-mint .st-cards {
   left: 5px;
   right: 5px;
   top: 47px;
@@ -1369,7 +1369,7 @@ tbody tr:last-child td {
   background: linear-gradient(90deg, #e4edf8 30%, transparent 30% 35%, #e4edf8 35% 65%, transparent 65% 70%, #e4edf8 70%);
 }
 
-.style-thumb-tech .st-pill {
+.style-thumb-mint .st-pill {
   left: 5px;
   width: 26px;
   bottom: 7px;

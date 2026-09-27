@@ -1,78 +1,11 @@
 import { forwardRef, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
-import { formatPeriod, THEME_BY_ID, type FlyerData } from './flyerModel.ts'
+import { fit, FitLine, splitAddress } from './fit.tsx'
+import { formatPeriod, THEME_BY_ID, type FlyerData, type ThemeId } from './flyerModel.ts'
 import { Brush, CalendarIcon, Heart, MapPin, OfferIcon, Splash, StudioLogo, Swoosh, WhatsApp } from './shapes.tsx'
 import './flyer.css'
 
 export const FLYER_WIDTH = 800
 export const FLYER_HEIGHT = 1200
-
-/** Riduce la dimensione del carattere quando il testo è lungo, per restare nello spazio disponibile. */
-function fit(text: string, base: number, maxChars: number, min = base * 0.45) {
-  const len = Math.max(1, text.length)
-  return Math.max(min, Math.min(base, (base * maxChars) / len))
-}
-
-/** Divide l'indirizzo su due righe (via / città) alla prima virgola, se serve. */
-function splitAddress(address: string): string[] {
-  const a = address.trim()
-  if (!a) return []
-  const i = a.indexOf(',')
-  if (a.length <= 26 || i < 0) return [a]
-  return [a.slice(0, i).trim(), a.slice(i + 1).trim()]
-}
-
-/**
- * Testo su una riga che si rimpicciolisce finché non entra nello spazio disponibile.
- * `size` è la dimensione di partenza (stima), `min` il limite inferiore. La misura viene
- * ripetuta quando i font sono caricati, così l'esportazione in PNG usa già la dimensione finale.
- */
-function FitLine({
-  text,
-  size,
-  min = Math.round(size * 0.5),
-  block = false,
-  className,
-}: {
-  text: string
-  size: number
-  min?: number
-  block?: boolean
-  className?: string
-}) {
-  const ref = useRef<HTMLElement | null>(null)
-  const [fontSize, setFontSize] = useState(size)
-
-  useLayoutEffect(() => {
-    let alive = true
-    const measure = () => {
-      const el = ref.current
-      if (!alive || !el) return
-      let s = size
-      el.style.fontSize = `${s}px`
-      while (el.scrollWidth > el.clientWidth + 1 && s > min) {
-        s -= 1
-        el.style.fontSize = `${s}px`
-      }
-      setFontSize(s)
-    }
-    measure()
-    document.fonts?.ready.then(measure)
-    return () => {
-      alive = false
-    }
-  }, [text, size, min])
-
-  const style: CSSProperties = { fontSize, maxWidth: '100%', minWidth: 0, whiteSpace: 'nowrap' }
-  return block ? (
-    <div ref={(el) => { ref.current = el }} className={className} style={style}>
-      {text}
-    </div>
-  ) : (
-    <span ref={(el) => { ref.current = el }} className={className} style={style}>
-      {text}
-    </span>
-  )
-}
 
 // Decorazioni: tratti a raggiera e cuori sparsi (posizioni fisse).
 const RAYS = [
@@ -126,7 +59,7 @@ function BrandName({ first, rest, size, lightColor }: { first: string; rest: str
 }
 
 const Flyer = forwardRef<HTMLDivElement, { data: FlyerData; logoSrc?: string | null }>(function Flyer({ data, logoSrc }, ref) {
-  const t = THEME_BY_ID[data.theme]
+  const t = THEME_BY_ID[data.theme as ThemeId] ?? THEME_BY_ID.rosa
   const vars = {
     '--f-bg': t.bg,
     '--f-bg2': t.bg2,

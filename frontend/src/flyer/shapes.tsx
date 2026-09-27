@@ -142,6 +142,10 @@ export interface LogoColors {
   accent2: string
   /** Fiocco della mamma: deve staccarsi dallo sfondo del volantino. */
   bow: string
+  /** Contorno del "Dente stilizzato" e del "Dente sorridente" (predefinito bianco, per gli sfondi colorati). */
+  line?: string
+  /** Sorriso del "Dente stilizzato" (predefinito `bow`). */
+  lineSmile?: string
 }
 
 /** Un dentino con faccina; `extra` aggiunge i dettagli del personaggio. */
@@ -294,12 +298,27 @@ export function HeartToothLogo({ height = 128, colors }: { height?: number; colo
   )
 }
 
-export type LogoType = 'famiglia' | 'dente' | 'cuore' | 'custom'
+// Sagoma del dente "a linea" (riquadro 120×120): corona con incavo centrale e due radici.
+const LINE_TOOTH =
+  'M60 25C52 17 42 14 33 16 19 19 13 32 15 46c2 12 9 18 11 31 2 14 4 28 12 29 8 1 10-11 12-21 2-8 5-12 10-12s8 4 10 12c2 10 4 22 12 21 8-1 10-15 12-29 2-13 9-19 11-31 2-14-4-27-18-30-9-2-19 1-27 9z'
+
+/** Logo pronto "Dente stilizzato": contorno pulito con sorriso nel colore d'accento (stile Tech). */
+export function LineToothLogo({ height = 128, color = '#fff', smile }: { height?: number; color?: string; smile: string }) {
+  return (
+    <svg height={height} width={height} viewBox="0 0 120 120" aria-hidden="true" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d={LINE_TOOTH} stroke={color} strokeWidth="7.5" />
+      <path d="M45 49c10 7 20 7 30 0" stroke={smile} strokeWidth="7.5" />
+    </svg>
+  )
+}
+
+export type LogoType = 'famiglia' | 'dente' | 'cuore' | 'linea' | 'custom'
 
 export const LOGO_OPTIONS: { id: Exclude<LogoType, 'custom'>; label: string }[] = [
   { id: 'famiglia', label: 'Famiglia di dentini' },
   { id: 'dente', label: 'Dente sorridente' },
   { id: 'cuore', label: 'Dente con cuore' },
+  { id: 'linea', label: 'Dente stilizzato' },
 ]
 
 /**
@@ -320,8 +339,9 @@ export function StudioLogo({
   if (type === 'custom' && customSrc) {
     return <img src={customSrc} alt="" style={{ height, maxWidth: height * 1.8, objectFit: 'contain', display: 'block' }} />
   }
-  if (type === 'dente') return <ToothLogo height={height} />
+  if (type === 'dente') return <ToothLogo height={height} color={colors.line ?? '#fff'} />
   if (type === 'cuore') return <HeartToothLogo height={height} colors={colors} />
+  if (type === 'linea') return <LineToothLogo height={height} color={colors.line ?? '#fff'} smile={colors.lineSmile ?? colors.bow} />
   return <FamilyLogo height={height} colors={colors} />
 }
 

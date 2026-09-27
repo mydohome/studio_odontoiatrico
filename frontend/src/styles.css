@@ -1239,7 +1239,7 @@ tbody tr:last-child td {
 
 .logo-tiles {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1288,9 +1288,143 @@ tbody tr:last-child td {
   gap: 4px;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 720px) {
+  .logo-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
   .logo-tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Scelta del modello dei volantini ---------- */
+
+.style-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.style-tile {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 8px 8px;
+  text-align: left;
+}
+
+.style-tile .logo-tile-label {
+  justify-content: flex-start;
+  font-size: 0.9rem;
+}
+
+.style-tile-text {
+  display: grid;
+  gap: 2px;
+}
+
+/* Miniatura 54×80 del volantino, disegnata con semplici blocchi. */
+.style-thumb {
+  position: relative;
+  width: 54px;
+  height: 80px;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+
+.style-thumb i {
+  position: absolute;
+  display: block;
+}
+
+.style-thumb-tech {
+  background: #fff;
+}
+
+.style-thumb-tech .st-head {
+  left: 6px;
+  top: 6px;
+  width: 30px;
+  height: 5px;
+  border-radius: 3px;
+}
+
+.style-thumb-tech .st-hero {
+  left: 5px;
+  right: 5px;
+  top: 16px;
+  height: 26px;
+  border-radius: 6px;
+}
+
+.style-thumb-tech .st-cards {
+  left: 5px;
+  right: 5px;
+  top: 47px;
+  height: 13px;
+  background: linear-gradient(90deg, #e4edf8 30%, transparent 30% 35%, #e4edf8 35% 65%, transparent 65% 70%, #e4edf8 70%);
+}
+
+.style-thumb-tech .st-pill {
+  left: 5px;
+  width: 26px;
+  bottom: 7px;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.style-thumb-smile .st-head {
+  left: 5px;
+  top: 5px;
+  width: 26px;
+  height: 7px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.style-thumb-smile .st-hero {
+  left: 8px;
+  right: 8px;
+  top: 16px;
+  height: 11px;
+  background: #fff;
+  border-radius: 40% 60% 50% 45%;
+  transform: rotate(-3deg);
+}
+
+.style-thumb-smile .st-banner {
+  left: 4px;
+  right: 4px;
+  top: 30px;
+  height: 13px;
+  border-radius: 45% 55% 40% 60%;
+  transform: rotate(2deg);
+}
+
+.style-thumb-smile .st-cards {
+  left: 5px;
+  right: 16px;
+  top: 50px;
+  height: 14px;
+  background: #fff;
+  border-radius: 40% 60% 50% 45%;
+}
+
+.style-thumb-smile .st-badge {
+  right: 3px;
+  top: 47px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+}
+
+@media (max-width: 520px) {
+  .style-tiles {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

@@ -30,6 +30,53 @@ export const THEMES: FlyerTheme[] = [
 ]
 export const THEME_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t])) as Record<ThemeId, FlyerTheme>
 
+/** Modello grafico dei volantini: "Smile" (colorato, a pennellate) o "Tech" (pulito, tecnologico). */
+export type FlyerStyle = 'smile' | 'tech'
+
+export const FLYER_STYLES: { id: FlyerStyle; label: string; hint: string }[] = [
+  { id: 'smile', label: 'Smile', hint: 'Colorato e allegro, con pennellate e scritte a mano' },
+  { id: 'tech', label: 'Tech', hint: 'Pulito e tecnologico, con forme geometriche e caratteri moderni' },
+]
+
+export type TechThemeId = 'capri' | 'notte' | 'menta'
+
+export interface TechTheme {
+  id: TechThemeId
+  label: string
+  /** Sfondo del volantino. */
+  bg: string
+  /** Riquadri delle voci e fondo del piè di pagina. */
+  surface: string
+  /** Colore principale (prima parte del nome, pulsanti). */
+  primary: string
+  /** Colore d'accento (seconda parte del nome, sorriso del logo, dettagli). */
+  accent: string
+  /** Testo principale. */
+  ink: string
+  /** Testo secondario. */
+  muted: string
+}
+
+export const TECH_THEMES: TechTheme[] = [
+  { id: 'capri', label: 'Blu e acquamarina', bg: '#ffffff', surface: '#eef4fb', primary: '#3868bd', accent: '#4ecdbd', ink: '#16305d', muted: '#5d7091' },
+  { id: 'notte', label: 'Notte', bg: '#0c1a35', surface: '#14284c', primary: '#4a86e3', accent: '#5fe0cf', ink: '#ffffff', muted: '#a8b9d6' },
+  { id: 'menta', label: 'Menta', bg: '#f3fbf9', surface: '#dff4ef', primary: '#0f978b', accent: '#3868bd', ink: '#10384a', muted: '#4f6f78' },
+]
+export const TECH_THEME_BY_ID = Object.fromEntries(TECH_THEMES.map((t) => [t.id, t])) as Record<TechThemeId, TechTheme>
+
+/** Colori selezionabili per un modello, nel formato usato dai pulsanti dell'editor. */
+export function themeSwatches(style: FlyerStyle): { id: ThemeId | TechThemeId; label: string; a: string; b: string }[] {
+  return style === 'tech'
+    ? TECH_THEMES.map((t) => ({ id: t.id, label: t.label, a: t.primary, b: t.accent }))
+    : THEMES.map((t) => ({ id: t.id, label: t.label, a: t.bg, b: t.accent }))
+}
+
+export const isTechTheme = (id: string): id is TechThemeId => id in TECH_THEME_BY_ID
+
+/** Colore di fondo del volantino (per le esportazioni in JPG e PDF). */
+export const flyerBackground = (theme: ThemeId | TechThemeId) =>
+  isTechTheme(theme) ? TECH_THEME_BY_ID[theme].bg : THEME_BY_ID[theme].bg
+
 export type IconId =
   | 'check'
   | 'xray'
@@ -63,13 +110,14 @@ export interface FlyerItem {
 }
 
 export interface FlyerData {
-  theme: ThemeId
+  /** Combinazione di colori: di "Smile" (ThemeId) o di "Tech" (TechThemeId), in base al modello. */
+  theme: ThemeId | TechThemeId
   studioName: string
   tagline: string
   /** Nome del dottore, sotto "Studio odontoiatrico" (vuoto = riga nascosta). */
   doctor: string
   /** Logo in alto a sinistra: uno di quelli pronti oppure quello caricato dallo studio. */
-  logo: 'famiglia' | 'dente' | 'cuore' | 'custom'
+  logo: 'famiglia' | 'dente' | 'cuore' | 'linea' | 'custom'
   topQuote: string
   headline: string
   bannerTop: string
@@ -257,6 +305,7 @@ export function buildFlyer(
   month: string,
   studio: { studioName: string; phone: string; address: string; doctorName?: string; logoType?: FlyerData['logo'] },
   period?: { from: string; to: string },
+  style: FlyerStyle = 'smile',
 ): FlyerData {
   const m = monthIndex(month)
   const base = COPY[campaign.category]
@@ -282,7 +331,8 @@ export function buildFlyer(
   }
 
   return {
-    theme: copy.theme,
+    // Tech usa sempre la combinazione principale (i colori dello studio); Smile cambia colore per categoria.
+    theme: style === 'tech' ? 'capri' : copy.theme,
     studioName: studio.studioName,
     tagline: 'Studio odontoiatrico',
     doctor: studio.doctorName ?? '',
@@ -315,6 +365,9 @@ export function mergeFlyer(defaults: FlyerData, saved: Record<string, unknown> |
     const d = (defaults as unknown as Record<string, unknown>)[k]
     if (Array.isArray(d) ? Array.isArray(v) : typeof v === typeof d) out[k] = v
   }
-  if (!THEME_BY_ID[out.theme as ThemeId]) out.theme = defaults.theme
+  // I colori salvati valgono solo se appartengono al modello in uso.
+  const t = String(out.theme)
+  const valid = isTechTheme(defaults.theme) ? isTechTheme(t) : t in THEME_BY_ID
+  if (!valid) out.theme = defaults.theme
   return out as unknown as FlyerData
 }

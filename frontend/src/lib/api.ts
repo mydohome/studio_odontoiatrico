@@ -18,9 +18,11 @@ export interface AppSettings {
   /** Nome del dottore (volantini). */
   doctorName: string
   /** Logo dei volantini: pronto oppure caricato ("custom"). */
-  logoType: 'famiglia' | 'dente' | 'cuore' | 'custom'
+  logoType: 'famiglia' | 'dente' | 'cuore' | 'linea' | 'custom'
   /** Versione del logo caricato, 0 se non c'è. */
   logoVersion: number
+  /** Modello grafico dei volantini: "Smile" (colorato) o "Tech" (pulito, tecnologico). */
+  flyerStyle: 'smile' | 'tech'
 }
 
 export interface SessionUser {

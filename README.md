@@ -125,8 +125,9 @@ L'ultimo formato scelto viene ricordato. Su smartphone **Condividi** invia sempr
 I font (Lobster per i titoli corsivi, Kalam per le scritte a pennarello, Fredoka per banner e contatti) sono inclusi
 nell'app, quindi funziona anche senza accesso a Google Fonts.
 
-La funzione è sul branch `beta/genera-volantino`. Per provarla sul server: `git checkout beta/genera-volantino && ./update.sh --rebuild`;
-per tornare indietro: `git checkout main && ./update.sh --rebuild`.
+La versione precedente all'introduzione dei volantini è marcata con il tag `v1-prima-dei-volantini`. Per tornarci
+temporaneamente sul server: `git checkout v1-prima-dei-volantini && ./update.sh --rebuild` (poi `git checkout main` per
+tornare all'ultima versione; `update.sh` richiede di essere su un branch per scaricare gli aggiornamenti).
 
 ## Utenti
 

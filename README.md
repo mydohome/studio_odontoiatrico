@@ -193,7 +193,9 @@ tornare all'ultima versione; `update.sh` richiede di essere su un branch per sca
 
 ## Utenti
 
-Si accede con **nome utente e password**. Le password sono salvate con hash scrypt; cambiando la password o eliminando
+Si accede con **nome utente e password**. La pagina di accesso mostra il **nome e il logo dello studio** (e il nome
+compare anche nella scheda del browser), così chi segue più studi vede subito in quale sta entrando: sono gli unici dati
+visibili prima dell'accesso. Le password sono salvate con hash scrypt; cambiando la password o eliminando
 un utente le sue sessioni aperte vengono chiuse subito. Dopo un tentativo errato, i successivi per lo stesso
 nome utente vengono rallentati sempre di più (fino a 5 secondi).
 

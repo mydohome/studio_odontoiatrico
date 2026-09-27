@@ -947,6 +947,42 @@ tbody tr:last-child td {
   gap: 12px;
 }
 
+/* Nome e logo dello studio in cima al modulo di accesso. */
+.login-brand {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 4px 0 10px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+.login-logo {
+  display: grid;
+  place-items: center;
+  min-height: 84px;
+}
+
+.login-logo img {
+  max-height: 84px;
+  max-width: 240px;
+  object-fit: contain;
+}
+
+.login-logo-tile {
+  min-height: 0;
+  padding: 10px 16px;
+  border-radius: 16px;
+}
+
+.login-studio {
+  font-size: 1.35rem;
+  font-weight: 750;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Grafici ---------- */
 
 .chart-tooltip {

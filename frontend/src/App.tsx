@@ -2,7 +2,7 @@ import { BarChart3, ClipboardPlus, Loader2, Megaphone, Settings } from 'lucide-r
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from './components/Toast.tsx'
 import { Tooth } from './components/Tooth.tsx'
-import { api, setUnauthorizedHandler, type SessionUser } from './lib/api.ts'
+import { api, setUnauthorizedHandler, type SessionUser, type StudioBrand } from './lib/api.ts'
 import { useCustomLogo } from './lib/logo.ts'
 import { useAppData } from './lib/useData.ts'
 import Campagne from './pages/Campagne.tsx'
@@ -28,21 +28,28 @@ const tabFromHash = (): TabId => {
 }
 
 export default function App() {
-  const [auth, setAuth] = useState<{ user: SessionUser | null; hasUsers: boolean } | null>(null)
+  const [auth, setAuth] = useState<{ user: SessionUser | null; hasUsers: boolean; studio?: StudioBrand } | null>(null)
 
   useEffect(() => {
     setUnauthorizedHandler(() => setAuth((a) => (a ? { ...a, user: null } : a)))
     api
       .me()
-      .then((m) => setAuth({ user: m.user, hasUsers: m.hasUsers }))
+      .then((m) => setAuth({ user: m.user, hasUsers: m.hasUsers, studio: m.studio }))
       .catch(() => setAuth({ user: null, hasUsers: true }))
   }, [])
 
   if (!auth) return <FullLoader />
-  if (!auth.user) return <Login hasUsers={auth.hasUsers} onLogin={(user) => setAuth({ ...auth, user })} />
+  if (!auth.user) return <Login hasUsers={auth.hasUsers} studio={auth.studio} onLogin={(user) => setAuth({ ...auth, user })} />
   return (
     <ToastProvider>
-      <Shell user={auth.user} onLogout={() => setAuth({ ...auth, user: null })} />
+      <Shell
+        user={auth.user}
+        // All'uscita la pagina di accesso mostra nome e logo aggiornati (possono essere cambiati nel frattempo).
+        onLogout={() => {
+          setAuth({ ...auth, user: null })
+          api.me().then((m) => setAuth({ user: null, hasUsers: m.hasUsers, studio: m.studio })).catch(() => {})
+        }}
+      />
     </ToastProvider>
   )
 }
@@ -60,6 +67,10 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
   const data = useAppData()
   // Logo caricato dallo studio: se è quello scelto, compare anche nell'intestazione dell'app.
   const headerLogo = useCustomLogo(data.settings.logoType === 'custom' ? data.settings.logoVersion : 0)
+
+  useEffect(() => {
+    document.title = `${data.settings.studioName} · Prestazioni e campagne`
+  }, [data.settings.studioName])
 
   useEffect(() => {
     const onHash = () => setTab(tabFromHash())

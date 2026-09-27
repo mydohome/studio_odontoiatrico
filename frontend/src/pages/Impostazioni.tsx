@@ -7,6 +7,7 @@ import { api, EXPORT_URL, TEMPLATE_URL, type SessionUser } from '../lib/api.ts'
 import type { AppDataState } from '../lib/useData.ts'
 import { useCustomLogo } from '../lib/logo.ts'
 import { FLYER_STYLES, MINT_THEME_BY_ID, THEME_BY_ID, type FlyerStyle } from '../flyer/flyerModel.ts'
+import { LOGO_PREVIEWS } from '../flyer/logoPreview.ts'
 import { LOGO_OPTIONS, StudioLogo, type LogoType } from '../flyer/shapes.tsx'
 
 interface Props {
@@ -168,16 +169,9 @@ function StudioCard({ data }: { data: AppDataState }) {
   )
 }
 
-// Colori per le anteprime dei loghi pronti: tema rosa per Smile, blu e acquamarina per Mint.
+// Colori delle miniature dei modelli.
 const PREVIEW = THEME_BY_ID.rosa
 const MINT = MINT_THEME_BY_ID.capri
-const PREVIEWS = {
-  smile: { bg: PREVIEW.bg, colors: { face: PREVIEW.heading, outline: PREVIEW.bg2, accent: PREVIEW.accent, accent2: PREVIEW.heading, bow: PREVIEW.light } },
-  mint: {
-    bg: MINT.surface,
-    colors: { face: MINT.primary, outline: MINT.primary, accent: MINT.accent, accent2: MINT.primary, bow: MINT.accent, line: MINT.primary, lineSmile: MINT.accent },
-  },
-}
 
 /** Miniatura schematica di un modello di volantino. */
 function StyleThumb({ style }: { style: FlyerStyle }) {
@@ -254,7 +248,7 @@ function LogoPicker({ data }: { data: AppDataState }) {
   const [busy, setBusy] = useState(false)
   const { logoType, logoVersion } = data.settings
   const custom = useCustomLogo(logoVersion)
-  const preview = PREVIEWS[data.settings.flyerStyle ?? 'smile']
+  const preview = LOGO_PREVIEWS[data.settings.flyerStyle ?? 'smile']
 
   const choose = async (type: LogoType) => {
     if (type === logoType) return

@@ -53,7 +53,10 @@ function StudioCard({ data }: { data: AppDataState }) {
   const [savingPrices, setSavingPrices] = useState(false)
   const [phone, setPhone] = useState(data.settings.phone)
   const [address, setAddress] = useState(data.settings.address)
-  const contactsChanged = phone.trim() !== data.settings.phone || address.trim() !== data.settings.address
+  const changed =
+    name.trim() !== data.settings.studioName ||
+    phone.trim() !== data.settings.phone ||
+    address.trim() !== data.settings.address
   const { showPrices } = data.settings
 
   const togglePrices = async (value: boolean) => {
@@ -71,61 +74,51 @@ function StudioCard({ data }: { data: AppDataState }) {
   return (
     <div className="card">
       <h2>Studio</h2>
-      <p className="sub">Nome mostrato nell'intestazione.</p>
+      <p className="sub">Dati mostrati nell'intestazione e nei volantini delle campagne.</p>
       <form
-        className="settings-row"
+        className="studio-form"
         onSubmit={async (e) => {
           e.preventDefault()
           try {
-            data.setSettings(await api.saveSettings({ studioName: name }))
-            notify('Nome salvato')
-          } catch (err) {
-            notify((err as Error).message, 'error')
-          }
-        }}
-      >
-        <input className="input" style={{ flex: 1 }} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
-        <button className="btn btn-primary" disabled={!name.trim() || name === data.settings.studioName}>
-          <Save size={16} /> Salva
-        </button>
-      </form>
-      <form
-        className="contacts-form"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          try {
-            const r = await api.saveSettings({ phone: phone.trim(), address: address.trim() })
+            const r = await api.saveSettings({ studioName: name.trim(), phone: phone.trim(), address: address.trim() })
             data.setSettings(r)
+            setName(r.studioName)
             setPhone(r.phone)
             setAddress(r.address)
-            notify('Contatti salvati')
+            notify('Dati dello studio salvati')
           } catch (err) {
             notify((err as Error).message, 'error')
           }
         }}
       >
-        <p className="small muted">Contatti mostrati nei volantini delle campagne.</p>
-        <div className="settings-row">
+        <label>
+          Nome dello studio
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required />
+        </label>
+        <label>
+          Telefono / WhatsApp
           <input
             className="input"
-            style={{ flex: '1 1 140px' }}
+            type="tel"
             inputMode="tel"
-            placeholder="Telefono / WhatsApp"
-            aria-label="Telefono / WhatsApp"
+            placeholder="es. 347 1234567"
             value={phone}
             maxLength={20}
             onChange={(e) => setPhone(e.target.value)}
           />
+        </label>
+        <label>
+          Indirizzo
           <input
             className="input"
-            style={{ flex: '3 1 240px' }}
-            placeholder="Indirizzo, es. Via Roma 12, 20100 Milano"
-            aria-label="Indirizzo dello studio"
+            placeholder="es. Via Roma 12, 20100 Milano"
             value={address}
             maxLength={120}
             onChange={(e) => setAddress(e.target.value)}
           />
-          <button className="btn btn-primary" disabled={!contactsChanged}>
+        </label>
+        <div>
+          <button className="btn btn-primary" disabled={!name.trim() || !changed}>
             <Save size={16} /> Salva
           </button>
         </div>

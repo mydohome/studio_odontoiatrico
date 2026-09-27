@@ -4,6 +4,17 @@ import { CATEGORIES } from '../../shared/catalog.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
 import type { CategoryId, ImportResult } from '../../shared/types.ts'
 import { buildCampaigns } from './campaigns.ts'
+import {
+  CampaignError,
+  createCustomCampaign,
+  deleteCustomCampaign,
+  listCustomCampaigns,
+  migrateCustomCampaigns,
+  parseFlyer,
+  parseInput,
+  saveCustomFlyer,
+  updateCustomCampaign,
+} from './customCampaigns.ts'
 import { getSetting, listRecords, listServices, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
@@ -314,6 +325,45 @@ app.get('/api/campaigns', async (req) => {
   return buildCampaigns(services, records, today(), horizon)
 })
 
+// ---------- Campagne personalizzate ----------
+
+function campaignId(req: FastifyRequest): number {
+  const id = Number((req.params as { id: string }).id)
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Campagna non valida')
+  return id
+}
+
+/** Converte gli errori di validazione in risposte 400 (404 se la campagna non esiste). */
+async function campaignCall<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (e instanceof CampaignError) throw new HttpError(/non trovata/.test(e.message) ? 404 : 400, e.message)
+    throw e
+  }
+}
+
+app.get('/api/custom-campaigns', async (req) => {
+  const q = req.query as { from?: string; to?: string }
+  return listCustomCampaigns(optDate(q.from, 'from'), optDate(q.to, 'to'))
+})
+
+app.post('/api/custom-campaigns', async (req) => {
+  const user = await sessionUser(req)
+  return campaignCall(() => createCustomCampaign(parseInput(req.body), user?.username ?? null))
+})
+
+app.put('/api/custom-campaigns/:id', async (req) => campaignCall(() => updateCustomCampaign(campaignId(req), parseInput(req.body))))
+
+app.put('/api/custom-campaigns/:id/flyer', async (req) =>
+  campaignCall(() => saveCustomFlyer(campaignId(req), parseFlyer((req.body as { flyer?: unknown } | null)?.flyer ?? null))),
+)
+
+app.delete('/api/custom-campaigns/:id', async (req) => {
+  await campaignCall(() => deleteCustomCampaign(campaignId(req)))
+  return { ok: true }
+})
+
 // ---------- Excel ----------
 
 function sendXlsx(reply: FastifyReply, filename: string, buf: Buffer) {
@@ -365,6 +415,7 @@ async function start() {
     try {
       await migrate()
       await migrateUsers()
+      await migrateCustomCampaigns()
       break
     } catch (e) {
       if (attempt >= 30) throw e

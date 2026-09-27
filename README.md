@@ -90,6 +90,18 @@ sudo iptables -I INPUT 6 -p tcp -s <IP-server-NPM> --dport 80 -j ACCEPT && sudo 
 | `studio-odontoiatrico-api` | solo `backend` | `no-new-privileges`, `cap_drop: ALL`, utente non root |
 | `studio-odontoiatrico-db` | solo `backend` | `no-new-privileges` |
 
+## Campagne personalizzate
+
+Oltre alle proposte dell'algoritmo puoi creare le tue campagne dalla scheda **Campagne**:
+
+- **Nuova campagna** (o *Crea per &lt;mese&gt;*): titolo, categoria, periodo dal/al (anche su più mesi), offerta, a chi è
+  rivolta, canali (scelta rapida o canali liberi) e note interne che non compaiono sul volantino;
+- **Personalizza** su una proposta dell'algoritmo la copia tra le tue campagne, già compilata, per modificarla;
+- le tue campagne compaiono in cima a ogni mese che toccano, con *Modifica*, *Elimina* e *Genera volantino*; nella
+  striscia dei mesi un contatore indica quante ce ne sono;
+- il volantino di una campagna personalizzata usa il suo periodo e il suo titolo, e i testi modificati nell'editor si
+  salvano con la campagna (**Salva testi**, oppure in automatico quando scarichi o condividi il PNG).
+
 ## Volantini (beta)
 
 Ogni campagna proposta nella scheda **Campagne** ha il pulsante **Genera volantino**. Si apre un editor con l'anteprima

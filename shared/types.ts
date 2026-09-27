@@ -25,7 +25,7 @@ export interface RecordRow {
   q: number
 }
 
-export type CampaignType = 'calo' | 'richiamo' | 'conversione' | 'trend' | 'crosssell' | 'calendario'
+export type CampaignType = 'calo' | 'richiamo' | 'conversione' | 'trend' | 'crosssell' | 'calendario' | 'personalizzata'
 
 export interface CampaignSuggestion {
   id: string
@@ -72,3 +72,27 @@ export interface ImportResult {
   imported: number
   errors: string[]
 }
+
+/** Campagna creata dall'utente (non generata dall'algoritmo). */
+export interface CustomCampaign {
+  id: number
+  category: CategoryId
+  title: string
+  offer: string
+  target: string
+  channels: string[]
+  /** Periodo della campagna (YYYY-MM-DD), anche su più mesi. */
+  dateFrom: string
+  dateTo: string
+  notes: string
+  /** Testi del volantino salvati dall'editor (struttura del frontend). */
+  flyer: Record<string, unknown> | null
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CustomCampaignInput = Pick<
+  CustomCampaign,
+  'category' | 'title' | 'offer' | 'target' | 'channels' | 'dateFrom' | 'dateTo' | 'notes'
+>

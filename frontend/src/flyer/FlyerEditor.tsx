@@ -1,12 +1,12 @@
 import { toPng } from 'html-to-image'
-import { Download, ImageIcon, Loader2, RotateCcw, Share2, X } from 'lucide-react'
+import { Download, ImageIcon, Loader2, RotateCcw, Save, Share2, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatMonth } from '../../../shared/dates.ts'
 import type { CampaignSuggestion } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
 import { api, type AppSettings } from '../lib/api.ts'
 import Flyer, { FLYER_HEIGHT, FLYER_WIDTH } from './Flyer.tsx'
-import { buildFlyer, ICON_LABELS, THEMES, type FlyerData, type IconId } from './flyerModel.ts'
+import { buildFlyer, ICON_LABELS, mergeFlyer, THEMES, type FlyerData, type IconId } from './flyerModel.ts'
 
 interface Props {
   campaign: CampaignSuggestion
@@ -14,6 +14,12 @@ interface Props {
   settings: AppSettings
   onSettingsChange: (s: AppSettings) => void
   onClose: () => void
+  /** Periodo della campagna (per le campagne personalizzate); altrimenti l'intero mese. */
+  period?: { from: string; to: string }
+  /** Testi salvati in precedenza (campagne personalizzate). */
+  saved?: Record<string, unknown> | null
+  /** Se presente, i testi del volantino si possono salvare con la campagna. */
+  onSave?: (data: FlyerData) => Promise<void>
 }
 
 const slug = (s: string) =>
@@ -25,14 +31,18 @@ const slug = (s: string) =>
     .replace(/^-|-$/g, '')
     .slice(0, 40)
 
-export default function FlyerEditor({ campaign, month, settings, onSettingsChange, onClose }: Props) {
+export default function FlyerEditor({ campaign, month, settings, onSettingsChange, onClose, period, saved, onSave }: Props) {
   const notify = useToast()
+  // Testi proposti automaticamente (usati anche da "Ripristina testi proposti").
   const initial = useMemo(
-    () => buildFlyer(campaign, month, { studioName: settings.studioName, phone: settings.phone, address: settings.address }),
+    () =>
+      buildFlyer(campaign, month, { studioName: settings.studioName, phone: settings.phone, address: settings.address }, period),
     [campaign, month, settings.studioName], // eslint-disable-line react-hooks/exhaustive-deps
   )
-  const [data, setData] = useState<FlyerData>(initial)
-  const [busy, setBusy] = useState<'png' | 'share' | null>(null)
+  const [data, setData] = useState<FlyerData>(() => mergeFlyer(initial, saved))
+  const [savedJson, setSavedJson] = useState(() => (saved ? JSON.stringify(mergeFlyer(initial, saved)) : ''))
+  const unsaved = !!onSave && JSON.stringify(data) !== savedJson
+  const [busy, setBusy] = useState<'png' | 'share' | 'save' | null>(null)
   // Telefono e indirizzo si memorizzano nelle impostazioni per i volantini successivi.
   const [rememberContacts, setRememberContacts] = useState(!settings.phone || !settings.address)
   const flyerRef = useRef<HTMLDivElement>(null)
@@ -72,10 +82,15 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
 
   // Esc chiude la finestra.
   useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && close()
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [onClose])
+  }, [unsaved, onClose]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function close() {
+    if (unsaved && !window.confirm('I testi del volantino non sono salvati. Chiudere comunque?')) return
+    onClose()
+  }
 
   const fileName = `volantino-${month}-${slug(campaign.title)}.png`
 
@@ -97,6 +112,24 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
     }
   }
 
+  const saveTexts = async (quiet = false) => {
+    if (!onSave || !unsaved) return
+    await onSave(data)
+    setSavedJson(JSON.stringify(data))
+    if (!quiet) notify('Testi del volantino salvati con la campagna')
+  }
+
+  const save = async () => {
+    setBusy('save')
+    try {
+      await saveTexts()
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const download = async () => {
     setBusy('png')
     try {
@@ -106,6 +139,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
       a.download = fileName
       a.click()
       await saveContactsIfNeeded()
+      await saveTexts(true)
       notify('Volantino scaricato')
     } catch (e) {
       notify(`Impossibile generare l'immagine: ${(e as Error).message}`, 'error')
@@ -125,6 +159,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
         return
       }
       await saveContactsIfNeeded()
+      await saveTexts(true)
       await navigator.share({ files: [file], title: campaign.title, text: `${data.offerName} · ${data.cta}` })
     } catch (e) {
       if ((e as Error).name !== 'AbortError') notify((e as Error).message, 'error')
@@ -136,14 +171,14 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
   const item = (i: number) => data.items[i] ?? { icon: 'check' as IconId, text: '' }
 
   return (
-    <div className="flyer-modal" role="dialog" aria-modal="true" aria-labelledby="flyer-title" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="flyer-modal" role="dialog" aria-modal="true" aria-labelledby="flyer-title" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="flyer-dialog">
         <div className="flyer-dialog-head">
           <h2 id="flyer-title">
             <ImageIcon size={18} /> Volantino · {campaign.title}
             <span className="beta-badge">beta</span>
           </h2>
-          <button className="btn btn-icon btn-ghost" onClick={onClose} aria-label="Chiudi">
+          <button className="btn btn-icon btn-ghost" onClick={close} aria-label="Chiudi">
             <X size={18} />
           </button>
         </div>
@@ -314,6 +349,11 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
             <RotateCcw size={16} /> Ripristina testi proposti
           </button>
           <div className="toolbar">
+            {onSave && (
+              <button className="btn" onClick={save} disabled={busy !== null || !unsaved} title="Salva i testi con la campagna">
+                {busy === 'save' ? <Loader2 size={16} /> : <Save size={16} />} {unsaved ? 'Salva testi' : 'Testi salvati'}
+              </button>
+            )}
             {canShare && (
               <button className="btn" onClick={share} disabled={busy !== null}>
                 {busy === 'share' ? <Loader2 size={16} /> : <Share2 size={16} />} Condividi

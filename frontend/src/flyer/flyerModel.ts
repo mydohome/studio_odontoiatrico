@@ -252,6 +252,7 @@ export function buildFlyer(
   campaign: CampaignSuggestion,
   month: string,
   studio: { studioName: string; phone: string; address: string },
+  period?: { from: string; to: string },
 ): FlyerData {
   const m = monthIndex(month)
   const base = COPY[campaign.category]
@@ -270,6 +271,10 @@ export function buildFlyer(
     case 'trend':
       copy = { ...copy, bannerTop: 'Ti aspettiamo', bannerMain: 'IN STUDIO', offerName: 'Bentornato Sorriso' }
       break
+    case 'personalizzata':
+      // Il titolo scelto dall'utente diventa il nome dell'offerta (se non è troppo lungo).
+      if (campaign.title.length <= 28) copy = { ...copy, offerName: campaign.title }
+      break
   }
 
   return {
@@ -280,8 +285,8 @@ export function buildFlyer(
     headline: MONTHS[m],
     bannerTop: copy.bannerTop,
     bannerMain: copy.bannerMain,
-    dateFrom: `${month}-01`,
-    dateTo: `${month}-${pad(daysInMonth(month))}`,
+    dateFrom: period?.from ?? `${month}-01`,
+    dateTo: period?.to ?? `${month}-${pad(daysInMonth(month))}`,
     offerName: copy.offerName,
     items: itemsFromOffer(campaign.offer, campaign.category),
     note: campaign.offer,
@@ -292,4 +297,18 @@ export function buildFlyer(
     footer: copy.footer,
     tags: [...copy.tags],
   }
+}
+
+/** Unisce i testi salvati con quelli proposti, così un volantino salvato con una versione
+ * precedente dell'app riceve i campi aggiunti in seguito. */
+export function mergeFlyer(defaults: FlyerData, saved: Record<string, unknown> | null | undefined): FlyerData {
+  if (!saved) return defaults
+  const out = { ...defaults } as Record<string, unknown>
+  for (const [k, v] of Object.entries(saved)) {
+    if (!(k in defaults)) continue
+    const d = (defaults as unknown as Record<string, unknown>)[k]
+    if (Array.isArray(d) ? Array.isArray(v) : typeof v === typeof d) out[k] = v
+  }
+  if (!THEME_BY_ID[out.theme as ThemeId]) out.theme = defaults.theme
+  return out as unknown as FlyerData
 }

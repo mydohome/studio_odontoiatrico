@@ -1,4 +1,4 @@
-import { CalendarRange, Copy, ImagePlus, Info, Lightbulb, Loader2, Megaphone, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { CalendarRange, Copy, CopyPlus, ImagePlus, Info, Lightbulb, Loader2, Megaphone, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { CATEGORY_BY_ID } from '../../../shared/catalog.ts'
 import { daysInMonth, formatMonth, fromISO, MONTHS, MONTHS_SHORT, monthIndex, monthKey } from '../../../shared/dates.ts'
@@ -53,7 +53,20 @@ const asSuggestion = (c: CustomCampaign): CampaignSuggestion => ({
   reasons: [],
 })
 
-type FormState = { mode: 'new' | 'edit'; id?: number; initial: CustomCampaignInput } | null
+/** `source` è la campagna di partenza (modifica o duplicazione): serve a riportarne il volantino. */
+type FormState = { mode: 'new' | 'edit' | 'duplicate'; id?: number; source?: CustomCampaign; initial: CustomCampaignInput } | null
+
+/**
+ * Testi del volantino da salvare dopo un cambio di periodo: date e mese del titolo seguono la
+ * campagna, tutto il resto (testi, colori, voci) resta com'era. `null` se non serve salvare nulla.
+ */
+function flyerForPeriod(source: CustomCampaign | undefined, saved: CustomCampaign): Record<string, unknown> | null {
+  const flyer = source?.flyer
+  if (!flyer) return null
+  if (source.dateFrom === saved.dateFrom && source.dateTo === saved.dateTo) return saved.id === source.id ? null : flyer
+  const { dateFrom: _from, dateTo: _to, headline: _headline, ...rest } = flyer
+  return rest
+}
 type FlyerState = { campaign: CampaignSuggestion; month: string; custom?: CustomCampaign } | null
 
 const CONFIDENCE: Record<CampaignResponse['confidence'], { label: string; cls: string; text: string }> = {
@@ -118,30 +131,40 @@ export default function Campagne({ data }: { data: AppDataState }) {
       },
     })
 
-  const editCampaign = (c: CustomCampaign) =>
-    setForm({
-      mode: 'edit',
-      id: c.id,
-      initial: {
-        category: c.category,
-        title: c.title,
-        offer: c.offer,
-        target: c.target,
-        channels: c.channels,
-        dateFrom: c.dateFrom,
-        dateTo: c.dateTo,
-        notes: c.notes,
-      },
-    })
+  const campaignInput = (c: CustomCampaign, title = c.title): CustomCampaignInput => ({
+    category: c.category,
+    title,
+    offer: c.offer,
+    target: c.target,
+    channels: c.channels,
+    dateFrom: c.dateFrom,
+    dateTo: c.dateTo,
+    notes: c.notes,
+  })
+
+  const editCampaign = (c: CustomCampaign) => setForm({ mode: 'edit', id: c.id, source: c, initial: campaignInput(c) })
+
+  // La copia si apre nel modulo: di solito si cambia il periodo (es. la stessa promozione il mese dopo).
+  const duplicateCampaign = (c: CustomCampaign) =>
+    setForm({ mode: 'duplicate', source: c, initial: campaignInput(c, `${c.title} (copia)`.slice(0, 80)) })
 
   const submitForm = async (value: CustomCampaignInput) => {
     if (!form) return
-    const saved =
+    let saved =
       form.mode === 'edit' && form.id
         ? await api.updateCustomCampaign(form.id, value)
         : await api.createCustomCampaign(value)
+    // Modifica o copia: il volantino già preparato segue la campagna (con date e mese aggiornati).
+    const flyer = flyerForPeriod(form.source, saved)
+    if (flyer) {
+      try {
+        saved = await api.saveCustomFlyer(saved.id, flyer)
+      } catch (e) {
+        notify(`Campagna salvata, ma non il suo volantino: ${(e as Error).message}`, 'error')
+      }
+    }
     setForm(null)
-    notify(form.mode === 'edit' ? 'Campagna aggiornata' : 'Campagna creata')
+    notify(form.mode === 'edit' ? 'Campagna aggiornata' : form.mode === 'duplicate' ? 'Campagna duplicata' : 'Campagna creata')
     loadCustoms()
     // Porta la vista sul mese di inizio della campagna, se è tra quelli mostrati.
     const idx = res?.months.findIndex((m) => m.month === monthKey(saved.dateFrom)) ?? -1
@@ -308,6 +331,9 @@ export default function Campagne({ data }: { data: AppDataState }) {
                     </button>
                     <button className="btn" onClick={() => editCampaign(c)}>
                       <Pencil size={16} /> Modifica
+                    </button>
+                    <button className="btn" onClick={() => duplicateCampaign(c)} title="Crea una nuova campagna partendo da questa (anche il volantino)">
+                      <CopyPlus size={16} /> Duplica
                     </button>
                     <button className="btn btn-ghost btn-danger" onClick={() => removeCampaign(c)}>
                       <Trash2 size={16} /> Elimina
@@ -537,7 +563,7 @@ export default function Campagne({ data }: { data: AppDataState }) {
 
       {form && (
         <CampaignForm
-          title={form.mode === 'edit' ? 'Modifica campagna' : 'Nuova campagna'}
+          title={form.mode === 'edit' ? 'Modifica campagna' : form.mode === 'duplicate' ? 'Duplica campagna' : 'Nuova campagna'}
           initial={form.initial}
           onSubmit={submitForm}
           onClose={() => setForm(null)}

@@ -125,7 +125,8 @@ Le installazioni create prima dell'introduzione delle istanze continuano a usare
 In **Impostazioni → Studio → Logo** scegli il logo che compare sui volantini:
 
 - tre loghi pronti, che si colorano in automatico con la combinazione di colori del volantino: **Famiglia di dentini**
-  (papà, mamma e due figli), **Dente sorridente**, **Dente con cuore**;
+  (papà, mamma e due figli), **Dente sorridente**, **Dente con cuore**, **Dente stilizzato** (contorno pulito con
+  sorriso nel colore d'accento, pensato per il modello Tech);
 - **Carica logo**: PNG, JPG, WebP o SVG fino a 1 MB (meglio un PNG con sfondo trasparente, alto almeno 300 px). Il logo
   caricato compare anche nell'intestazione dell'app e si può sostituire o eliminare (si torna alla famiglia di dentini).
   Gli SVG con script, contenuti incorporati o collegamenti esterni vengono rifiutati.
@@ -164,8 +165,24 @@ l'anteprima direttamente nella chat. Con la freccetta accanto si sceglie **PNG**
 oppure **PDF** (pagina A4 pronta da stampare, ~300 dpi; su WhatsApp arriva come documento, senza anteprima grande).
 L'ultimo formato scelto viene ricordato. Su smartphone **Condividi** invia sempre il JPG, quindi come foto.
 
-I font (Lobster per i titoli corsivi, Kalam per le scritte a pennarello, Fredoka per banner e contatti) sono inclusi
-nell'app, quindi funziona anche senza accesso a Google Fonts.
+### Modelli: Smile e Tech
+
+In **Impostazioni → Studio → Modello dei volantini** si sceglie la grafica usata da tutti i volantini dello studio:
+
+- **Smile** (predefinito): colorato e allegro, con pennellate, scritte a mano e 5 combinazioni di colori che cambiano
+  in base alla categoria della campagna;
+- **Tech**: pulito e tecnologico, con riquadro sfumato, schede per le voci dell'offerta, disco del prezzo e caratteri
+  moderni. Il nome dello studio diventa un logotipo in due colori (es. **Dental**Capri *srl*: si divide al primo
+  spazio o alla maiuscola interna, e la forma giuridica va in piccolo). Tre combinazioni: *Blu e acquamarina*
+  (predefinita), *Notte* (sfondo scuro) e *Menta*. Scegliendo Tech il logo diventa il **Dente stilizzato**, se non
+  hai caricato il tuo.
+
+Con un logo caricato che contiene già il nome dello studio, nel modello Tech puoi svuotare il campo *Nome dello studio*
+nell'editor per mostrare solo il logo. I testi salvati con una campagna restano validi cambiando modello; i colori
+tornano quelli predefiniti del nuovo modello.
+
+I font (Lobster per i titoli corsivi, Kalam per le scritte a pennarello, Fredoka per banner e contatti, Nunito per il
+modello Tech) sono inclusi nell'app, quindi funziona anche senza accesso a Google Fonts.
 
 La versione precedente all'introduzione dei volantini è marcata con il tag `v1-prima-dei-volantini`. Per tornarci
 temporaneamente sul server: `git checkout v1-prima-dei-volantini && ./update.sh --rebuild` (poi `git checkout main` per

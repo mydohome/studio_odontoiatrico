@@ -7,8 +7,9 @@ import { useToast } from '../components/Toast.tsx'
 import { api, type AppSettings } from '../lib/api.ts'
 import { useCustomLogo } from '../lib/logo.ts'
 import Flyer, { FLYER_HEIGHT, FLYER_WIDTH } from './Flyer.tsx'
+import FlyerTech from './FlyerTech.tsx'
 import { LOGO_OPTIONS } from './shapes.tsx'
-import { buildFlyer, ICON_LABELS, mergeFlyer, THEME_BY_ID, THEMES, type FlyerData, type IconId } from './flyerModel.ts'
+import { buildFlyer, FLYER_STYLES, flyerBackground, ICON_LABELS, mergeFlyer, themeSwatches, type FlyerData, type IconId } from './flyerModel.ts'
 
 interface Props {
   campaign: CampaignSuggestion
@@ -53,6 +54,8 @@ const slug = (s: string) =>
 
 export default function FlyerEditor({ campaign, month, settings, onSettingsChange, onClose, period, saved, onSave }: Props) {
   const notify = useToast()
+  const style = settings.flyerStyle ?? 'smile'
+  const FlyerView = style === 'tech' ? FlyerTech : Flyer
   // Testi proposti automaticamente (usati anche da "Ripristina testi proposti").
   const initial = useMemo(
     () =>
@@ -62,8 +65,8 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
           address: settings.address,
           doctorName: settings.doctorName,
           logoType: settings.logoType,
-        }, period),
-    [campaign, month, settings.studioName], // eslint-disable-line react-hooks/exhaustive-deps
+        }, period, style),
+    [campaign, month, settings.studioName, style], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const [data, setData] = useState<FlyerData>(() => mergeFlyer(initial, saved))
   const [savedJson, setSavedJson] = useState(() => (saved ? JSON.stringify(mergeFlyer(initial, saved)) : ''))
@@ -135,7 +138,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
     await document.fonts.ready
     const node = flyerRef.current
     if (!node) throw new Error('Anteprima non pronta')
-    const bg = THEME_BY_ID[data.theme].bg
+    const bg = flyerBackground(data.theme)
     const opts = { width: FLYER_WIDTH, height: FLYER_HEIGHT, cacheBust: true }
     if (fmt === 'png') return (await fetch(await toPng(node, { ...opts, pixelRatio: 2 }))).blob()
     if (fmt === 'jpg') {
@@ -266,16 +269,16 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
             </p>
 
             <label>
-              Colori
+              Colori · modello {FLYER_STYLES.find((f) => f.id === style)?.label} <span className="muted">(si cambia in Impostazioni)</span>
               <div className="theme-swatches">
-                {THEMES.map((t) => (
+                {themeSwatches(style).map((t) => (
                   <button
                     type="button"
                     key={t.id}
                     title={t.label}
                     aria-label={t.label}
                     aria-pressed={data.theme === t.id}
-                    style={{ background: `linear-gradient(135deg, ${t.bg} 55%, ${t.accent} 55%)` }}
+                    style={{ background: `linear-gradient(135deg, ${t.a} 55%, ${t.b} 55%)` }}
                     onClick={() => set('theme', t.id)}
                   />
                 ))}
@@ -388,7 +391,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
             <fieldset>
               <legend>Altri testi</legend>
               <label>
-                Nome dello studio
+                {style === 'tech' ? 'Nome dello studio (in due colori, es. DentalCapri srl; vuoto se il logo caricato contiene già il nome)' : 'Nome dello studio'}
                 <input className="input" value={data.studioName} onChange={(e) => set('studioName', e.target.value)} maxLength={30} />
               </label>
               <label>
@@ -403,11 +406,15 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
                 </select>
               </label>
               <label>
+                Sottotitolo (es. Studio odontoiatrico)
+                <input className="input" value={data.tagline} onChange={(e) => set('tagline', e.target.value)} maxLength={34} />
+              </label>
+              <label>
                 Nome del dottore (sotto "Studio odontoiatrico"; vuoto per nasconderlo)
                 <input className="input" value={data.doctor} onChange={(e) => set('doctor', e.target.value)} maxLength={60} placeholder="es. Dott.ssa Maria Rossi" />
               </label>
               <label>
-                Frase in alto a destra
+                {style === 'tech' ? 'Frase sotto il nome dello studio' : 'Frase in alto a destra'}
                 <input className="input" value={data.topQuote} onChange={(e) => set('topQuote', e.target.value)} maxLength={60} />
               </label>
               <label>
@@ -428,7 +435,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
           <div className="flyer-preview" ref={previewRef}>
             <div className="flyer-preview-frame" style={{ width: FLYER_WIDTH * scale, height: FLYER_HEIGHT * scale }}>
               <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: FLYER_WIDTH, height: FLYER_HEIGHT }}>
-                <Flyer ref={flyerRef} data={data} logoSrc={customLogo} />
+                <FlyerView ref={flyerRef} data={data} logoSrc={customLogo} />
               </div>
             </div>
           </div>

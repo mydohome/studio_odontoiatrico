@@ -5,7 +5,7 @@ import { pool } from './db.ts'
 export class LogoError extends Error {}
 
 export const MAX_LOGO_BYTES = 1024 * 1024
-export const LOGO_TYPES = ['famiglia', 'dente', 'cuore', 'custom'] as const
+export const LOGO_TYPES = ['famiglia', 'dente', 'cuore', 'linea', 'custom'] as const
 export type LogoType = (typeof LOGO_TYPES)[number]
 
 export async function migrateBranding(): Promise<void> {

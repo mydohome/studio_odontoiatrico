@@ -6,7 +6,7 @@ import { useToast } from '../components/Toast.tsx'
 import { api, EXPORT_URL, TEMPLATE_URL, type SessionUser } from '../lib/api.ts'
 import type { AppDataState } from '../lib/useData.ts'
 import { useCustomLogo } from '../lib/logo.ts'
-import { THEME_BY_ID } from '../flyer/flyerModel.ts'
+import { FLYER_STYLES, TECH_THEME_BY_ID, THEME_BY_ID, type FlyerStyle } from '../flyer/flyerModel.ts'
 import { LOGO_OPTIONS, StudioLogo, type LogoType } from '../flyer/shapes.tsx'
 
 interface Props {
@@ -144,6 +144,7 @@ function StudioCard({ data }: { data: AppDataState }) {
           </button>
         </div>
       </form>
+      <StylePicker data={data} />
       <LogoPicker data={data} />
       <div className="setting-toggle">
         <div>
@@ -167,9 +168,85 @@ function StudioCard({ data }: { data: AppDataState }) {
   )
 }
 
-// Colori del tema rosa per le anteprime dei loghi pronti.
+// Colori per le anteprime dei loghi pronti: tema rosa per Smile, blu e acquamarina per Tech.
 const PREVIEW = THEME_BY_ID.rosa
-const PREVIEW_COLORS = { face: PREVIEW.heading, outline: PREVIEW.bg2, accent: PREVIEW.accent, accent2: PREVIEW.heading, bow: PREVIEW.light }
+const TECH = TECH_THEME_BY_ID.capri
+const PREVIEWS = {
+  smile: { bg: PREVIEW.bg, colors: { face: PREVIEW.heading, outline: PREVIEW.bg2, accent: PREVIEW.accent, accent2: PREVIEW.heading, bow: PREVIEW.light } },
+  tech: {
+    bg: TECH.surface,
+    colors: { face: TECH.primary, outline: TECH.primary, accent: TECH.accent, accent2: TECH.primary, bow: TECH.accent, line: TECH.primary, lineSmile: TECH.accent },
+  },
+}
+
+/** Miniatura schematica di un modello di volantino. */
+function StyleThumb({ style }: { style: FlyerStyle }) {
+  return style === 'tech' ? (
+    <span className="style-thumb style-thumb-tech" aria-hidden="true">
+      <i className="st-head" style={{ background: `linear-gradient(90deg, ${TECH.primary} 55%, ${TECH.accent} 55%)` }} />
+      <i className="st-hero" style={{ background: `linear-gradient(128deg, ${TECH.primary}, ${TECH.accent})` }} />
+      <i className="st-cards" />
+      <i className="st-pill" style={{ background: TECH.primary }} />
+    </span>
+  ) : (
+    <span className="style-thumb style-thumb-smile" aria-hidden="true" style={{ background: PREVIEW.bg }}>
+      <i className="st-head" />
+      <i className="st-hero" />
+      <i className="st-banner" style={{ background: PREVIEW.accent }} />
+      <i className="st-cards" />
+      <i className="st-badge" style={{ background: PREVIEW.badge }} />
+    </span>
+  )
+}
+
+function StylePicker({ data }: { data: AppDataState }) {
+  const notify = useToast()
+  const [busy, setBusy] = useState(false)
+  const current = data.settings.flyerStyle ?? 'smile'
+
+  const choose = async (style: FlyerStyle) => {
+    if (style === current) return
+    setBusy(true)
+    try {
+      // Passando a Tech, un logo pronto di Smile diventa il "Dente stilizzato" (il logo caricato resta).
+      const { logoType } = data.settings
+      const switchLogo = style === 'tech' && logoType !== 'custom' && logoType !== 'linea'
+      data.setSettings(await api.saveSettings(switchLogo ? { flyerStyle: style, logoType: 'linea' } : { flyerStyle: style }))
+      notify(`Modello dei volantini: ${FLYER_STYLES.find((f) => f.id === style)?.label}${switchLogo ? ' (logo: Dente stilizzato)' : ''}`)
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="logo-picker">
+      <div className="field-label">Modello dei volantini</div>
+      <div className="style-tiles" role="radiogroup" aria-label="Modello dei volantini">
+        {FLYER_STYLES.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            role="radio"
+            aria-checked={current === f.id}
+            className="logo-tile style-tile"
+            disabled={busy}
+            onClick={() => choose(f.id)}
+          >
+            <StyleThumb style={f.id} />
+            <span className="style-tile-text">
+              <span className="logo-tile-label">
+                {current === f.id && <Check size={14} />} {f.label}
+              </span>
+              <span className="small muted">{f.hint}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function LogoPicker({ data }: { data: AppDataState }) {
   const notify = useToast()
@@ -177,6 +254,7 @@ function LogoPicker({ data }: { data: AppDataState }) {
   const [busy, setBusy] = useState(false)
   const { logoType, logoVersion } = data.settings
   const custom = useCustomLogo(logoVersion)
+  const preview = PREVIEWS[data.settings.flyerStyle ?? 'smile']
 
   const choose = async (type: LogoType) => {
     if (type === logoType) return
@@ -238,8 +316,8 @@ function LogoPicker({ data }: { data: AppDataState }) {
             disabled={busy}
             onClick={() => choose(o.id)}
           >
-            <span className="logo-tile-preview" style={{ background: PREVIEW.bg }}>
-              <StudioLogo type={o.id} height={52} colors={PREVIEW_COLORS} />
+            <span className="logo-tile-preview" style={{ background: preview.bg }}>
+              <StudioLogo type={o.id} height={52} colors={preview.colors} />
             </span>
             <span className="logo-tile-label">
               {logoType === o.id && <Check size={14} />} {o.label}

@@ -185,7 +185,12 @@ interface Settings {
   logoType: LogoType
   /** Versione del logo caricato (0 = nessun logo caricato); serve anche a evitare la cache. */
   logoVersion: number
+  /** Modello grafico dei volantini. */
+  flyerStyle: FlyerStyle
 }
+
+const FLYER_STYLES = ['smile', 'tech'] as const
+type FlyerStyle = (typeof FLYER_STYLES)[number]
 
 async function logoSettings(): Promise<Pick<Settings, 'logoType' | 'logoVersion'>> {
   const version = await logoVersion()
@@ -203,6 +208,7 @@ async function readSettings(): Promise<Settings> {
     address: (await getSetting('address')) ?? '',
     doctorName: (await getSetting('doctorName')) ?? '',
     ...(await logoSettings()),
+    flyerStyle: (await getSetting('flyerStyle')) === 'tech' ? 'tech' : 'smile',
   }
 }
 
@@ -210,7 +216,7 @@ app.get('/api/settings', async () => readSettings())
 
 // Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown; logoType?: unknown }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown; logoType?: unknown; flyerStyle?: unknown }
   if (body.studioName !== undefined) {
     const name = String(body.studioName).trim().slice(0, 80)
     if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
@@ -239,6 +245,10 @@ app.put('/api/settings', async (req) => {
     if (!LOGO_TYPES.includes(body.logoType as LogoType)) throw new HttpError(400, 'Logo non valido')
     if (body.logoType === 'custom' && !(await logoVersion())) throw new HttpError(400, 'Carica prima il logo dello studio')
     await setSetting('logoType', String(body.logoType))
+  }
+  if (body.flyerStyle !== undefined) {
+    if (!FLYER_STYLES.includes(body.flyerStyle as FlyerStyle)) throw new HttpError(400, 'Modello di volantino non valido')
+    await setSetting('flyerStyle', String(body.flyerStyle))
   }
   return readSettings()
 })

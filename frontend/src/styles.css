@@ -1228,3 +1228,75 @@ tbody tr:last-child td {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- Scelta del logo ---------- */
+
+.logo-picker {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.logo-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.logo-tile {
+  border: 2px solid var(--border);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 6px;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  text-align: center;
+  color: var(--text);
+}
+
+.logo-tile[aria-checked='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.logo-tile-preview {
+  height: 70px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.logo-tile-custom {
+  background: repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface) 0% 50%) 50% / 16px 16px;
+  color: var(--text-3);
+}
+
+.logo-tile-custom img {
+  max-height: 60px;
+  max-width: 90%;
+  object-fit: contain;
+}
+
+.logo-tile-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+@media (max-width: 520px) {
+  .logo-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.brand-logo-img {
+  height: 38px;
+  max-width: 120px;
+  object-fit: contain;
+  flex: none;
+}

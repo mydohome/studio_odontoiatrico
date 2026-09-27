@@ -68,6 +68,8 @@ export interface FlyerData {
   tagline: string
   /** Nome del dottore, sotto "Studio odontoiatrico" (vuoto = riga nascosta). */
   doctor: string
+  /** Logo in alto a sinistra: uno di quelli pronti oppure quello caricato dallo studio. */
+  logo: 'famiglia' | 'dente' | 'cuore' | 'custom'
   topQuote: string
   headline: string
   bannerTop: string
@@ -253,7 +255,7 @@ export function formatPeriod(from: string, to: string): string {
 export function buildFlyer(
   campaign: CampaignSuggestion,
   month: string,
-  studio: { studioName: string; phone: string; address: string; doctorName?: string },
+  studio: { studioName: string; phone: string; address: string; doctorName?: string; logoType?: FlyerData['logo'] },
   period?: { from: string; to: string },
 ): FlyerData {
   const m = monthIndex(month)
@@ -284,6 +286,7 @@ export function buildFlyer(
     studioName: studio.studioName,
     tagline: 'Studio odontoiatrico',
     doctor: studio.doctorName ?? '',
+    logo: studio.logoType ?? 'famiglia',
     topQuote: copy.topQuote,
     headline: MONTHS[m],
     bannerTop: copy.bannerTop,

@@ -1,10 +1,13 @@
-import { Database, Download, FileSpreadsheet, LogOut, Plus, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { Check, Database, Download, FileSpreadsheet, ImageUp, LogOut, Plus, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 import { CATEGORIES } from '../../../shared/catalog.ts'
 import type { CategoryId, ImportResult, Service } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
 import { api, EXPORT_URL, TEMPLATE_URL, type SessionUser } from '../lib/api.ts'
 import type { AppDataState } from '../lib/useData.ts'
+import { useCustomLogo } from '../lib/logo.ts'
+import { THEME_BY_ID } from '../flyer/flyerModel.ts'
+import { LOGO_OPTIONS, StudioLogo, type LogoType } from '../flyer/shapes.tsx'
 
 interface Props {
   data: AppDataState
@@ -141,6 +144,7 @@ function StudioCard({ data }: { data: AppDataState }) {
           </button>
         </div>
       </form>
+      <LogoPicker data={data} />
       <div className="setting-toggle">
         <div>
           <label htmlFor="show-prices">Mostra prezzi</label>
@@ -158,6 +162,123 @@ function StudioCard({ data }: { data: AppDataState }) {
           />
           <span />
         </label>
+      </div>
+    </div>
+  )
+}
+
+// Colori del tema rosa per le anteprime dei loghi pronti.
+const PREVIEW = THEME_BY_ID.rosa
+const PREVIEW_COLORS = { face: PREVIEW.heading, outline: PREVIEW.bg2, accent: PREVIEW.accent, accent2: PREVIEW.heading, bow: PREVIEW.light }
+
+function LogoPicker({ data }: { data: AppDataState }) {
+  const notify = useToast()
+  const input = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const { logoType, logoVersion } = data.settings
+  const custom = useCustomLogo(logoVersion)
+
+  const choose = async (type: LogoType) => {
+    if (type === logoType) return
+    setBusy(true)
+    try {
+      data.setSettings(await api.saveSettings({ logoType: type }))
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return
+    if (file.size > 1024 * 1024) {
+      notify('Il logo supera 1 MB: riducilo e riprova.', 'error')
+      return
+    }
+    setBusy(true)
+    try {
+      data.setSettings(await api.uploadLogo(file))
+      notify('Logo caricato: ora è quello predefinito dei volantini')
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+      if (input.current) input.current.value = ''
+    }
+  }
+
+  const remove = async () => {
+    if (!window.confirm('Eliminare il logo caricato? I volantini torneranno a usare un logo pronto.')) return
+    setBusy(true)
+    try {
+      data.setSettings(await api.deleteLogo())
+      notify('Logo eliminato')
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="logo-picker">
+      <div className="field-label">Logo dei volantini</div>
+      <p className="small muted" style={{ margin: '0 0 8px' }}>
+        I loghi pronti prendono i colori del tema del volantino; il tuo logo resta con i suoi colori.
+      </p>
+      <div className="logo-tiles" role="radiogroup" aria-label="Logo dei volantini">
+        {LOGO_OPTIONS.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={logoType === o.id}
+            className="logo-tile"
+            disabled={busy}
+            onClick={() => choose(o.id)}
+          >
+            <span className="logo-tile-preview" style={{ background: PREVIEW.bg }}>
+              <StudioLogo type={o.id} height={52} colors={PREVIEW_COLORS} />
+            </span>
+            <span className="logo-tile-label">
+              {logoType === o.id && <Check size={14} />} {o.label}
+            </span>
+          </button>
+        ))}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={logoType === 'custom'}
+          className="logo-tile"
+          disabled={busy}
+          onClick={() => (logoVersion ? choose('custom') : input.current?.click())}
+        >
+          <span className="logo-tile-preview logo-tile-custom">
+            {custom ? <img src={custom} alt="Logo dello studio" /> : <ImageUp size={26} />}
+          </span>
+          <span className="logo-tile-label">
+            {logoType === 'custom' && <Check size={14} />} {logoVersion ? 'Il tuo logo' : 'Carica il tuo logo'}
+          </span>
+        </button>
+      </div>
+      <div className="settings-row" style={{ marginTop: 8 }}>
+        <button type="button" className="btn" onClick={() => input.current?.click()} disabled={busy}>
+          <Upload size={16} /> {logoVersion ? 'Sostituisci logo' : 'Carica logo'}
+        </button>
+        {logoVersion > 0 && (
+          <button type="button" className="btn btn-ghost btn-danger" onClick={remove} disabled={busy}>
+            <Trash2 size={16} /> Elimina logo caricato
+          </button>
+        )}
+        <span className="small muted">PNG, JPG, WebP o SVG · max 1 MB · meglio con sfondo trasparente</span>
+        <input
+          ref={input}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg"
+          hidden
+          onChange={(e) => upload(e.target.files?.[0])}
+        />
       </div>
     </div>
   )

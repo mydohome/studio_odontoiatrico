@@ -5,7 +5,9 @@ import { formatMonth } from '../../../shared/dates.ts'
 import type { CampaignSuggestion } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
 import { api, type AppSettings } from '../lib/api.ts'
+import { useCustomLogo } from '../lib/logo.ts'
 import Flyer, { FLYER_HEIGHT, FLYER_WIDTH } from './Flyer.tsx'
+import { LOGO_OPTIONS } from './shapes.tsx'
 import { buildFlyer, ICON_LABELS, mergeFlyer, THEME_BY_ID, THEMES, type FlyerData, type IconId } from './flyerModel.ts'
 
 interface Props {
@@ -54,7 +56,13 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
   // Testi proposti automaticamente (usati anche da "Ripristina testi proposti").
   const initial = useMemo(
     () =>
-      buildFlyer(campaign, month, { studioName: settings.studioName, phone: settings.phone, address: settings.address, doctorName: settings.doctorName }, period),
+      buildFlyer(campaign, month, {
+          studioName: settings.studioName,
+          phone: settings.phone,
+          address: settings.address,
+          doctorName: settings.doctorName,
+          logoType: settings.logoType,
+        }, period),
     [campaign, month, settings.studioName], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const [data, setData] = useState<FlyerData>(() => mergeFlyer(initial, saved))
@@ -62,6 +70,9 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
   const unsaved = !!onSave && JSON.stringify(data) !== savedJson
   const [busy, setBusy] = useState<'download' | 'share' | 'save' | null>(null)
   const [format, setFormat] = useState<Format>(loadFormat)
+  const customLogo = useCustomLogo(settings.logoVersion)
+  // Con il logo caricato, l'esportazione aspetta che l'immagine sia pronta.
+  const logoPending = data.logo === 'custom' && settings.logoVersion > 0 && !customLogo
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   // Telefono e indirizzo si memorizzano nelle impostazioni per i volantini successivi.
@@ -381,6 +392,17 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
                 <input className="input" value={data.studioName} onChange={(e) => set('studioName', e.target.value)} maxLength={30} />
               </label>
               <label>
+                Logo
+                <select className="input" value={data.logo === 'custom' && !settings.logoVersion ? 'famiglia' : data.logo} onChange={(e) => set('logo', e.target.value as FlyerData['logo'])}>
+                  {LOGO_OPTIONS.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                  {settings.logoVersion > 0 && <option value="custom">Logo dello studio (caricato)</option>}
+                </select>
+              </label>
+              <label>
                 Nome del dottore (sotto "Studio odontoiatrico"; vuoto per nasconderlo)
                 <input className="input" value={data.doctor} onChange={(e) => set('doctor', e.target.value)} maxLength={60} placeholder="es. Dott.ssa Maria Rossi" />
               </label>
@@ -406,7 +428,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
           <div className="flyer-preview" ref={previewRef}>
             <div className="flyer-preview-frame" style={{ width: FLYER_WIDTH * scale, height: FLYER_HEIGHT * scale }}>
               <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: FLYER_WIDTH, height: FLYER_HEIGHT }}>
-                <Flyer ref={flyerRef} data={data} />
+                <Flyer ref={flyerRef} data={data} logoSrc={customLogo} />
               </div>
             </div>
           </div>
@@ -423,18 +445,18 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
               </button>
             )}
             {canShare && (
-              <button className="btn" onClick={share} disabled={busy !== null} title="Invia come foto (JPG), con anteprima su WhatsApp">
+              <button className="btn" onClick={share} disabled={busy !== null || logoPending} title="Invia come foto (JPG), con anteprima su WhatsApp">
                 {busy === 'share' ? <Loader2 size={16} /> : <Share2 size={16} />} Condividi
               </button>
             )}
             <div className="split-btn" ref={menuRef}>
-              <button className="btn btn-primary" onClick={() => download()} disabled={busy !== null}>
+              <button className="btn btn-primary" onClick={() => download()} disabled={busy !== null || logoPending}>
                 {busy === 'download' ? <Loader2 size={16} /> : <Download size={16} />} Scarica {format.toUpperCase()}
               </button>
               <button
                 className="btn btn-primary split-caret"
                 onClick={() => setMenuOpen((o) => !o)}
-                disabled={busy !== null}
+                disabled={busy !== null || logoPending}
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 aria-label="Scegli il formato"

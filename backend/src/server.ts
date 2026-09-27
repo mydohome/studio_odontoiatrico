@@ -3,6 +3,7 @@ import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
 import { CATEGORIES } from '../../shared/catalog.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
 import type { CategoryId, ImportResult } from '../../shared/types.ts'
+import { deleteLogo, getLogo, LOGO_TYPES, LogoError, logoVersion, migrateBranding, saveLogo, type LogoType } from './branding.ts'
 import { buildCampaigns } from './campaigns.ts'
 import {
   CampaignError,
@@ -28,7 +29,7 @@ const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'warn' }, bodyLimit: 10 * 1024 * 1024 })
 
 app.addContentTypeParser(
-  ['application/octet-stream', XLSX],
+  ['application/octet-stream', XLSX, 'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'],
   { parseAs: 'buffer' },
   (_req, body, done) => done(null, body),
 )
@@ -180,6 +181,18 @@ interface Settings {
   address: string
   /** Nome del dottore, mostrato nei volantini sotto "Studio odontoiatrico". */
   doctorName: string
+  /** Logo dei volantini: uno di quelli pronti oppure quello caricato ("custom"). */
+  logoType: LogoType
+  /** Versione del logo caricato (0 = nessun logo caricato); serve anche a evitare la cache. */
+  logoVersion: number
+}
+
+async function logoSettings(): Promise<Pick<Settings, 'logoType' | 'logoVersion'>> {
+  const version = await logoVersion()
+  const stored = (await getSetting('logoType')) as LogoType | null
+  // Senza un logo caricato, "custom" non ha senso: si torna alla famiglia di dentini.
+  const logoType = stored && LOGO_TYPES.includes(stored) && (stored !== 'custom' || version) ? stored : 'famiglia'
+  return { logoType, logoVersion: version }
 }
 
 async function readSettings(): Promise<Settings> {
@@ -189,6 +202,7 @@ async function readSettings(): Promise<Settings> {
     phone: (await getSetting('phone')) ?? '',
     address: (await getSetting('address')) ?? '',
     doctorName: (await getSetting('doctorName')) ?? '',
+    ...(await logoSettings()),
   }
 }
 
@@ -196,7 +210,7 @@ app.get('/api/settings', async () => readSettings())
 
 // Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown; logoType?: unknown }
   if (body.studioName !== undefined) {
     const name = String(body.studioName).trim().slice(0, 80)
     if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
@@ -221,6 +235,43 @@ app.put('/api/settings', async (req) => {
     if (doctorName.length > 80) throw new HttpError(400, 'Nome del dottore troppo lungo (massimo 80 caratteri)')
     await setSetting('doctorName', doctorName)
   }
+  if (body.logoType !== undefined) {
+    if (!LOGO_TYPES.includes(body.logoType as LogoType)) throw new HttpError(400, 'Logo non valido')
+    if (body.logoType === 'custom' && !(await logoVersion())) throw new HttpError(400, 'Carica prima il logo dello studio')
+    await setSetting('logoType', String(body.logoType))
+  }
+  return readSettings()
+})
+
+// ---------- Logo dello studio ----------
+
+app.get('/api/logo', async (_req, reply) => {
+  const logo = await getLogo()
+  if (!logo) throw new HttpError(404, 'Nessun logo caricato')
+  reply
+    .header('content-type', logo.mime)
+    .header('cache-control', 'private, max-age=86400')
+    .header('x-content-type-options', 'nosniff')
+    // Un SVG aperto direttamente non può eseguire nulla.
+    .header('content-security-policy', "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox")
+  return reply.send(logo.data)
+})
+
+app.put('/api/logo', async (req) => {
+  if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Invia il file del logo (PNG, JPG, WebP o SVG).')
+  try {
+    await saveLogo(req.body)
+  } catch (e) {
+    if (e instanceof LogoError) throw new HttpError(400, e.message)
+    throw e
+  }
+  await setSetting('logoType', 'custom')
+  return readSettings()
+})
+
+app.delete('/api/logo', async () => {
+  await deleteLogo()
+  if ((await getSetting('logoType')) === 'custom') await setSetting('logoType', 'famiglia')
   return readSettings()
 })
 
@@ -424,6 +475,7 @@ async function start() {
       await migrate()
       await migrateUsers()
       await migrateCustomCampaigns()
+      await migrateBranding()
       break
     } catch (e) {
       if (attempt >= 30) throw e

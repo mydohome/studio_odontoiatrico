@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from './components/Toast.tsx'
 import { Tooth } from './components/Tooth.tsx'
 import { api, setUnauthorizedHandler, type SessionUser } from './lib/api.ts'
+import { useCustomLogo } from './lib/logo.ts'
 import { useAppData } from './lib/useData.ts'
 import Campagne from './pages/Campagne.tsx'
 import Impostazioni from './pages/Impostazioni.tsx'
@@ -57,6 +58,8 @@ function FullLoader() {
 function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const [tab, setTab] = useState<TabId>(tabFromHash)
   const data = useAppData()
+  // Logo caricato dallo studio: se è quello scelto, compare anche nell'intestazione dell'app.
+  const headerLogo = useCustomLogo(data.settings.logoType === 'custom' ? data.settings.logoVersion : 0)
 
   useEffect(() => {
     const onHash = () => setTab(tabFromHash())
@@ -74,9 +77,13 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
       <header className="app-header">
         <div className="app-header-inner">
           <div className="brand">
-            <span className="brand-logo">
-              <Tooth size={20} />
-            </span>
+            {headerLogo ? (
+              <img className="brand-logo-img" src={headerLogo} alt="" />
+            ) : (
+              <span className="brand-logo">
+                <Tooth size={20} />
+              </span>
+            )}
             <span className="brand-name">{data.settings.studioName}</span>
           </div>
           <nav className="tabs" role="tablist" aria-label="Sezioni">

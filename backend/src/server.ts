@@ -131,12 +131,23 @@ app.get('/api/health', async () => {
 
 app.get('/api/me', async (req) => {
   const user = await sessionUser(req)
-  return { authenticated: !!user, user: user ? publicUser(user) : null, hasUsers: (await countUsers()) > 0 }
+  // Nome e logo dello studio sono visibili anche nella pagina di accesso: chi segue più studi
+  // riconosce subito in quale sta entrando. Nessun altro dato prima del login.
+  const { studioName, logoType, logoVersion, flyerStyle } = await readSettings()
+  return {
+    authenticated: !!user,
+    user: user ? publicUser(user) : null,
+    hasUsers: (await countUsers()) > 0,
+    studio: { name: studioName, logoType, logoVersion, flyerStyle },
+  }
 })
 
 app.addHook('onRequest', async (req) => {
   const open = ['/api/login', '/api/logout', '/api/health', '/api/me']
-  if (open.includes(req.url.split('?')[0])) return
+  const path = req.url.split('?')[0]
+  if (open.includes(path)) return
+  // Il logo si può leggere senza accesso (pagina di login); caricarlo o eliminarlo no.
+  if (path === '/api/logo' && (req.method === 'GET' || req.method === 'HEAD')) return
   if (!(await sessionUser(req))) throw new HttpError(401, 'Accesso richiesto')
 })
 
@@ -263,7 +274,7 @@ app.get('/api/logo', async (_req, reply) => {
   if (!logo) throw new HttpError(404, 'Nessun logo caricato')
   reply
     .header('content-type', logo.mime)
-    .header('cache-control', 'private, max-age=86400')
+    .header('cache-control', 'public, max-age=86400')
     .header('x-content-type-options', 'nosniff')
     // Un SVG aperto direttamente non può eseguire nulla.
     .header('content-security-policy', "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox")

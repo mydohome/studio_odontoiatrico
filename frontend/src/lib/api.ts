@@ -25,6 +25,9 @@ export interface AppSettings {
   flyerStyle: 'smile' | 'mint'
 }
 
+/** Nome e logo dello studio: pubblici, mostrati anche nella pagina di accesso. */
+export type StudioBrand = { name: string } & Pick<AppSettings, 'logoType' | 'logoVersion' | 'flyerStyle'>
+
 export interface SessionUser {
   username: string
   email: string | null
@@ -69,7 +72,7 @@ async function request<T>(method: string, url: string, body?: unknown, raw?: Blo
 }
 
 export const api = {
-  me: () => request<{ authenticated: boolean; user: SessionUser | null; hasUsers: boolean }>('GET', '/api/me'),
+  me: () => request<{ authenticated: boolean; user: SessionUser | null; hasUsers: boolean; studio?: StudioBrand }>('GET', '/api/me'),
   login: (username: string, password: string) =>
     request<{ ok: boolean; user: SessionUser }>('POST', '/api/login', { username, password }),
   logout: () => request<{ ok: boolean }>('POST', '/api/logout', {}),

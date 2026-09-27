@@ -1,12 +1,22 @@
-import { CalendarRange, Info, Lightbulb, Loader2, Megaphone, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { CalendarRange, Copy, ImagePlus, Info, Lightbulb, Loader2, Megaphone, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { CATEGORY_BY_ID } from '../../../shared/catalog.ts'
-import { formatMonth, MONTHS_SHORT, monthIndex } from '../../../shared/dates.ts'
-import type { CampaignResponse, CampaignType } from '../../../shared/types.ts'
+import { daysInMonth, formatMonth, fromISO, MONTHS, MONTHS_SHORT, monthIndex, monthKey } from '../../../shared/dates.ts'
+import type {
+  CampaignResponse,
+  CampaignSuggestion,
+  CampaignType,
+  CustomCampaign,
+  CustomCampaignInput,
+} from '../../../shared/types.ts'
+import CampaignForm from '../components/CampaignForm.tsx'
 import { useToast } from '../components/Toast.tsx'
 import { api } from '../lib/api.ts'
 import { fmt } from '../lib/stats.ts'
 import type { AppDataState } from '../lib/useData.ts'
+
+// Editor dei volantini (beta): caricato solo quando serve.
+const FlyerEditor = lazy(() => import('../flyer/FlyerEditor.tsx'))
 
 const TYPE_LABEL: Record<CampaignType, { label: string; cls: string }> = {
   calo: { label: 'Riempi l\'agenda', cls: 'badge-warn' },
@@ -15,7 +25,36 @@ const TYPE_LABEL: Record<CampaignType, { label: string; cls: string }> = {
   trend: { label: 'Riattivazione', cls: 'badge-danger' },
   crosssell: { label: 'Cross-selling', cls: 'badge-good' },
   calendario: { label: 'Stagionale', cls: '' },
+  personalizzata: { label: 'Personalizzata', cls: 'badge-accent' },
 }
+
+const monthStart = (ym: string) => `${ym}-01`
+const monthEnd = (ym: string) => `${ym}-${String(daysInMonth(ym)).padStart(2, '0')}`
+
+/** "10 ott – 10 nov 2026" / "17 ottobre 2026" */
+function formatRange(from: string, to: string) {
+  const a = fromISO(from)
+  const b = fromISO(to)
+  if (from === to) return `${a.getDate()} ${MONTHS[a.getMonth()].toLowerCase()} ${a.getFullYear()}`
+  const sameYear = a.getFullYear() === b.getFullYear()
+  return `${a.getDate()} ${MONTHS_SHORT[a.getMonth()].toLowerCase()}${sameYear ? '' : ` ${a.getFullYear()}`} – ${b.getDate()} ${MONTHS_SHORT[b.getMonth()].toLowerCase()} ${b.getFullYear()}`
+}
+
+/** Una campagna personalizzata nella forma usata dal generatore di volantini. */
+const asSuggestion = (c: CustomCampaign): CampaignSuggestion => ({
+  id: `custom-${c.id}`,
+  type: 'personalizzata',
+  category: c.category,
+  title: c.title,
+  offer: c.offer,
+  target: c.target,
+  channels: c.channels,
+  score: 0,
+  reasons: [],
+})
+
+type FormState = { mode: 'new' | 'edit'; id?: number; initial: CustomCampaignInput } | null
+type FlyerState = { campaign: CampaignSuggestion; month: string; custom?: CustomCampaign } | null
 
 const CONFIDENCE: Record<CampaignResponse['confidence'], { label: string; cls: string; text: string }> = {
   nessuna: { label: 'Nessun dato', cls: 'badge-danger', text: 'Senza storico i suggerimenti si basano solo sul calendario.' },
@@ -36,6 +75,9 @@ export default function Campagne({ data }: { data: AppDataState }) {
   const [res, setRes] = useState<CampaignResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [sel, setSel] = useState(0)
+  const [flyerFor, setFlyerFor] = useState<FlyerState>(null)
+  const [customs, setCustoms] = useState<CustomCampaign[]>([])
+  const [form, setForm] = useState<FormState>(null)
 
   const load = () => {
     setLoading(true)
@@ -46,6 +88,76 @@ export default function Campagne({ data }: { data: AppDataState }) {
       .finally(() => setLoading(false))
   }
   useEffect(load, [data.version]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Campagne personalizzate nell'orizzonte mostrato (i 12 mesi della striscia).
+  const firstMonth = res?.months[0]?.month
+  const lastMonth = res?.months[res.months.length - 1]?.month
+  const loadCustoms = () => {
+    if (!firstMonth || !lastMonth) return
+    api
+      .customCampaigns(monthStart(firstMonth), monthEnd(lastMonth))
+      .then(setCustoms)
+      .catch((e) => notify((e as Error).message, 'error'))
+  }
+  useEffect(loadCustoms, [firstMonth, lastMonth]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const inMonth = (c: CustomCampaign, ym: string) => c.dateFrom <= monthEnd(ym) && c.dateTo >= monthStart(ym)
+
+  const newCampaign = (ym: string, from?: CampaignSuggestion) =>
+    setForm({
+      mode: 'new',
+      initial: {
+        category: from?.category ?? 'prevenzione',
+        title: from?.title ?? '',
+        offer: from?.offer ?? '',
+        target: from?.target ?? '',
+        channels: from?.channels ?? [],
+        dateFrom: monthStart(ym),
+        dateTo: monthEnd(ym),
+        notes: '',
+      },
+    })
+
+  const editCampaign = (c: CustomCampaign) =>
+    setForm({
+      mode: 'edit',
+      id: c.id,
+      initial: {
+        category: c.category,
+        title: c.title,
+        offer: c.offer,
+        target: c.target,
+        channels: c.channels,
+        dateFrom: c.dateFrom,
+        dateTo: c.dateTo,
+        notes: c.notes,
+      },
+    })
+
+  const submitForm = async (value: CustomCampaignInput) => {
+    if (!form) return
+    const saved =
+      form.mode === 'edit' && form.id
+        ? await api.updateCustomCampaign(form.id, value)
+        : await api.createCustomCampaign(value)
+    setForm(null)
+    notify(form.mode === 'edit' ? 'Campagna aggiornata' : 'Campagna creata')
+    loadCustoms()
+    // Porta la vista sul mese di inizio della campagna, se è tra quelli mostrati.
+    const idx = res?.months.findIndex((m) => m.month === monthKey(saved.dateFrom)) ?? -1
+    if (idx >= 0 && !inMonth(saved, res!.months[sel].month)) setSel(idx)
+  }
+
+  const removeCampaign = async (c: CustomCampaign) => {
+    if (!window.confirm(`Eliminare la campagna "${c.title}"?`)) return
+    try {
+      await api.deleteCustomCampaign(c.id)
+      setCustoms((list) => list.filter((x) => x.id !== c.id))
+      notify('Campagna eliminata')
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    }
+  }
 
   if (loading && !res) {
     return (
@@ -74,6 +186,9 @@ export default function Campagne({ data }: { data: AppDataState }) {
           <button className="btn" onClick={load} disabled={loading}>
             <RefreshCw size={16} /> Ricalcola
           </button>
+          <button className="btn btn-primary" onClick={() => newCampaign(plan.month)}>
+            <Plus size={16} /> Nuova campagna
+          </button>
         </div>
       </div>
 
@@ -91,6 +206,14 @@ export default function Campagne({ data }: { data: AppDataState }) {
           <button key={m.month} className="month-chip" aria-pressed={i === sel} onClick={() => setSel(i)}>
             <span className="m">{MONTHS_SHORT[monthIndex(m.month)]}</span>
             <span className="y">{m.month.slice(0, 4)}</span>
+            {customs.some((c) => inMonth(c, m.month)) && (
+              <span className="count" title="Campagne personalizzate">
+                {(() => {
+                  const n = customs.filter((c) => inMonth(c, m.month)).length
+                  return n === 1 ? '1 tua' : `${n} tue`
+                })()}
+              </span>
+            )}
             {m.campaigns[0] && (
               <span
                 className="dot"
@@ -117,6 +240,91 @@ export default function Campagne({ data }: { data: AppDataState }) {
             </div>
           </div>
 
+          <div className="section-title">
+            <span>Le tue campagne</span>
+            <button className="btn btn-ghost small" onClick={() => newCampaign(plan.month)}>
+              <Plus size={15} /> Crea per {MONTHS[monthIndex(plan.month)].toLowerCase()}
+            </button>
+          </div>
+          {customs.filter((c) => inMonth(c, plan.month)).length === 0 && (
+            <p className="muted small" style={{ margin: 0 }}>
+              Nessuna campagna personalizzata in questo mese. Creane una da zero oppure usa "Personalizza" su una proposta.
+            </p>
+          )}
+          {customs
+            .filter((c) => inMonth(c, plan.month))
+            .map((c) => {
+              const cat = CATEGORY_BY_ID[c.category]
+              return (
+                <article className="campaign campaign-custom" key={`custom-${c.id}`}>
+                  <div className="campaign-top">
+                    <div>
+                      <div className="chips">
+                        <span className="badge badge-accent">Personalizzata</span>
+                        <span className="badge">
+                          <span className="dot" style={{ background: cat.color }} />
+                          {cat.label}
+                        </span>
+                        <span className="badge">
+                          <CalendarRange size={12} /> {formatRange(c.dateFrom, c.dateTo)}
+                        </span>
+                      </div>
+                      <h3>{c.title}</h3>
+                    </div>
+                  </div>
+                  <dl>
+                    {c.offer && (
+                      <>
+                        <dt>Offerta</dt>
+                        <dd>{c.offer}</dd>
+                      </>
+                    )}
+                    {c.target && (
+                      <>
+                        <dt>Target</dt>
+                        <dd>{c.target}</dd>
+                      </>
+                    )}
+                    {c.channels.length > 0 && (
+                      <>
+                        <dt>Canali</dt>
+                        <dd className="chips">
+                          {c.channels.map((ch) => (
+                            <span className="badge" key={ch}>
+                              {ch}
+                            </span>
+                          ))}
+                        </dd>
+                      </>
+                    )}
+                  </dl>
+                  {c.notes && <p className="reasons" style={{ margin: 0, whiteSpace: 'pre-line' }}>{c.notes}</p>}
+                  <div className="campaign-actions">
+                    <button
+                      className="btn"
+                      onClick={() => setFlyerFor({ campaign: asSuggestion(c), month: monthKey(c.dateFrom), custom: c })}
+                    >
+                      <ImagePlus size={16} /> {c.flyer ? 'Apri volantino' : 'Genera volantino'} <span className="beta-tag">beta</span>
+                    </button>
+                    <button className="btn" onClick={() => editCampaign(c)}>
+                      <Pencil size={16} /> Modifica
+                    </button>
+                    <button className="btn btn-ghost btn-danger" onClick={() => removeCampaign(c)}>
+                      <Trash2 size={16} /> Elimina
+                    </button>
+                  </div>
+                  {c.createdBy && (
+                    <p className="small muted" style={{ margin: 0 }}>
+                      Creata da {c.createdBy}
+                    </p>
+                  )}
+                </article>
+              )
+            })}
+
+          <div className="section-title">
+            <span>Proposte dell'algoritmo</span>
+          </div>
           {plan.campaigns.length === 0 && (
             <div className="card empty">
               <Megaphone size={28} />
@@ -168,6 +376,14 @@ export default function Campagne({ data }: { data: AppDataState }) {
                     <li key={j}>{r}</li>
                   ))}
                 </ul>
+                <div className="campaign-actions">
+                  <button className="btn" onClick={() => setFlyerFor({ campaign: c, month: plan.month })}>
+                    <ImagePlus size={16} /> Genera volantino <span className="beta-tag">beta</span>
+                  </button>
+                  <button className="btn" onClick={() => newCampaign(plan.month, c)} title="Copia tra le tue campagne per modificarla">
+                    <Copy size={16} /> Personalizza
+                  </button>
+                </div>
               </article>
             )
           })}
@@ -295,6 +511,37 @@ export default function Campagne({ data }: { data: AppDataState }) {
             </table>
           </div>
         </div>
+      )}
+
+      {flyerFor && (
+        <Suspense fallback={null}>
+          <FlyerEditor
+            campaign={flyerFor.campaign}
+            month={flyerFor.month}
+            settings={data.settings}
+            onSettingsChange={data.setSettings}
+            onClose={() => setFlyerFor(null)}
+            {...(flyerFor.custom
+              ? {
+                  period: { from: flyerFor.custom.dateFrom, to: flyerFor.custom.dateTo },
+                  saved: flyerFor.custom.flyer,
+                  onSave: async (flyer) => {
+                    const updated = await api.saveCustomFlyer(flyerFor.custom!.id, flyer)
+                    setCustoms((list) => list.map((x) => (x.id === updated.id ? updated : x)))
+                  },
+                }
+              : {})}
+          />
+        </Suspense>
+      )}
+
+      {form && (
+        <CampaignForm
+          title={form.mode === 'edit' ? 'Modifica campagna' : 'Nuova campagna'}
+          initial={form.initial}
+          onSubmit={submitForm}
+          onClose={() => setForm(null)}
+        />
       )}
     </>
   )

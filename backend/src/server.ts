@@ -4,6 +4,17 @@ import { CATEGORIES } from '../../shared/catalog.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
 import type { CategoryId, ImportResult } from '../../shared/types.ts'
 import { buildCampaigns } from './campaigns.ts'
+import {
+  CampaignError,
+  createCustomCampaign,
+  deleteCustomCampaign,
+  listCustomCampaigns,
+  migrateCustomCampaigns,
+  parseFlyer,
+  parseInput,
+  saveCustomFlyer,
+  updateCustomCampaign,
+} from './customCampaigns.ts'
 import { getSetting, listRecords, listServices, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
@@ -163,12 +174,21 @@ interface Settings {
   studioName: string
   /** Mostra prezzi e fatturato stimato nelle viste e nei file Excel. */
   showPrices: boolean
+  /** Telefono / WhatsApp dello studio, usato nei volantini. */
+  phone: string
+  /** Indirizzo dello studio, mostrato nei volantini. */
+  address: string
+  /** Nome del dottore, mostrato nei volantini sotto "Studio odontoiatrico". */
+  doctorName: string
 }
 
 async function readSettings(): Promise<Settings> {
   return {
     studioName: (await getSetting('studioName')) ?? 'Studio Odontoiatrico',
     showPrices: (await getSetting('showPrices')) !== 'false',
+    phone: (await getSetting('phone')) ?? '',
+    address: (await getSetting('address')) ?? '',
+    doctorName: (await getSetting('doctorName')) ?? '',
   }
 }
 
@@ -176,7 +196,7 @@ app.get('/api/settings', async () => readSettings())
 
 // Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown }
   if (body.studioName !== undefined) {
     const name = String(body.studioName).trim().slice(0, 80)
     if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
@@ -185,6 +205,21 @@ app.put('/api/settings', async (req) => {
   if (body.showPrices !== undefined) {
     if (typeof body.showPrices !== 'boolean') throw new HttpError(400, 'Valore di showPrices non valido')
     await setSetting('showPrices', String(body.showPrices))
+  }
+  if (body.phone !== undefined) {
+    const phone = String(body.phone).trim()
+    if (phone && !/^\+?[0-9 ./-]{6,20}$/.test(phone)) throw new HttpError(400, 'Numero di telefono non valido')
+    await setSetting('phone', phone)
+  }
+  if (body.address !== undefined) {
+    const address = String(body.address).replace(/\s+/g, ' ').trim()
+    if (address.length > 120) throw new HttpError(400, 'Indirizzo troppo lungo (massimo 120 caratteri)')
+    await setSetting('address', address)
+  }
+  if (body.doctorName !== undefined) {
+    const doctorName = String(body.doctorName).replace(/\s+/g, ' ').trim()
+    if (doctorName.length > 80) throw new HttpError(400, 'Nome del dottore troppo lungo (massimo 80 caratteri)')
+    await setSetting('doctorName', doctorName)
   }
   return readSettings()
 })
@@ -298,6 +333,45 @@ app.get('/api/campaigns', async (req) => {
   return buildCampaigns(services, records, today(), horizon)
 })
 
+// ---------- Campagne personalizzate ----------
+
+function campaignId(req: FastifyRequest): number {
+  const id = Number((req.params as { id: string }).id)
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Campagna non valida')
+  return id
+}
+
+/** Converte gli errori di validazione in risposte 400 (404 se la campagna non esiste). */
+async function campaignCall<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (e instanceof CampaignError) throw new HttpError(/non trovata/.test(e.message) ? 404 : 400, e.message)
+    throw e
+  }
+}
+
+app.get('/api/custom-campaigns', async (req) => {
+  const q = req.query as { from?: string; to?: string }
+  return listCustomCampaigns(optDate(q.from, 'from'), optDate(q.to, 'to'))
+})
+
+app.post('/api/custom-campaigns', async (req) => {
+  const user = await sessionUser(req)
+  return campaignCall(() => createCustomCampaign(parseInput(req.body), user?.username ?? null))
+})
+
+app.put('/api/custom-campaigns/:id', async (req) => campaignCall(() => updateCustomCampaign(campaignId(req), parseInput(req.body))))
+
+app.put('/api/custom-campaigns/:id/flyer', async (req) =>
+  campaignCall(() => saveCustomFlyer(campaignId(req), parseFlyer((req.body as { flyer?: unknown } | null)?.flyer ?? null))),
+)
+
+app.delete('/api/custom-campaigns/:id', async (req) => {
+  await campaignCall(() => deleteCustomCampaign(campaignId(req)))
+  return { ok: true }
+})
+
 // ---------- Excel ----------
 
 function sendXlsx(reply: FastifyReply, filename: string, buf: Buffer) {
@@ -349,6 +423,7 @@ async function start() {
     try {
       await migrate()
       await migrateUsers()
+      await migrateCustomCampaigns()
       break
     } catch (e) {
       if (attempt >= 30) throw e

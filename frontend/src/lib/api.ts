@@ -1,9 +1,22 @@
-import type { CampaignResponse, ImportResult, RecordRow, Service } from '../../../shared/types.ts'
+import type {
+  CampaignResponse,
+  CustomCampaign,
+  CustomCampaignInput,
+  ImportResult,
+  RecordRow,
+  Service,
+} from '../../../shared/types.ts'
 
 export interface AppSettings {
   studioName: string
   /** Mostra prezzi e fatturato stimato nelle viste. */
   showPrices: boolean
+  /** Telefono / WhatsApp dello studio (volantini). */
+  phone: string
+  /** Indirizzo dello studio (volantini). */
+  address: string
+  /** Nome del dottore (volantini). */
+  doctorName: string
 }
 
 export interface SessionUser {
@@ -76,6 +89,19 @@ export const api = {
   deleteAll: () => request<{ ok: boolean }>('DELETE', '/api/records?confirm=ELIMINA'),
 
   campaigns: (months = 12) => request<CampaignResponse>('GET', `/api/campaigns?months=${months}`),
+
+  customCampaigns: (from?: string, to?: string) => {
+    const q = new URLSearchParams()
+    if (from) q.set('from', from)
+    if (to) q.set('to', to)
+    return request<CustomCampaign[]>('GET', `/api/custom-campaigns?${q}`)
+  },
+  createCustomCampaign: (c: CustomCampaignInput) => request<CustomCampaign>('POST', '/api/custom-campaigns', c),
+  updateCustomCampaign: (id: number, c: CustomCampaignInput) =>
+    request<CustomCampaign>('PUT', `/api/custom-campaigns/${id}`, c),
+  saveCustomFlyer: (id: number, flyer: object | null) =>
+    request<CustomCampaign>('PUT', `/api/custom-campaigns/${id}/flyer`, { flyer }),
+  deleteCustomCampaign: (id: number) => request<{ ok: boolean }>('DELETE', `/api/custom-campaigns/${id}`),
 
   importExcel: (file: File, mode: 'replace' | 'sum') =>
     request<ImportResult>('POST', `/api/excel/import?mode=${mode}`, undefined, file),

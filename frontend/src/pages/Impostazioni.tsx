@@ -51,6 +51,14 @@ function StudioCard({ data }: { data: AppDataState }) {
   const notify = useToast()
   const [name, setName] = useState(data.settings.studioName)
   const [savingPrices, setSavingPrices] = useState(false)
+  const [phone, setPhone] = useState(data.settings.phone)
+  const [address, setAddress] = useState(data.settings.address)
+  const [doctorName, setDoctorName] = useState(data.settings.doctorName)
+  const changed =
+    name.trim() !== data.settings.studioName ||
+    doctorName.trim() !== data.settings.doctorName ||
+    phone.trim() !== data.settings.phone ||
+    address.trim() !== data.settings.address
   const { showPrices } = data.settings
 
   const togglePrices = async (value: boolean) => {
@@ -68,23 +76,70 @@ function StudioCard({ data }: { data: AppDataState }) {
   return (
     <div className="card">
       <h2>Studio</h2>
-      <p className="sub">Nome mostrato nell'intestazione.</p>
+      <p className="sub">Dati mostrati nell'intestazione e nei volantini delle campagne.</p>
       <form
-        className="settings-row"
+        className="studio-form"
         onSubmit={async (e) => {
           e.preventDefault()
           try {
-            data.setSettings(await api.saveSettings({ studioName: name }))
-            notify('Nome salvato')
+            const r = await api.saveSettings({
+              studioName: name.trim(),
+              doctorName: doctorName.trim(),
+              phone: phone.trim(),
+              address: address.trim(),
+            })
+            data.setSettings(r)
+            setName(r.studioName)
+            setDoctorName(r.doctorName)
+            setPhone(r.phone)
+            setAddress(r.address)
+            notify('Dati dello studio salvati')
           } catch (err) {
             notify((err as Error).message, 'error')
           }
         }}
       >
-        <input className="input" style={{ flex: 1 }} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
-        <button className="btn btn-primary" disabled={!name.trim() || name === data.settings.studioName}>
-          <Save size={16} /> Salva
-        </button>
+        <label>
+          Nome dello studio
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required />
+        </label>
+        <label>
+          Nome del dottore
+          <input
+            className="input"
+            placeholder="es. Dott.ssa Maria Rossi"
+            value={doctorName}
+            maxLength={80}
+            onChange={(e) => setDoctorName(e.target.value)}
+          />
+        </label>
+        <label>
+          Telefono / WhatsApp
+          <input
+            className="input"
+            type="tel"
+            inputMode="tel"
+            placeholder="es. 347 1234567"
+            value={phone}
+            maxLength={20}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </label>
+        <label>
+          Indirizzo
+          <input
+            className="input"
+            placeholder="es. Via Roma 12, 20100 Milano"
+            value={address}
+            maxLength={120}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        </label>
+        <div>
+          <button className="btn btn-primary" disabled={!name.trim() || !changed}>
+            <Save size={16} /> Salva
+          </button>
+        </div>
       </form>
       <div className="setting-toggle">
         <div>

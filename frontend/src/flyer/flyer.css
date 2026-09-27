@@ -1,0 +1,774 @@
+@import '@fontsource/lobster/latin-400.css';
+@import '@fontsource/fredoka/latin-500.css';
+@import '@fontsource/fredoka/latin-600.css';
+@import '@fontsource/fredoka/latin-700.css';
+@import '@fontsource/kalam/latin-700.css';
+
+/* Il volantino ha dimensioni fisse (800×1200) e viene esportato così com'è. */
+.flyer {
+  position: relative;
+  width: 800px;
+  height: 1200px;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 35%, rgba(255, 255, 255, 0.14), transparent 70%),
+    radial-gradient(ellipse 90% 60% at 50% 100%, var(--f-bg2), transparent 75%),
+    var(--f-bg);
+  font-family: 'Fredoka', system-ui, sans-serif;
+  line-height: 1.05;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+
+.flyer * {
+  box-sizing: border-box;
+}
+
+/* Niente legamenti decorativi: le scritte devono restare leggibili anche da lontano. */
+.flyer {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'clig' 0, 'calt' 0;
+}
+
+.f-abs {
+  position: absolute;
+}
+
+.f-light {
+  color: var(--f-light);
+}
+
+.f-ray {
+  position: absolute;
+  height: 6px;
+  border-radius: 3px;
+  background: #fff;
+  transform-origin: center;
+}
+
+/* ---------- Pennellate ---------- */
+
+.f-block {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.f-brush {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.08));
+}
+
+.f-block > span,
+.f-block > div:not(.f-brush) {
+  position: relative;
+}
+
+/* ---------- Intestazione ---------- */
+
+.f-header {
+  position: absolute;
+  left: 30px;
+  top: 30px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 500px;
+}
+
+.f-brand {
+  padding-top: 6px;
+  min-width: 0;
+}
+
+.f-brand-name {
+  font-family: 'Lobster', cursive;
+  line-height: 1.1;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+
+.f-swoosh {
+  display: block;
+  width: 300px;
+  height: 18px;
+  margin: 4px 0 8px;
+}
+
+.f-tagline {
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+/* Nome del dottore, sotto "Studio odontoiatrico" */
+.f-doctor {
+  margin-top: 4px;
+  font-family: 'Lobster', cursive;
+  color: var(--f-light);
+  line-height: 1.15;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+}
+
+.f-top-quote {
+  text-wrap: balance;
+  position: absolute;
+  right: 22px;
+  top: 58px;
+  width: 250px;
+  text-align: center;
+  font-family: 'Kalam', cursive;
+  font-weight: 700;
+  line-height: 1.05;
+  transform: rotate(-8deg);
+}
+
+.f-top-quote svg {
+  display: block;
+  width: 180px;
+  height: 14px;
+  margin: 6px auto 0;
+}
+
+/* ---------- Mese e banner ---------- */
+
+.f-headline {
+  left: 70px;
+  top: 195px;
+  width: 660px;
+  height: 150px;
+  transform: rotate(-2deg);
+}
+
+.f-headline span {
+  font-family: 'Lobster', cursive;
+  color: var(--f-heading);
+  line-height: 1.1;
+  margin-top: -14px;
+  white-space: nowrap;
+}
+
+.f-banner {
+  left: 30px;
+  top: 340px;
+  width: 740px;
+  height: 190px;
+  transform: rotate(-3deg);
+}
+
+.f-banner-text {
+  text-align: center;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.15);
+}
+
+.f-banner-top {
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.f-banner-main {
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.f-banner-heart {
+  position: absolute !important;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ---------- Periodo e nome offerta ---------- */
+
+.f-period {
+  left: 150px;
+  top: 560px;
+  width: 560px;
+  height: 84px;
+  transform: rotate(-2deg);
+}
+
+.f-period span {
+  font-family: 'Kalam', cursive;
+  font-weight: 700;
+  color: var(--f-heading);
+  padding-left: 40px;
+  white-space: nowrap;
+}
+
+.f-period-icon {
+  position: absolute !important;
+  left: -48px;
+  top: -8px;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.12));
+}
+
+.f-offer-name {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 648px;
+  text-align: center;
+  font-family: 'Lobster', cursive;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.14);
+  transform: rotate(-2deg);
+}
+
+.f-offer-name svg {
+  display: block;
+  width: 70%;
+  height: 16px;
+  margin: 2px auto 0;
+}
+
+/* ---------- Offerta ---------- */
+
+.f-offer {
+  left: 18px;
+  top: 770px;
+  width: 590px;
+  height: 190px;
+  transform: rotate(-1deg);
+}
+
+.f-offer-wide {
+  width: 764px;
+}
+
+.f-offer-body {
+  width: 100%;
+  padding: 0 44px;
+  text-align: center;
+}
+
+.f-items {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.f-item-wrap {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.f-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.f-item span {
+  text-wrap: balance;
+  font-family: 'Kalam', cursive;
+  font-weight: 700;
+  color: var(--f-accent);
+  text-align: left;
+  line-height: 1.05;
+  max-width: 175px;
+}
+
+.f-offer-wide .f-item span {
+  max-width: 200px;
+}
+
+.f-plus {
+  font-weight: 700;
+  font-size: 50px;
+  color: var(--f-heading);
+  margin: 0 8px;
+}
+
+.f-note {
+  text-wrap: balance;
+  margin-top: 8px;
+  font-family: 'Kalam', cursive;
+  font-weight: 700;
+  color: var(--f-heading);
+  line-height: 1;
+}
+
+.f-badge {
+  position: absolute;
+  right: 16px;
+  top: 752px;
+  width: 200px;
+  height: 200px;
+  display: grid;
+  place-items: center;
+  transform: rotate(-6deg);
+  filter: drop-shadow(0 5px 0 rgba(0, 0, 0, 0.12));
+}
+
+.f-badge svg:first-child {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.f-badge span {
+  position: relative;
+  font-family: 'Lobster', cursive;
+  color: var(--f-heading);
+  line-height: 1.1;
+  white-space: nowrap;
+  margin-top: -16px;
+}
+
+.f-badge-heart {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ---------- Invito ---------- */
+
+.f-cta-row {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 972px;
+  height: 100px;
+}
+
+.f-cta {
+  left: 0;
+  top: 4px;
+  width: 400px;
+  height: 92px;
+  transform: rotate(-2deg);
+}
+
+.f-cta-solo .f-cta {
+  left: 170px;
+  width: 450px;
+}
+
+.f-cta span {
+  font-family: 'Lobster', cursive;
+  color: var(--f-heading);
+  line-height: 1.1;
+  white-space: nowrap;
+  margin-top: -6px;
+}
+
+.f-phone {
+  right: 0;
+  top: 0;
+  width: 390px;
+  height: 96px;
+  gap: 10px;
+  justify-content: flex-start;
+  padding-left: 16px;
+  transform: rotate(-2deg);
+}
+
+.f-phone svg:not(.f-brush) {
+  position: relative;
+  flex: none;
+  margin-top: -8px;
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.15));
+}
+
+.f-phone span {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* ---------- Piede ---------- */
+
+.f-tags {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.f-tag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 250px;
+  height: 31px;
+  padding-left: 18px;
+  border-radius: 4px 8px 8px 4px;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.15), 0 2px 0 rgba(0, 0, 0, 0.1);
+}
+
+.f-tag-0 {
+  background: #2f6fd6;
+  transform: translateX(6px);
+}
+
+.f-tag-1 {
+  background: #19b394;
+  transform: translateX(-2px);
+}
+
+.f-tag-2 {
+  background: #ffc12e;
+  transform: translateX(8px);
+}
+
+/* Indirizzo: pennellata bianca con segnaposto, in basso a destra */
+.f-address {
+  right: 14px;
+  bottom: 18px;
+  width: 470px;
+  height: 104px;
+  gap: 12px;
+  justify-content: flex-start;
+  padding: 0 28px 0 34px;
+  transform: rotate(-2deg);
+}
+
+.f-address svg:not(.f-brush) {
+  position: relative;
+  flex: none;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.1));
+}
+
+.f-address-text {
+  font-weight: 600;
+  color: var(--f-heading);
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.f-address-text div {
+  white-space: nowrap;
+}
+
+.f-address-text div + div {
+  font-weight: 500;
+  color: var(--f-accent);
+}
+
+.f-footer {
+  position: absolute;
+  left: 290px;
+  right: 30px;
+  bottom: 28px;
+  text-align: center;
+  font-family: 'Kalam', cursive;
+  font-weight: 700;
+  line-height: 1.05;
+  transform: rotate(-4deg);
+}
+
+.f-footer svg {
+  display: block;
+  width: 70%;
+  height: 12px;
+  margin: 4px auto 0;
+}
+
+/* ---------- Editor ---------- */
+
+.flyer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(10, 12, 14, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.flyer-dialog {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 32px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.flyer-dialog-head,
+.flyer-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.flyer-dialog-foot {
+  border-bottom: 0;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.flyer-dialog-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flyer-dialog-body {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(0, 1.1fr);
+  min-height: 0;
+}
+
+.flyer-form {
+  overflow-y: auto;
+  padding: 16px 18px 24px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  border-right: 1px solid var(--border);
+}
+
+.flyer-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--text-2);
+  font-weight: 550;
+}
+
+.flyer-form .row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.flyer-form .item-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 8px;
+}
+
+.flyer-form fieldset {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 10px 12px 12px;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.flyer-form legend {
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-2);
+  padding: 0 4px;
+}
+
+.theme-swatches {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-swatches button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+
+.theme-swatches button[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.flyer-preview {
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.flyer-preview-frame {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.beta-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+@media (max-width: 860px) {
+  .flyer-dialog-body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+  .flyer-form {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    overflow: visible;
+  }
+  .flyer-dialog-body {
+    grid-auto-rows: max-content;
+  }
+  .flyer-preview {
+    order: -1;
+    min-height: auto;
+  }
+}
+
+/* ---------- Spazi interni: il testo resta nella parte piena delle pennellate ---------- */
+
+.f-brand {
+  flex: 1;
+}
+
+.f-headline {
+  padding: 0 56px;
+}
+
+.f-banner {
+  padding: 0 70px;
+}
+
+.f-banner-text {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.f-period {
+  padding-right: 44px;
+}
+
+.f-cta {
+  padding: 0 34px;
+}
+
+.f-phone {
+  padding-right: 36px;
+}
+
+.f-phone > span {
+  flex: 1 1 auto;
+}
+
+.f-address-text {
+  flex: 1 1 auto;
+}
+
+.f-badge {
+  padding: 0 30px;
+}
+
+/* ---------- Scarica: pulsante diviso con scelta del formato ---------- */
+
+.split-btn {
+  position: relative;
+  display: inline-flex;
+}
+
+.split-btn > .btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-caret {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid color-mix(in srgb, var(--on-accent) 35%, transparent);
+  padding: 8px 10px;
+}
+
+.format-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+}
+
+.format-menu button {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  padding: 9px 10px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.format-menu button:hover,
+.format-menu button:focus-visible {
+  background: var(--surface-2);
+}
+
+.format-check {
+  width: 16px;
+  flex: none;
+  color: var(--accent);
+  padding-top: 2px;
+}
+
+.format-tag {
+  margin-left: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.format-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}

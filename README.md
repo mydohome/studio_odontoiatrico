@@ -90,6 +90,45 @@ sudo iptables -I INPUT 6 -p tcp -s <IP-server-NPM> --dport 80 -j ACCEPT && sudo 
 | `studio-odontoiatrico-api` | solo `backend` | `no-new-privileges`, `cap_drop: ALL`, utente non root |
 | `studio-odontoiatrico-db` | solo `backend` | `no-new-privileges` |
 
+## Campagne personalizzate
+
+Oltre alle proposte dell'algoritmo puoi creare le tue campagne dalla scheda **Campagne**:
+
+- **Nuova campagna** (o *Crea per &lt;mese&gt;*): titolo, categoria, periodo dal/al (anche su più mesi), offerta, a chi è
+  rivolta, canali (scelta rapida o canali liberi) e note interne che non compaiono sul volantino;
+- **Personalizza** su una proposta dell'algoritmo la copia tra le tue campagne, già compilata, per modificarla;
+- le tue campagne compaiono in cima a ogni mese che toccano, con *Modifica*, *Elimina* e *Genera volantino*; nella
+  striscia dei mesi un contatore indica quante ce ne sono;
+- il volantino di una campagna personalizzata usa il suo periodo e il suo titolo, e i testi modificati nell'editor si
+  salvano con la campagna (**Salva testi**, oppure in automatico quando scarichi o condividi il PNG).
+
+## Volantini (beta)
+
+Ogni campagna proposta nella scheda **Campagne** ha il pulsante **Genera volantino**. Si apre un editor con l'anteprima
+in tempo reale di un volantino verticale (800×1200, esportato in PNG a 1600×2400) già compilato in base alla campagna:
+
+- **titolo** con il mese, **banner** e **nome dell'offerta** scelti in base alla categoria e al tipo di campagna (per le
+  campagne stagionali un testo dedicato a ogni mese, es. "Mese della PREVENZIONE" in ottobre);
+- **periodo** "dal 01 al 31 Ottobre", modificabile con le date di inizio e fine;
+- **voci dell'offerta** con icone ricavate dal testo della campagna (igiene, check-up, ortopanoramica, sbiancamento, …);
+- **etichetta prezzo** proposta dal testo (GRATIS, -25%, A RATE) oppure scritta a mano (es. 90€), o nascosta;
+- **nome del dottore** (Impostazioni → Studio) su una riga sotto "Studio odontoiatrico", nascosta se vuoto;
+- **telefono/WhatsApp** e **indirizzo** dello studio: l'indirizzo compare in basso a destra con il segnaposto delle
+  mappe (su due righe, via e città). Si impostano in **Impostazioni → Studio** oppure dall'editor;
+- 5 combinazioni di colori, e tutti i testi (slogan, parole chiave, nome dello studio) modificabili.
+
+Il pulsante **Scarica** usa di default il **JPG** (1600×2400, circa 500 KB): su WhatsApp arriva come *foto*, con
+l'anteprima direttamente nella chat. Con la freccetta accanto si sceglie **PNG** (qualità massima, file più pesante)
+oppure **PDF** (pagina A4 pronta da stampare, ~300 dpi; su WhatsApp arriva come documento, senza anteprima grande).
+L'ultimo formato scelto viene ricordato. Su smartphone **Condividi** invia sempre il JPG, quindi come foto.
+
+I font (Lobster per i titoli corsivi, Kalam per le scritte a pennarello, Fredoka per banner e contatti) sono inclusi
+nell'app, quindi funziona anche senza accesso a Google Fonts.
+
+La versione precedente all'introduzione dei volantini è marcata con il tag `v1-prima-dei-volantini`. Per tornarci
+temporaneamente sul server: `git checkout v1-prima-dei-volantini && ./update.sh --rebuild` (poi `git checkout main` per
+tornare all'ultima versione; `update.sh` richiede di essere su un branch per scaricare gli aggiornamenti).
+
 ## Utenti
 
 Si accede con **nome utente e password**. Le password sono salvate con hash scrypt; cambiando la password o eliminando

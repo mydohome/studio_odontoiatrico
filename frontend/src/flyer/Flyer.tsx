@@ -1,4 +1,4 @@
-import { forwardRef, type CSSProperties } from 'react'
+import { forwardRef, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { formatPeriod, THEME_BY_ID, type FlyerData } from './flyerModel.ts'
 import { Brush, CalendarIcon, Heart, MapPin, OfferIcon, Splash, Swoosh, ToothLogo, WhatsApp } from './shapes.tsx'
 import './flyer.css'
@@ -21,6 +21,59 @@ function splitAddress(address: string): string[] {
   return [a.slice(0, i).trim(), a.slice(i + 1).trim()]
 }
 
+/**
+ * Testo su una riga che si rimpicciolisce finché non entra nello spazio disponibile.
+ * `size` è la dimensione di partenza (stima), `min` il limite inferiore. La misura viene
+ * ripetuta quando i font sono caricati, così l'esportazione in PNG usa già la dimensione finale.
+ */
+function FitLine({
+  text,
+  size,
+  min = Math.round(size * 0.5),
+  block = false,
+  className,
+}: {
+  text: string
+  size: number
+  min?: number
+  block?: boolean
+  className?: string
+}) {
+  const ref = useRef<HTMLElement | null>(null)
+  const [fontSize, setFontSize] = useState(size)
+
+  useLayoutEffect(() => {
+    let alive = true
+    const measure = () => {
+      const el = ref.current
+      if (!alive || !el) return
+      let s = size
+      el.style.fontSize = `${s}px`
+      while (el.scrollWidth > el.clientWidth + 1 && s > min) {
+        s -= 1
+        el.style.fontSize = `${s}px`
+      }
+      setFontSize(s)
+    }
+    measure()
+    document.fonts?.ready.then(measure)
+    return () => {
+      alive = false
+    }
+  }, [text, size, min])
+
+  const style: CSSProperties = { fontSize, maxWidth: '100%', minWidth: 0, whiteSpace: 'nowrap' }
+  return block ? (
+    <div ref={(el) => { ref.current = el }} className={className} style={style}>
+      {text}
+    </div>
+  ) : (
+    <span ref={(el) => { ref.current = el }} className={className} style={style}>
+      {text}
+    </span>
+  )
+}
+
 // Decorazioni: tratti a raggiera e cuori sparsi (posizioni fisse).
 const RAYS = [
   { x: 40, y: 235, a: -20, l: 50 },
@@ -41,6 +94,36 @@ const HEARTS = [
   { x: 736, y: 700, s: 50, o: 0.16 },
   { x: 118, y: 178, s: 40, o: 0.9, w: 5 },
 ]
+
+function BrandName({ first, rest, size, lightColor }: { first: string; rest: string; size: number; lightColor: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [fontSize, setFontSize] = useState(size)
+  useLayoutEffect(() => {
+    let alive = true
+    const measure = () => {
+      const el = ref.current
+      if (!alive || !el) return
+      let s = size
+      el.style.fontSize = `${s}px`
+      while (el.scrollWidth > el.clientWidth + 1 && s > size * 0.5) {
+        s -= 1
+        el.style.fontSize = `${s}px`
+      }
+      setFontSize(s)
+    }
+    measure()
+    document.fonts?.ready.then(measure)
+    return () => {
+      alive = false
+    }
+  }, [first, rest, size])
+  return (
+    <div ref={ref} className="f-brand-name" style={{ fontSize }}>
+      <span>{first}</span>
+      {rest && <span style={{ color: lightColor }}> {rest}</span>}
+    </div>
+  )
+}
 
 const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ data }, ref) {
   const t = THEME_BY_ID[data.theme]
@@ -76,10 +159,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
       <div className="f-header">
         <ToothLogo size={128} />
         <div className="f-brand">
-          <div className="f-brand-name" style={{ fontSize: fit(data.studioName, 62, 15) }}>
-            <span>{nameFirst}</span>
-            {nameRest.length > 0 && <span className="f-light"> {nameRest.join(' ')}</span>}
-          </div>
+          <BrandName first={nameFirst} rest={nameRest.join(' ')} size={fit(data.studioName, 62, 15)} lightColor={t.light} />
           <Swoosh className="f-swoosh" color={t.light} w={300} h={30} from={[4, 8]} ctrl={[150, 30]} to={[296, 4]} thickness={4} />
           <div className="f-tagline">{data.tagline}</div>
         </div>
@@ -94,17 +174,15 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
       {/* Mese */}
       <div className="f-block f-headline">
         <Brush color="#ffffff" seed={11} className="f-brush" />
-        <span style={{ fontSize: fit(data.headline, 146, 8.5) }}>{data.headline}</span>
+        <FitLine text={data.headline} size={fit(data.headline, 146, 8.5)} />
       </div>
 
       {/* Banner principale */}
       <div className="f-block f-banner">
         <Brush color={t.accent} seed={23} className="f-brush" />
         <div className="f-banner-text">
-          {data.bannerTop && <div className="f-banner-top" style={{ fontSize: fit(data.bannerTop, 62, 16) }}>{data.bannerTop}</div>}
-          <div className="f-banner-main" style={{ fontSize: fit(data.bannerMain, 104, 11) }}>
-            {data.bannerMain}
-          </div>
+          {data.bannerTop && <FitLine block className="f-banner-top" text={data.bannerTop} size={fit(data.bannerTop, 62, 16)} />}
+          <FitLine block className="f-banner-main" text={data.bannerMain} size={fit(data.bannerMain, 104, 11)} />
         </div>
         <div className="f-banner-heart">
           <Heart size={34} width={5} />
@@ -118,13 +196,13 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
           <div className="f-period-icon">
             <CalendarIcon color={t.accent} size={84} />
           </div>
-          <span style={{ fontSize: fit(period, 42, 22, 26) }}>{period}</span>
+          <FitLine text={period} size={fit(period, 42, 22, 26)} min={22} />
         </div>
       )}
 
       {/* Nome dell'offerta */}
-      <div className="f-offer-name" style={{ fontSize: fit(data.offerName, 86, 17) }}>
-        {data.offerName}
+      <div className="f-offer-name">
+        <FitLine block text={data.offerName} size={fit(data.offerName, 86, 17)} />
         <Swoosh color={t.light} w={600} h={30} from={[6, 20]} ctrl={[300, 0]} to={[594, 12]} thickness={5} />
       </div>
 
@@ -155,7 +233,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
       {hasBadge && (
         <div className="f-badge">
           <Splash color={t.badge} />
-          <span style={{ fontSize: fit(data.badge, 80, 3.4, 30) }}>{data.badge}</span>
+          <FitLine text={data.badge} size={fit(data.badge, 80, 3.4, 30)} min={24} />
           <div className="f-badge-heart">
             <Heart size={40} color={t.heading} width={4} />
           </div>
@@ -166,13 +244,13 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
       <div className={`f-cta-row ${hasPhone ? '' : 'f-cta-solo'}`}>
         <div className="f-block f-cta">
           <Brush color="#ffffff" seed={53} className="f-brush" />
-          <span style={{ fontSize: fit(data.cta, 56, 15, 32) }}>{data.cta}</span>
+          <FitLine text={data.cta} size={fit(data.cta, 56, 15, 32)} min={26} />
         </div>
         {hasPhone && (
           <div className="f-block f-phone">
             <Brush color={t.accent} seed={61} className="f-brush" />
             <WhatsApp size={78} />
-            <span style={{ fontSize: fit(data.phone, 50, 11, 30) }}>{data.phone}</span>
+            <FitLine text={data.phone} size={fit(data.phone, 50, 11, 30)} min={24} />
           </div>
         )}
       </div>
@@ -194,9 +272,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
           <MapPin color={t.accent} size={62} />
           <div className="f-address-text">
             {address.map((line, i) => (
-              <div key={i} style={{ fontSize: fit(line, i === 0 ? 30 : 26, 22, 18) }}>
-                {line}
-              </div>
+              <FitLine key={i} block text={line} size={fit(line, i === 0 ? 30 : 26, 22, 18)} min={16} />
             ))}
           </div>
         </div>

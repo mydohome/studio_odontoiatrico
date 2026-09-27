@@ -640,3 +640,46 @@
     min-height: auto;
   }
 }
+
+/* ---------- Spazi interni: il testo resta nella parte piena delle pennellate ---------- */
+
+.f-brand {
+  flex: 1;
+}
+
+.f-headline {
+  padding: 0 56px;
+}
+
+.f-banner {
+  padding: 0 70px;
+}
+
+.f-banner-text {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.f-period {
+  padding-right: 44px;
+}
+
+.f-cta {
+  padding: 0 34px;
+}
+
+.f-phone {
+  padding-right: 36px;
+}
+
+.f-phone > span {
+  flex: 1 1 auto;
+}
+
+.f-address-text {
+  flex: 1 1 auto;
+}
+
+.f-badge {
+  padding: 0 30px;
+}

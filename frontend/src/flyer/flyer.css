@@ -693,3 +693,82 @@
 .f-badge {
   padding: 0 30px;
 }
+
+/* ---------- Scarica: pulsante diviso con scelta del formato ---------- */
+
+.split-btn {
+  position: relative;
+  display: inline-flex;
+}
+
+.split-btn > .btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-caret {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid color-mix(in srgb, var(--on-accent) 35%, transparent);
+  padding: 8px 10px;
+}
+
+.format-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+}
+
+.format-menu button {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  padding: 9px 10px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.format-menu button:hover,
+.format-menu button:focus-visible {
+  background: var(--surface-2);
+}
+
+.format-check {
+  width: 16px;
+  flex: none;
+  color: var(--accent);
+  padding-top: 2px;
+}
+
+.format-tag {
+  margin-left: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.format-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}

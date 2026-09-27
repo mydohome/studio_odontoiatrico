@@ -1,12 +1,12 @@
-import { toPng } from 'html-to-image'
-import { Download, ImageIcon, Loader2, RotateCcw, Save, Share2, X } from 'lucide-react'
+import { toJpeg, toPng } from 'html-to-image'
+import { Check, ChevronDown, Download, ImageIcon, Loader2, RotateCcw, Save, Share2, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatMonth } from '../../../shared/dates.ts'
 import type { CampaignSuggestion } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
 import { api, type AppSettings } from '../lib/api.ts'
 import Flyer, { FLYER_HEIGHT, FLYER_WIDTH } from './Flyer.tsx'
-import { buildFlyer, ICON_LABELS, mergeFlyer, THEMES, type FlyerData, type IconId } from './flyerModel.ts'
+import { buildFlyer, ICON_LABELS, mergeFlyer, THEME_BY_ID, THEMES, type FlyerData, type IconId } from './flyerModel.ts'
 
 interface Props {
   campaign: CampaignSuggestion
@@ -20,6 +20,24 @@ interface Props {
   saved?: Record<string, unknown> | null
   /** Se presente, i testi del volantino si possono salvare con la campagna. */
   onSave?: (data: FlyerData) => Promise<void>
+}
+
+type Format = 'jpg' | 'png' | 'pdf'
+
+const FORMATS: { id: Format; label: string; hint: string }[] = [
+  { id: 'jpg', label: 'JPG', hint: 'Consigliato per WhatsApp: arriva come foto con anteprima nella chat' },
+  { id: 'png', label: 'PNG', hint: 'Qualità massima, file più pesante (social, siti)' },
+  { id: 'pdf', label: 'PDF', hint: 'Pagina A4 pronta da stampare; su WhatsApp arriva come documento' },
+]
+
+const FORMAT_KEY = 'flyerFormat'
+function loadFormat(): Format {
+  try {
+    const v = localStorage.getItem(FORMAT_KEY)
+    return v === 'png' || v === 'pdf' ? v : 'jpg'
+  } catch {
+    return 'jpg'
+  }
 }
 
 const slug = (s: string) =>
@@ -42,7 +60,10 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
   const [data, setData] = useState<FlyerData>(() => mergeFlyer(initial, saved))
   const [savedJson, setSavedJson] = useState(() => (saved ? JSON.stringify(mergeFlyer(initial, saved)) : ''))
   const unsaved = !!onSave && JSON.stringify(data) !== savedJson
-  const [busy, setBusy] = useState<'png' | 'share' | 'save' | null>(null)
+  const [busy, setBusy] = useState<'download' | 'share' | 'save' | null>(null)
+  const [format, setFormat] = useState<Format>(loadFormat)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   // Telefono e indirizzo si memorizzano nelle impostazioni per i volantini successivi.
   const [rememberContacts, setRememberContacts] = useState(!settings.phone || !settings.address)
   const flyerRef = useRef<HTMLDivElement>(null)
@@ -82,24 +103,65 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
 
   // Esc chiude la finestra.
   useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === 'Escape' && close()
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (menuOpen) setMenuOpen(false)
+      else close()
+    }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [unsaved, onClose]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [unsaved, onClose, menuOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function close() {
     if (unsaved && !window.confirm('I testi del volantino non sono salvati. Chiudere comunque?')) return
     onClose()
   }
 
-  const fileName = `volantino-${month}-${slug(campaign.title)}.png`
+  const baseName = `volantino-${month}-${slug(campaign.title)}`
 
-  const render = async () => {
+  /** Genera il volantino nel formato richiesto. */
+  const render = async (fmt: Format): Promise<Blob> => {
     await document.fonts.ready
     const node = flyerRef.current
     if (!node) throw new Error('Anteprima non pronta')
-    return toPng(node, { pixelRatio: 2, width: FLYER_WIDTH, height: FLYER_HEIGHT, cacheBust: true })
+    const bg = THEME_BY_ID[data.theme].bg
+    const opts = { width: FLYER_WIDTH, height: FLYER_HEIGHT, cacheBust: true }
+    if (fmt === 'png') return (await fetch(await toPng(node, { ...opts, pixelRatio: 2 }))).blob()
+    if (fmt === 'jpg') {
+      return (await fetch(await toJpeg(node, { ...opts, pixelRatio: 2, quality: 0.92, backgroundColor: bg }))).blob()
+    }
+    // PDF A4 verticale: volantino centrato, bordi laterali nel colore dello sfondo (niente fasce bianche).
+    const img = await toJpeg(node, { ...opts, pixelRatio: 3, quality: 0.95, backgroundColor: bg })
+    const { jsPDF } = await import('jspdf')
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+    pdf.setProperties({ title: campaign.title, creator: settings.studioName })
+    pdf.setFillColor(bg)
+    pdf.rect(0, 0, 210, 297, 'F')
+    const h = 297
+    const w = (h * FLYER_WIDTH) / FLYER_HEIGHT
+    pdf.addImage(img, 'JPEG', (210 - w) / 2, 0, w, h)
+    return pdf.output('blob')
   }
+
+  const chooseFormat = (f: Format) => {
+    setFormat(f)
+    setMenuOpen(false)
+    try {
+      localStorage.setItem(FORMAT_KEY, f)
+    } catch {
+      /* preferenza non salvata: nessun problema */
+    }
+  }
+
+  // Chiude il menu dei formati cliccando fuori.
+  useEffect(() => {
+    if (!menuOpen) return
+    const h = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [menuOpen])
 
   const saveContactsIfNeeded = async () => {
     const phone = data.phone.trim()
@@ -130,19 +192,21 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
     }
   }
 
-  const download = async () => {
-    setBusy('png')
+  const download = async (fmt: Format = format) => {
+    setBusy('download')
+    setMenuOpen(false)
     try {
-      const url = await render()
+      const url = URL.createObjectURL(await render(fmt))
       const a = document.createElement('a')
       a.href = url
-      a.download = fileName
+      a.download = `${baseName}.${fmt}`
       a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
       await saveContactsIfNeeded()
       await saveTexts(true)
-      notify('Volantino scaricato')
+      notify(`Volantino scaricato in ${fmt.toUpperCase()}`)
     } catch (e) {
-      notify(`Impossibile generare l'immagine: ${(e as Error).message}`, 'error')
+      notify(`Impossibile generare il volantino: ${(e as Error).message}`, 'error')
     } finally {
       setBusy(null)
     }
@@ -152,10 +216,10 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
   const share = async () => {
     setBusy('share')
     try {
-      const blob = await (await fetch(await render())).blob()
-      const file = new File([blob], fileName, { type: 'image/png' })
+      // Sempre in JPG: su WhatsApp arriva come foto, con l'anteprima direttamente nella chat.
+      const file = new File([await render('jpg')], `${baseName}.jpg`, { type: 'image/jpeg' })
       if (!navigator.canShare?.({ files: [file] })) {
-        notify('Condivisione non supportata da questo browser: usa "Scarica PNG".', 'error')
+        notify('Condivisione non supportata da questo browser: usa "Scarica".', 'error')
         return
       }
       await saveContactsIfNeeded()
@@ -359,13 +423,47 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
               </button>
             )}
             {canShare && (
-              <button className="btn" onClick={share} disabled={busy !== null}>
+              <button className="btn" onClick={share} disabled={busy !== null} title="Invia come foto (JPG), con anteprima su WhatsApp">
                 {busy === 'share' ? <Loader2 size={16} /> : <Share2 size={16} />} Condividi
               </button>
             )}
-            <button className="btn btn-primary" onClick={download} disabled={busy !== null}>
-              {busy === 'png' ? <Loader2 size={16} /> : <Download size={16} />} Scarica PNG
-            </button>
+            <div className="split-btn" ref={menuRef}>
+              <button className="btn btn-primary" onClick={() => download()} disabled={busy !== null}>
+                {busy === 'download' ? <Loader2 size={16} /> : <Download size={16} />} Scarica {format.toUpperCase()}
+              </button>
+              <button
+                className="btn btn-primary split-caret"
+                onClick={() => setMenuOpen((o) => !o)}
+                disabled={busy !== null}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label="Scegli il formato"
+              >
+                <ChevronDown size={16} />
+              </button>
+              {menuOpen && (
+                <div className="format-menu" role="menu">
+                  {FORMATS.map((f) => (
+                    <button
+                      key={f.id}
+                      role="menuitemradio"
+                      aria-checked={format === f.id}
+                      onClick={() => {
+                        chooseFormat(f.id)
+                        download(f.id)
+                      }}
+                    >
+                      <span className="format-check">{format === f.id && <Check size={15} />}</span>
+                      <span>
+                        <strong>{f.label}</strong>
+                        {f.id === 'jpg' && <span className="format-tag">consigliato</span>}
+                        <span className="format-hint">{f.hint}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -117,8 +117,10 @@ in tempo reale di un volantino verticale (800×1200, esportato in PNG a 1600×24
   mappe (su due righe, via e città). Si impostano in **Impostazioni → Studio** oppure dall'editor;
 - 5 combinazioni di colori, e tutti i testi (slogan, parole chiave, nome dello studio) modificabili.
 
-Il PNG si scarica con **Scarica PNG**; su smartphone **Condividi** lo invia direttamente a WhatsApp o ad altre app.
-I font (Lobster per i titoli corsivi, Kalam per le scritte a pennarello, Fredoka per banner e contatti) sono inclusi
+Il pulsante **Scarica** usa di default il **JPG** (1600×2400, circa 500 KB): su WhatsApp arriva come *foto*, con
+l'anteprima direttamente nella chat. Con la freccetta accanto si sceglie **PNG** (qualità massima, file più pesante)
+oppure **PDF** (pagina A4 pronta da stampare, ~300 dpi; su WhatsApp arriva come documento, senza anteprima grande).
+L'ultimo formato scelto viene ricordato. Su smartphone **Condividi** invia sempre il JPG, quindi come foto.
 nell'app, quindi funziona anche senza accesso a Google Fonts.
 
 La funzione è sul branch `beta/genera-volantino`. Per provarla sul server: `git checkout beta/genera-volantino && ./update.sh --rebuild`;

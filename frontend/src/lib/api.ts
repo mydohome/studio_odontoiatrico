@@ -17,6 +17,10 @@ export interface AppSettings {
   address: string
   /** Nome del dottore (volantini). */
   doctorName: string
+  /** Logo dei volantini: pronto oppure caricato ("custom"). */
+  logoType: 'famiglia' | 'dente' | 'cuore' | 'custom'
+  /** Versione del logo caricato, 0 se non c'è. */
+  logoVersion: number
 }
 
 export interface SessionUser {
@@ -38,11 +42,11 @@ export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn
 }
 
-async function request<T>(method: string, url: string, body?: unknown, raw?: Blob): Promise<T> {
+async function request<T>(method: string, url: string, body?: unknown, raw?: Blob, rawType?: string): Promise<T> {
   const headers: Record<string, string> = {}
   let payload: BodyInit | undefined
   if (raw) {
-    headers['content-type'] = 'application/octet-stream'
+    headers['content-type'] = rawType || 'application/octet-stream'
     payload = raw
   } else if (body !== undefined) {
     headers['content-type'] = 'application/json'
@@ -70,6 +74,9 @@ export const api = {
 
   settings: () => request<AppSettings>('GET', '/api/settings'),
   saveSettings: (changes: Partial<AppSettings>) => request<AppSettings>('PUT', '/api/settings', changes),
+  uploadLogo: (file: File) =>
+    request<AppSettings>('PUT', '/api/logo', undefined, file, /^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type) ? file.type : 'image/png'),
+  deleteLogo: () => request<AppSettings>('DELETE', '/api/logo'),
 
   services: () => request<Service[]>('GET', '/api/services'),
   createService: (s: Partial<Service>) => request<Service>('POST', '/api/services', s),

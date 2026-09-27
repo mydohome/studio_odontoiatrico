@@ -131,7 +131,7 @@ export function MapPin({ color, hole = '#fff', size = 60 }: { color: string; hol
 const TOOTH =
   'M36 16c-14 0-22 11-22 25 0 16 8 24 10 38 2 13 6 28 14 28 7 0 7-12 10-22 2-6 5-9 12-9s10 3 12 9c3 10 3 22 10 22 8 0 12-15 14-28 2-14 10-22 10-38 0-14-8-25-22-25-10 0-15 6-24 6s-14-6-24-6z'
 
-interface LogoColors {
+export interface LogoColors {
   /** Colore dei tratti del viso. */
   face: string
   /** Contorno dei dentini (tono scuro del tema, separa i denti sovrapposti). */
@@ -258,6 +258,71 @@ export function FamilyLogo({ height = 128, colors }: { height?: number; colors: 
       <path d="M8 118l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#fff" opacity=".85" />
     </svg>
   )
+}
+
+/** Logo pronto "Dente sorridente": contorno bianco con stellina (il logo originale). */
+export function ToothLogo({ height = 128, color = '#fff' }: { height?: number; color?: string }) {
+  return (
+    <svg height={height} width={height} viewBox="0 0 120 120" aria-hidden="true" fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+      <path d={TOOTH} />
+      <path d="M44 58c4 6 10 9 16 9s12-3 16-9" />
+      <circle cx="45" cy="44" r="2.5" fill={color} />
+      <circle cx="75" cy="44" r="2.5" fill={color} />
+      <path d="M100 6l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" strokeWidth="3" />
+    </svg>
+  )
+}
+
+/** Logo pronto "Dente con cuore": dentino bianco che abbraccia un cuore nel colore del tema. */
+export function HeartToothLogo({ height = 128, colors }: { height?: number; colors: LogoColors }) {
+  const c = colors
+  return (
+    <svg height={height} width={(height * 150) / 128} viewBox="0 0 150 128" aria-hidden="true">
+      <ToothFace x={0} y={0} scale={1.04} c={c} />
+      <g transform="translate(108 92) rotate(14) scale(0.82)">
+        <path
+          d="M0 34S-30 16-30-4c0-9 7-16 15-16 6 0 11 3 15 8 4-5 9-8 15-8 8 0 15 7 15 16C30 16 0 34 0 34z"
+          fill={c.accent}
+          stroke="#fff"
+          strokeWidth="5"
+          strokeLinejoin="round"
+        />
+        <path d="M-16-6c1-4 4-7 8-7" stroke="#fff" strokeWidth="4" strokeLinecap="round" fill="none" opacity=".7" />
+      </g>
+      <path d="M140 6l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="#fff" />
+    </svg>
+  )
+}
+
+export type LogoType = 'famiglia' | 'dente' | 'cuore' | 'custom'
+
+export const LOGO_OPTIONS: { id: Exclude<LogoType, 'custom'>; label: string }[] = [
+  { id: 'famiglia', label: 'Famiglia di dentini' },
+  { id: 'dente', label: 'Dente sorridente' },
+  { id: 'cuore', label: 'Dente con cuore' },
+]
+
+/**
+ * Logo dello studio: uno di quelli pronti (colorati con il tema) oppure l'immagine caricata.
+ * `customSrc` deve essere già un data URL, così l'esportazione in immagine lo include sempre.
+ */
+export function StudioLogo({
+  type,
+  height,
+  colors,
+  customSrc,
+}: {
+  type: LogoType
+  height: number
+  colors: LogoColors
+  customSrc?: string | null
+}) {
+  if (type === 'custom' && customSrc) {
+    return <img src={customSrc} alt="" style={{ height, maxWidth: height * 1.8, objectFit: 'contain', display: 'block' }} />
+  }
+  if (type === 'dente') return <ToothLogo height={height} />
+  if (type === 'cuore') return <HeartToothLogo height={height} colors={colors} />
+  return <FamilyLogo height={height} colors={colors} />
 }
 
 export function WhatsApp({ size = 64 }: { size?: number }) {

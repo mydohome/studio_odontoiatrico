@@ -96,10 +96,14 @@ env_get() {
 
 # ---------- Aggiornamento automatico (cron) ----------
 
-CRON_TAG="# studio-odontoiatrico update.sh"
+# Il riferimento alla cartella rende indipendente la riga di ogni installazione (più studi sullo
+# stesso server). La riga senza cartella è quella creata dalle versioni precedenti.
+CRON_TAG="# studio-odontoiatrico update.sh $REPO_DIR"
+LEGACY_TAG="# studio-odontoiatrico update.sh"
 if [ -n "$CRON_ACTION" ]; then
   command -v crontab >/dev/null 2>&1 || die "crontab non disponibile (installa il pacchetto cron)."
-  current=$(crontab -l 2>/dev/null | grep -vF "$CRON_TAG" || true)
+  # Toglie solo le righe di questa cartella (nuove o delle versioni precedenti), non quelle degli altri studi.
+  current=$(crontab -l 2>/dev/null | awk -v d="cd '$REPO_DIR' " -v t="$LEGACY_TAG" 'index($0, d) == 0 || index($0, t) == 0' || true)
   if [ "$CRON_ACTION" = remove ]; then
     printf '%s\n' "$current" | sed '/^$/d' | crontab -
     ok "Aggiornamento automatico rimosso."
@@ -235,8 +239,12 @@ missing=$(comm -23 <(grep -oE '^[A-Z_]+=' .env.example | sort -u) <(grep -oE '^[
 
 wait_healthy() {
   for _ in $(seq 1 60); do
-    if [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' studio-odontoiatrico-api 2>/dev/null)" = healthy ] &&
-      [ "$(docker inspect -f '{{.State.Status}}' studio-odontoiatrico-app 2>/dev/null)" = running ]; then
+    local api app
+    api=$(docker compose ps -q api 2>/dev/null) || true
+    app=$(docker compose ps -q app 2>/dev/null) || true
+    if [ -n "$api" ] && [ -n "$app" ] &&
+      [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$api" 2>/dev/null)" = healthy ] &&
+      [ "$(docker inspect -f '{{.State.Status}}' "$app" 2>/dev/null)" = running ]; then
       return 0
     fi
     sleep 2

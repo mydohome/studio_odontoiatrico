@@ -1,11 +1,13 @@
 # TEMPLATE · Nginx Proxy Manager sullo STESSO host (rete Docker condivisa "proxy-net").
 #
 # Non modificare questo file: ./setup.sh lo copia in docker-compose.yml.
+# Il nome dell'istanza (INSTANCE nel .env) distingue più studi sullo stesso server: diventa il
+# prefisso di container, immagini e reti (predefinito: studio-odontoiatrico).
 #
 # Passi:
 # 1) ./setup.sh                → scegli "stesso host", crea .env, docker-compose.yml e il primo utente
 # 2) In NPM (http://127.0.0.1:81 via tunnel SSH) crea un "Proxy Host":
-#      Scheme / Forward Hostname / Forward Port:  http / studio-odontoiatrico-app / 80
+#      Scheme / Forward Hostname / Forward Port:  http / <INSTANCE>-app / 80   (es. studio-odontoiatrico-app)
 #      SSL: certificato Let's Encrypt + "Force SSL"
 #
 # Regole applicate:
@@ -14,7 +16,7 @@
 #   a Internet e invisibili agli altri servizi su proxy-net.
 # - Nessuna porta pubblicata sull'host: si entra solo passando da NPM.
 
-name: studio-odontoiatrico
+name: ${INSTANCE:-studio-odontoiatrico}
 
 services:
   # Interfaccia web + reverse proxy verso le API. E' il container a cui punta NPM.
@@ -22,8 +24,8 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    image: studio-odontoiatrico-app:latest
-    container_name: studio-odontoiatrico-app
+    image: ${INSTANCE:-studio-odontoiatrico}-app:latest
+    container_name: ${INSTANCE:-studio-odontoiatrico}-app
     restart: unless-stopped
     depends_on:
       - api
@@ -53,8 +55,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    image: studio-odontoiatrico-api:latest
-    container_name: studio-odontoiatrico-api
+    image: ${INSTANCE:-studio-odontoiatrico}-api:latest
+    container_name: ${INSTANCE:-studio-odontoiatrico}-api
     restart: unless-stopped
     # Solo le variabili che servono (evita di passare tutto il .env al container).
     environment:
@@ -77,7 +79,7 @@ services:
 
   db:
     image: postgres:16-alpine
-    container_name: studio-odontoiatrico-db
+    container_name: ${INSTANCE:-studio-odontoiatrico}-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-studio}

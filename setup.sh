@@ -10,9 +10,10 @@
 #   ./setup.sh --yes            nessuna domanda: valori predefiniti e password generate
 #   ./setup.sh --start          avvia l'app senza chiederlo
 #   ./setup.sh --force          ricrea .env e docker-compose.yml senza chiedere (ne salva una copia)
+#   ./setup.sh --instance NOME  nome dell'istanza (più studi sullo stesso server: una cartella per studio)
 #
 # Con --yes i valori si possono passare come variabili d'ambiente:
-#   FIRST_USER=mario FIRST_EMAIL=mario@studio.it FIRST_PASSWORD=... HTTP_PORT=8080 TZ=Europe/Rome
+#   FIRST_USER=mario FIRST_EMAIL=mario@studio.it FIRST_PASSWORD=... HTTP_PORT=8080 TZ=Europe/Rome INSTANCE=studio-rossi
 
 set -euo pipefail
 
@@ -28,6 +29,7 @@ ASSUME_YES=0
 FORCE=0
 START=0
 MODE=''
+ARG_INSTANCE=''
 while [ $# -gt 0 ]; do
   case "$1" in
     -y | --yes) ASSUME_YES=1 ;;
@@ -39,9 +41,14 @@ while [ $# -gt 0 ]; do
       ;;
     --mode=*) MODE=${1#--mode=} ;;
     --npm) MODE=npm ;;
+    --instance)
+      ARG_INSTANCE=${2:-}
+      shift
+      ;;
+    --instance=*) ARG_INSTANCE=${1#--instance=} ;;
     --network) MODE=network ;;
     -h | --help)
-      sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -137,8 +144,44 @@ no_quotes() {
 valid_username() { [[ "$1" =~ ^[A-Za-z0-9._-]{3,32}$ ]]; }
 valid_email() { [[ "$1" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; }
 
+valid_instance() { [[ "$1" =~ ^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$ ]]; }
+
+# Cartella dell'installazione che usa già questo nome di istanza (vuoto se nessuna).
+instance_owner() {
+  [ "$HAVE_DOCKER" -eq 1 ] || return 0
+  {
+    docker ps -a --filter "label=com.docker.compose.project=$1" --format '{{.Label "com.docker.compose.project.working_dir"}}'
+    docker ps -a --filter "name=^/$1-(app|api|db)$" --format '{{.Label "com.docker.compose.project.working_dir"}}'
+  } 2>/dev/null | grep -v '^$' | head -n1 || true
+}
+
+# Prima porta libera tra 80 e 8080–8099.
+free_port() {
+  local p
+  for p in 80 $(seq 8080 8099); do
+    port_in_use "$p" || { printf '%s' "$p"; return; }
+  done
+  printf '8080'
+}
+
+# Stato di salute del container delle API di questa installazione (qualunque sia il nome dell'istanza).
+api_health() {
+  local id
+  id=$(docker compose ps -q api 2>/dev/null) || true
+  [ -n "$id" ] && docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$id" 2>/dev/null
+}
+
+# Porta TCP già in ascolto sull'host o pubblicata da un altro container Docker.
 port_in_use() {
-  command -v ss >/dev/null 2>&1 && ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$1\$"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$1\$" && return 0
+  else
+    local hex
+    hex=$(printf '%04X' "$1")
+    cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | awk -v h=":$hex" '$4 == "0A" && substr($2, length($2) - 4) == h { f = 1 } END { exit !f }' && return 0
+  fi
+  [ "${HAVE_DOCKER:-0}" -eq 1 ] && docker ps --format '{{.Ports}}' 2>/dev/null | tr ',' '\n' | grep -qE ":$1->" && return 0
+  return 1
 }
 
 backup() {
@@ -212,6 +255,7 @@ KEEP_DB_NAME=''
 KEEP_SESSION=''
 OLD_PORT=''
 OLD_TZ=''
+OLD_INSTANCE=''
 FRESH_INSTALL=1
 REWRITE_ENV=1
 
@@ -228,6 +272,9 @@ if [ -f "$ENV_FILE" ]; then
   KEEP_SESSION=$(env_get SESSION_SECRET "$ENV_FILE")
   OLD_PORT=$(env_get HTTP_PORT "$ENV_FILE")
   OLD_TZ=$(env_get TZ "$ENV_FILE")
+  # Installazioni create prima dell'introduzione delle istanze: nome storico.
+  OLD_INSTANCE=$(env_get INSTANCE "$ENV_FILE")
+  OLD_INSTANCE=${OLD_INSTANCE:-studio-odontoiatrico}
 elif [ -d db/data ]; then
   # Il database esiste già ma il .env è andato perso: la password va reinserita,
   # perché PostgreSQL la imposta solo alla prima inizializzazione.
@@ -245,19 +292,58 @@ fi
 
 PORT=${OLD_PORT:-80}
 TIMEZONE=${OLD_TZ:-Europe/Rome}
+INSTANCE_NAME=${ARG_INSTANCE:-${OLD_INSTANCE:-studio-odontoiatrico}}
 if [ "$REWRITE_ENV" -eq 1 ]; then
+  # Nome dell'istanza: prefisso di container, immagini e reti. Permette più studi sullo stesso
+  # server (una cartella e un nome diversi per ciascuno).
+  if [ -n "$ARG_INSTANCE" ]; then
+    DEFAULT_INSTANCE=$ARG_INSTANCE
+  elif [ -n "${INSTANCE:-}" ]; then
+    DEFAULT_INSTANCE=$INSTANCE
+  elif [ -n "$OLD_INSTANCE" ]; then
+    DEFAULT_INSTANCE=$OLD_INSTANCE
+  else
+    DEFAULT_INSTANCE=$(basename "$PWD" | tr '[:upper:]_ ' '[:lower:]--' | LC_ALL=C tr -cd 'a-z0-9-' | sed 's/^-*//; s/-*$//' | cut -c1-40)
+    valid_instance "$DEFAULT_INSTANCE" || DEFAULT_INSTANCE=studio-odontoiatrico
+  fi
+  [ "$ASSUME_YES" -eq 1 ] || info "Nome dell'istanza: serve a distinguere più studi sullo stesso server (es. studio-rossi)."
+  while :; do
+    INSTANCE_NAME=$(ask "Nome dell'istanza" "$DEFAULT_INSTANCE")
+    if ! valid_instance "$INSTANCE_NAME"; then
+      [ "$ASSUME_YES" -eq 1 ] && die "Nome dell'istanza non valido: $INSTANCE_NAME"
+      warn "Usa 2–40 caratteri tra lettere minuscole, numeri e trattini (es. studio-rossi)."
+      continue
+    fi
+    OWNER=$(instance_owner "$INSTANCE_NAME")
+    if [ -n "$OWNER" ] && [ "$OWNER" != "$PWD" ]; then
+      [ "$ASSUME_YES" -eq 1 ] && die "Il nome \"$INSTANCE_NAME\" è già usato dall'installazione in $OWNER."
+      warn "Il nome \"$INSTANCE_NAME\" è già usato dall'installazione in $OWNER: scegline un altro."
+      continue
+    fi
+    break
+  done
+
   # Porta HTTP (solo se l'app la pubblica).
   if [ "$MODE" = network ]; then
-    DEFAULT_PORT=${HTTP_PORT:-${OLD_PORT:-80}}
-    if [ -z "$OLD_PORT" ] && [ -z "${HTTP_PORT:-}" ] && port_in_use 80; then
-      warn "La porta 80 risulta già occupata su questo server."
-      DEFAULT_PORT=8080
+    DEFAULT_PORT=${HTTP_PORT:-${OLD_PORT:-}}
+    if [ -z "$DEFAULT_PORT" ]; then
+      DEFAULT_PORT=$(free_port)
+      [ "$DEFAULT_PORT" = 80 ] || warn "La porta 80 risulta già occupata su questo server: propongo la $DEFAULT_PORT."
     fi
     while :; do
       PORT=$(ask "Porta HTTP su cui pubblicare l'app" "$DEFAULT_PORT")
-      if [[ "$PORT" =~ ^[0-9]+$ ]] && [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ]; then break; fi
-      [ "$ASSUME_YES" -eq 1 ] && die "Porta non valida: $PORT"
-      warn "Inserisci un numero tra 1 e 65535."
+      if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+        [ "$ASSUME_YES" -eq 1 ] && die "Porta non valida: $PORT"
+        warn "Inserisci un numero tra 1 e 65535."
+        continue
+      fi
+      # La porta attuale di questa istanza è occupata da lei stessa: va bene.
+      if [ "$PORT" != "$OLD_PORT" ] && port_in_use "$PORT"; then
+        [ "$ASSUME_YES" -eq 1 ] && die "La porta $PORT è già in uso su questo server (un'altra istanza?). Scegline un'altra con HTTP_PORT=..."
+        warn "La porta $PORT è già in uso su questo server: scegline un'altra (es. $(free_port))."
+        continue
+      fi
+      break
     done
   fi
 
@@ -282,6 +368,9 @@ if [ "$REWRITE_ENV" -eq 1 ]; then
   trap 'rm -f "$TMP"' EXIT
   cat >"$TMP" <<EOF
 # Generato da setup.sh il $(date '+%d/%m/%Y %H:%M'). Non condividere questo file.
+
+# Nome dell'istanza: prefisso di container, immagini e reti (diverso per ogni studio sullo stesso server)
+INSTANCE=$INSTANCE_NAME
 
 # Database (la password viene applicata solo alla prima creazione del database)
 POSTGRES_USER=$DB_USER
@@ -399,12 +488,17 @@ STARTED=0
 USER_CREATED=0
 if [ "$CAN_START" -eq 1 ]; then
   if [ "$START" -eq 1 ] || [ "$ASSUME_YES" -eq 1 ] || confirm "Avviare ora l'app? (la prima build richiede qualche minuto)" s; then
+    # Istanza rinominata: ferma i container col vecchio nome (i dati in db/data restano).
+    if [ -n "$OLD_INSTANCE" ] && [ "$OLD_INSTANCE" != "$INSTANCE_NAME" ] && [ "$(instance_owner "$OLD_INSTANCE")" = "$PWD" ]; then
+      info "Fermo i container della vecchia istanza $OLD_INSTANCE..."
+      docker compose -p "$OLD_INSTANCE" down --remove-orphans
+    fi
     docker compose up -d --build
     STARTED=1
     info "Attendo che le API siano pronte..."
     READY=0
     for _ in $(seq 1 60); do
-      if [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' studio-odontoiatrico-api 2>/dev/null)" = healthy ]; then
+      if [ "$(api_health)" = healthy ]; then
         READY=1
         break
       fi
@@ -435,6 +529,7 @@ URL="http://${HOST_IP:-<ip-del-server>}"
 [ "$PORT" != 80 ] && URL="$URL:$PORT"
 
 title "Riepilogo"
+echo "  Istanza:        $INSTANCE_NAME (container $INSTANCE_NAME-app, -api, -db)"
 if [ "$MODE" = npm ]; then
   echo "  Deploy:         dietro Nginx Proxy Manager sullo stesso host (rete proxy-net)"
   echo "  Indirizzo:      il dominio che configurerai in NPM"
@@ -457,7 +552,7 @@ echo "  Fuso orario:    $TIMEZONE"
 echo
 if [ "$MODE" = npm ]; then
   echo "  ${B}In Nginx Proxy Manager${N} crea un Proxy Host con:"
-  echo "    Scheme: http   Forward Hostname: studio-odontoiatrico-app   Forward Port: 80"
+  echo "    Scheme: http   Forward Hostname: $INSTANCE_NAME-app   Forward Port: 80"
   echo "    Scheda SSL: richiedi il certificato Let's Encrypt e attiva Force SSL."
 else
   echo "  ${B}Nel Nginx Proxy Manager remoto${N} crea un Proxy Host con:"

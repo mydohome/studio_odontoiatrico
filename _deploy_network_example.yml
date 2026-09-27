@@ -1,6 +1,8 @@
 # TEMPLATE · Nginx Proxy Manager su un ALTRO host (o nessun NPM): l'app pubblica una porta HTTP.
 #
 # Non modificare questo file: ./setup.sh lo copia in docker-compose.yml.
+# Il nome dell'istanza (INSTANCE nel .env) distingue più studi sullo stesso server: diventa il
+# prefisso di container, immagini e reti (predefinito: studio-odontoiatrico).
 #
 # Passi:
 # 1) ./setup.sh                → scegli "host diverso", crea .env, docker-compose.yml e il primo utente
@@ -14,7 +16,7 @@
 # - "api" e "db" stanno SOLO sulla rete interna "backend" (internal: true), senza porte
 #   pubblicate e senza accesso a Internet.
 
-name: studio-odontoiatrico
+name: ${INSTANCE:-studio-odontoiatrico}
 
 services:
   # Interfaccia web + reverse proxy verso le API. E' il container a cui punta NPM.
@@ -22,8 +24,8 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    image: studio-odontoiatrico-app:latest
-    container_name: studio-odontoiatrico-app
+    image: ${INSTANCE:-studio-odontoiatrico}-app:latest
+    container_name: ${INSTANCE:-studio-odontoiatrico}-app
     restart: unless-stopped
     depends_on:
       - api
@@ -55,8 +57,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    image: studio-odontoiatrico-api:latest
-    container_name: studio-odontoiatrico-api
+    image: ${INSTANCE:-studio-odontoiatrico}-api:latest
+    container_name: ${INSTANCE:-studio-odontoiatrico}-api
     restart: unless-stopped
     # Solo le variabili che servono (evita di passare tutto il .env al container).
     environment:
@@ -79,7 +81,7 @@ services:
 
   db:
     image: postgres:16-alpine
-    container_name: studio-odontoiatrico-db
+    container_name: ${INSTANCE:-studio-odontoiatrico}-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-studio}

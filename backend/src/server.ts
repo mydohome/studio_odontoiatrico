@@ -189,7 +189,7 @@ interface Settings {
   flyerStyle: FlyerStyle
 }
 
-const FLYER_STYLES = ['smile', 'tech'] as const
+const FLYER_STYLES = ['smile', 'mint'] as const
 type FlyerStyle = (typeof FLYER_STYLES)[number]
 
 async function logoSettings(): Promise<Pick<Settings, 'logoType' | 'logoVersion'>> {
@@ -208,7 +208,8 @@ async function readSettings(): Promise<Settings> {
     address: (await getSetting('address')) ?? '',
     doctorName: (await getSetting('doctorName')) ?? '',
     ...(await logoSettings()),
-    flyerStyle: (await getSetting('flyerStyle')) === 'tech' ? 'tech' : 'smile',
+    // "tech" è il vecchio nome del modello Mint.
+    flyerStyle: ['mint', 'tech'].includes((await getSetting('flyerStyle')) ?? '') ? 'mint' : 'smile',
   }
 }
 
@@ -247,8 +248,10 @@ app.put('/api/settings', async (req) => {
     await setSetting('logoType', String(body.logoType))
   }
   if (body.flyerStyle !== undefined) {
-    if (!FLYER_STYLES.includes(body.flyerStyle as FlyerStyle)) throw new HttpError(400, 'Modello di volantino non valido')
-    await setSetting('flyerStyle', String(body.flyerStyle))
+    // "tech" è il vecchio nome di Mint (pagine aperte prima dell'aggiornamento).
+    const style = body.flyerStyle === 'tech' ? 'mint' : body.flyerStyle
+    if (!FLYER_STYLES.includes(style as FlyerStyle)) throw new HttpError(400, 'Modello di volantino non valido')
+    await setSetting('flyerStyle', String(style))
   }
   return readSettings()
 })

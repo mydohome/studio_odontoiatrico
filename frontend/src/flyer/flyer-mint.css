@@ -4,8 +4,8 @@
 @import '@fontsource/nunito/latin-900.css';
 @import '@fontsource/nunito/latin-600-italic.css';
 
-/* Modello "Tech": linee pulite, forme geometriche, due colori del marchio. 800×1200 fisso. */
-.flyer-tech {
+/* Modello "Mint": linee pulite, forme geometriche, due colori del marchio. 800×1200 fisso. */
+.flyer-mint {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -22,7 +22,7 @@
   color-scheme: light;
 }
 
-.flyer-tech * {
+.flyer-mint * {
   box-sizing: border-box;
 }
 

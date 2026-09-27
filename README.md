@@ -100,11 +100,13 @@ in tempo reale di un volantino verticale (800×1200, esportato in PNG a 1600×24
 - **periodo** "dal 01 al 31 Ottobre", modificabile con le date di inizio e fine;
 - **voci dell'offerta** con icone ricavate dal testo della campagna (igiene, check-up, ortopanoramica, sbiancamento, …);
 - **etichetta prezzo** proposta dal testo (GRATIS, -25%, A RATE) oppure scritta a mano (es. 90€), o nascosta;
-- **telefono/WhatsApp** dello studio, che si può memorizzare per i volantini successivi;
+- **telefono/WhatsApp** e **indirizzo** dello studio: l'indirizzo compare in basso a destra con il segnaposto delle
+  mappe (su due righe, via e città). Si impostano in **Impostazioni → Studio** oppure dall'editor;
 - 5 combinazioni di colori, e tutti i testi (slogan, parole chiave, nome dello studio) modificabili.
 
 Il PNG si scarica con **Scarica PNG**; su smartphone **Condividi** lo invia direttamente a WhatsApp o ad altre app.
-I font sono inclusi nell'app, quindi funziona anche senza accesso a Google Fonts.
+I font (Lobster per i titoli corsivi, Kalam per le scritte a pennarello, Fredoka per banner e contatti) sono inclusi
+nell'app, quindi funziona anche senza accesso a Google Fonts.
 
 La funzione è sul branch `beta/genera-volantino`. Per provarla sul server: `git checkout beta/genera-volantino && ./update.sh --rebuild`;
 per tornare indietro: `git checkout main && ./update.sh --rebuild`.

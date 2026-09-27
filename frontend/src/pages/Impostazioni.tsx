@@ -51,6 +51,9 @@ function StudioCard({ data }: { data: AppDataState }) {
   const notify = useToast()
   const [name, setName] = useState(data.settings.studioName)
   const [savingPrices, setSavingPrices] = useState(false)
+  const [phone, setPhone] = useState(data.settings.phone)
+  const [address, setAddress] = useState(data.settings.address)
+  const contactsChanged = phone.trim() !== data.settings.phone || address.trim() !== data.settings.address
   const { showPrices } = data.settings
 
   const togglePrices = async (value: boolean) => {
@@ -85,6 +88,47 @@ function StudioCard({ data }: { data: AppDataState }) {
         <button className="btn btn-primary" disabled={!name.trim() || name === data.settings.studioName}>
           <Save size={16} /> Salva
         </button>
+      </form>
+      <form
+        className="contacts-form"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          try {
+            const r = await api.saveSettings({ phone: phone.trim(), address: address.trim() })
+            data.setSettings(r)
+            setPhone(r.phone)
+            setAddress(r.address)
+            notify('Contatti salvati')
+          } catch (err) {
+            notify((err as Error).message, 'error')
+          }
+        }}
+      >
+        <p className="small muted">Contatti mostrati nei volantini delle campagne.</p>
+        <div className="settings-row">
+          <input
+            className="input"
+            style={{ flex: '1 1 140px' }}
+            inputMode="tel"
+            placeholder="Telefono / WhatsApp"
+            aria-label="Telefono / WhatsApp"
+            value={phone}
+            maxLength={20}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <input
+            className="input"
+            style={{ flex: '3 1 240px' }}
+            placeholder="Indirizzo, es. Via Roma 12, 20100 Milano"
+            aria-label="Indirizzo dello studio"
+            value={address}
+            maxLength={120}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+          <button className="btn btn-primary" disabled={!contactsChanged}>
+            <Save size={16} /> Salva
+          </button>
+        </div>
       </form>
       <div className="setting-toggle">
         <div>

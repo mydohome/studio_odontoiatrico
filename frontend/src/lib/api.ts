@@ -6,6 +6,8 @@ export interface AppSettings {
   showPrices: boolean
   /** Telefono / WhatsApp dello studio (volantini). */
   phone: string
+  /** Indirizzo dello studio (volantini). */
+  address: string
 }
 
 export interface SessionUser {

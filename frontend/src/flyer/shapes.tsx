@@ -130,6 +130,17 @@ export function ToothLogo({ size = 120, color = '#fff' }: { size?: number; color
   )
 }
 
+/** Segnaposto stile mappe: goccia piena con foro centrale. */
+export function MapPin({ color, hole = '#fff', size = 60 }: { color: string; hole?: string; size?: number }) {
+  return (
+    <svg width={size * 0.8} height={size} viewBox="0 0 48 60" aria-hidden="true">
+      <path d="M24 58C24 58 4 35.5 4 22a20 20 0 0 1 40 0c0 13.5-20 36-20 36z" fill={color} />
+      <circle cx="24" cy="22" r="8" fill={hole} />
+      <ellipse cx="24" cy="58" rx="9" ry="2" fill="#000" opacity=".15" />
+    </svg>
+  )
+}
+
 export function WhatsApp({ size = 64 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">

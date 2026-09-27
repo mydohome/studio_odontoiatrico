@@ -6,7 +6,7 @@ import { api, type AppSettings } from './api.ts'
 export function useAppData() {
   const [services, setServices] = useState<Service[]>([])
   const [records, setRecords] = useState<RecordRow[]>([])
-  const [settings, setSettings] = useState<AppSettings>({ studioName: 'Studio Odontoiatrico', showPrices: true, phone: '' })
+  const [settings, setSettings] = useState<AppSettings>({ studioName: 'Studio Odontoiatrico', showPrices: true, phone: '', address: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [version, setVersion] = useState(0)

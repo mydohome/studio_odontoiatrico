@@ -1,6 +1,6 @@
 import { forwardRef, type CSSProperties } from 'react'
 import { formatPeriod, THEME_BY_ID, type FlyerData } from './flyerModel.ts'
-import { Brush, CalendarIcon, Heart, OfferIcon, Splash, Swoosh, ToothLogo, WhatsApp } from './shapes.tsx'
+import { Brush, CalendarIcon, Heart, MapPin, OfferIcon, Splash, Swoosh, ToothLogo, WhatsApp } from './shapes.tsx'
 import './flyer.css'
 
 export const FLYER_WIDTH = 800
@@ -10,6 +10,15 @@ export const FLYER_HEIGHT = 1200
 function fit(text: string, base: number, maxChars: number, min = base * 0.45) {
   const len = Math.max(1, text.length)
   return Math.max(min, Math.min(base, (base * maxChars) / len))
+}
+
+/** Divide l'indirizzo su due righe (via / città) alla prima virgola, se serve. */
+function splitAddress(address: string): string[] {
+  const a = address.trim()
+  if (!a) return []
+  const i = a.indexOf(',')
+  if (a.length <= 26 || i < 0) return [a]
+  return [a.slice(0, i).trim(), a.slice(i + 1).trim()]
 }
 
 // Decorazioni: tratti a raggiera e cuori sparsi (posizioni fisse).
@@ -29,7 +38,7 @@ const HEARTS = [
   { x: 14, y: 140, s: 64, o: 0.16 },
   { x: 718, y: 440, s: 60, o: 0.16 },
   { x: 8, y: 600, s: 76, o: 0.14 },
-  { x: 725, y: 1080, s: 64, o: 0.16 },
+  { x: 736, y: 700, s: 50, o: 0.16 },
   { x: 118, y: 178, s: 40, o: 0.9, w: 5 },
 ]
 
@@ -49,6 +58,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
   const hasBadge = data.badge.trim() !== ''
   const hasPhone = data.phone.trim() !== ''
   const items = data.items.filter((i) => i.text.trim())
+  const address = splitAddress(data.address)
 
   return (
     <div ref={ref} className="flyer" style={vars}>
@@ -66,7 +76,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
       <div className="f-header">
         <ToothLogo size={128} />
         <div className="f-brand">
-          <div className="f-brand-name" style={{ fontSize: fit(data.studioName, 66, 14) }}>
+          <div className="f-brand-name" style={{ fontSize: fit(data.studioName, 62, 15) }}>
             <span>{nameFirst}</span>
             {nameRest.length > 0 && <span className="f-light"> {nameRest.join(' ')}</span>}
           </div>
@@ -75,7 +85,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
         </div>
       </div>
       {data.topQuote && (
-        <div className="f-top-quote" style={{ fontSize: fit(data.topQuote, 30, 46, 20) }}>
+        <div className="f-top-quote" style={{ fontSize: fit(data.topQuote, 25, 46, 18) }}>
           {data.topQuote}
           <Swoosh color="#fff" w={200} h={20} from={[4, 14]} ctrl={[100, 0]} to={[196, 8]} thickness={3} />
         </div>
@@ -84,7 +94,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
       {/* Mese */}
       <div className="f-block f-headline">
         <Brush color="#ffffff" seed={11} className="f-brush" />
-        <span style={{ fontSize: fit(data.headline, 150, 8) }}>{data.headline}</span>
+        <span style={{ fontSize: fit(data.headline, 146, 8.5) }}>{data.headline}</span>
       </div>
 
       {/* Banner principale */}
@@ -108,12 +118,12 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
           <div className="f-period-icon">
             <CalendarIcon color={t.accent} size={84} />
           </div>
-          <span style={{ fontSize: fit(period, 50, 22, 30) }}>{period}</span>
+          <span style={{ fontSize: fit(period, 42, 22, 26) }}>{period}</span>
         </div>
       )}
 
       {/* Nome dell'offerta */}
-      <div className="f-offer-name" style={{ fontSize: fit(data.offerName, 92, 15) }}>
+      <div className="f-offer-name" style={{ fontSize: fit(data.offerName, 86, 17) }}>
         {data.offerName}
         <Swoosh color={t.light} w={600} h={30} from={[6, 20]} ctrl={[300, 0]} to={[594, 12]} thickness={5} />
       </div>
@@ -128,7 +138,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
                 {i > 0 && <span className="f-plus">+</span>}
                 <div className="f-item">
                   <OfferIcon id={it.icon} color={t.accent} size={items.length > 2 ? 70 : 84} />
-                  <span style={{ fontSize: fit(it.text, items.length > 2 ? 27 : 32, items.length > 2 ? 16 : 20, 20) }}>
+                  <span style={{ fontSize: fit(it.text, items.length > 2 ? 22 : 27, items.length > 2 ? 16 : 20, 17) }}>
                     {it.text}
                   </span>
                 </div>
@@ -136,7 +146,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
             ))}
           </div>
           {data.note && (
-            <div className="f-note" style={{ fontSize: fit(data.note, 32, 44, 20) }}>
+            <div className="f-note" style={{ fontSize: fit(data.note, 26, 46, 17) }}>
               {data.note}
             </div>
           )}
@@ -145,7 +155,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
       {hasBadge && (
         <div className="f-badge">
           <Splash color={t.badge} />
-          <span style={{ fontSize: fit(data.badge, 88, 3.1, 30) }}>{data.badge}</span>
+          <span style={{ fontSize: fit(data.badge, 80, 3.4, 30) }}>{data.badge}</span>
           <div className="f-badge-heart">
             <Heart size={40} color={t.heading} width={4} />
           </div>
@@ -156,7 +166,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
       <div className={`f-cta-row ${hasPhone ? '' : 'f-cta-solo'}`}>
         <div className="f-block f-cta">
           <Brush color="#ffffff" seed={53} className="f-brush" />
-          <span style={{ fontSize: fit(data.cta, 62, 14, 34) }}>{data.cta}</span>
+          <span style={{ fontSize: fit(data.cta, 56, 15, 32) }}>{data.cta}</span>
         </div>
         {hasPhone && (
           <div className="f-block f-phone">
@@ -178,8 +188,20 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
             </div>
           ))}
       </div>
-      {data.footer && (
-        <div className="f-footer" style={{ fontSize: fit(data.footer, 32, 36, 22) }}>
+      {address ? (
+        <div className="f-block f-address">
+          <Brush color="#ffffff" seed={71} className="f-brush" />
+          <MapPin color={t.accent} size={62} />
+          <div className="f-address-text">
+            {address.map((line, i) => (
+              <div key={i} style={{ fontSize: fit(line, i === 0 ? 30 : 26, 22, 18) }}>
+                {line}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : data.footer && (
+        <div className="f-footer" style={{ fontSize: fit(data.footer, 27, 36, 20) }}>
           {data.footer}
           <Swoosh color="#fff" w={300} h={20} from={[4, 10]} ctrl={[150, 16]} to={[296, 4]} thickness={3} />
         </div>

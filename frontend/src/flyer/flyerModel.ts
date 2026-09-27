@@ -78,6 +78,8 @@ export interface FlyerData {
   badge: string
   cta: string
   phone: string
+  /** Indirizzo dello studio: in basso a destra con il segnaposto (se vuoto si mostra `footer`). */
+  address: string
   footer: string
   tags: string[]
 }
@@ -249,7 +251,7 @@ export function formatPeriod(from: string, to: string): string {
 export function buildFlyer(
   campaign: CampaignSuggestion,
   month: string,
-  studio: { studioName: string; phone: string },
+  studio: { studioName: string; phone: string; address: string },
 ): FlyerData {
   const m = monthIndex(month)
   const base = COPY[campaign.category]
@@ -286,6 +288,7 @@ export function buildFlyer(
     badge: badgeFromOffer(campaign.offer),
     cta: 'Prenota subito!',
     phone: studio.phone,
+    address: studio.address,
     footer: copy.footer,
     tags: [...copy.tags],
   }

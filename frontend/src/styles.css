@@ -1060,3 +1060,13 @@ tbody tr:last-child td {
   background: var(--warn-soft);
   color: var(--warn);
 }
+
+.contacts-form {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.contacts-form p {
+  margin: 0 0 8px;
+}

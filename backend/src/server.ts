@@ -165,6 +165,8 @@ interface Settings {
   showPrices: boolean
   /** Telefono / WhatsApp dello studio, usato nei volantini. */
   phone: string
+  /** Indirizzo dello studio, mostrato nei volantini. */
+  address: string
 }
 
 async function readSettings(): Promise<Settings> {
@@ -172,6 +174,7 @@ async function readSettings(): Promise<Settings> {
     studioName: (await getSetting('studioName')) ?? 'Studio Odontoiatrico',
     showPrices: (await getSetting('showPrices')) !== 'false',
     phone: (await getSetting('phone')) ?? '',
+    address: (await getSetting('address')) ?? '',
   }
 }
 
@@ -179,7 +182,7 @@ app.get('/api/settings', async () => readSettings())
 
 // Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown }
   if (body.studioName !== undefined) {
     const name = String(body.studioName).trim().slice(0, 80)
     if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
@@ -193,6 +196,11 @@ app.put('/api/settings', async (req) => {
     const phone = String(body.phone).trim()
     if (phone && !/^\+?[0-9 ./-]{6,20}$/.test(phone)) throw new HttpError(400, 'Numero di telefono non valido')
     await setSetting('phone', phone)
+  }
+  if (body.address !== undefined) {
+    const address = String(body.address).replace(/\s+/g, ' ').trim()
+    if (address.length > 120) throw new HttpError(400, 'Indirizzo troppo lungo (massimo 120 caratteri)')
+    await setSetting('address', address)
   }
   return readSettings()
 })

@@ -1,7 +1,8 @@
-@import '@fontsource/kaushan-script/latin-400.css';
+@import '@fontsource/lobster/latin-400.css';
+@import '@fontsource/fredoka/latin-500.css';
 @import '@fontsource/fredoka/latin-600.css';
 @import '@fontsource/fredoka/latin-700.css';
-@import '@fontsource/caveat/latin-700.css';
+@import '@fontsource/kalam/latin-700.css';
 
 /* Il volantino ha dimensioni fisse (800×1200) e viene esportato così com'è. */
 .flyer {
@@ -22,6 +23,12 @@
 
 .flyer * {
   box-sizing: border-box;
+}
+
+/* Niente legamenti decorativi: le scritte devono restare leggibili anche da lontano. */
+.flyer {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'clig' 0, 'calt' 0;
 }
 
 .f-abs {
@@ -80,8 +87,8 @@
 }
 
 .f-brand-name {
-  font-family: 'Kaushan Script', cursive;
-  line-height: 0.95;
+  font-family: 'Lobster', cursive;
+  line-height: 1.1;
   text-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
   white-space: nowrap;
 }
@@ -101,12 +108,13 @@
 }
 
 .f-top-quote {
+  text-wrap: balance;
   position: absolute;
-  right: 26px;
+  right: 22px;
   top: 58px;
-  width: 230px;
+  width: 250px;
   text-align: center;
-  font-family: 'Caveat', cursive;
+  font-family: 'Kalam', cursive;
   font-weight: 700;
   line-height: 1.05;
   transform: rotate(-8deg);
@@ -130,10 +138,10 @@
 }
 
 .f-headline span {
-  font-family: 'Kaushan Script', cursive;
+  font-family: 'Lobster', cursive;
   color: var(--f-heading);
-  line-height: 1;
-  margin-top: -18px;
+  line-height: 1.1;
+  margin-top: -14px;
   white-space: nowrap;
 }
 
@@ -181,7 +189,7 @@
 }
 
 .f-period span {
-  font-family: 'Caveat', cursive;
+  font-family: 'Kalam', cursive;
   font-weight: 700;
   color: var(--f-heading);
   padding-left: 40px;
@@ -200,10 +208,10 @@
   position: absolute;
   left: 20px;
   right: 20px;
-  top: 652px;
+  top: 648px;
   text-align: center;
-  font-family: 'Kaushan Script', cursive;
-  line-height: 1;
+  font-family: 'Lobster', cursive;
+  line-height: 1.15;
   white-space: nowrap;
   text-shadow: 0 4px 0 rgba(0, 0, 0, 0.14);
   transform: rotate(-2deg);
@@ -256,12 +264,13 @@
 }
 
 .f-item span {
-  font-family: 'Caveat', cursive;
+  text-wrap: balance;
+  font-family: 'Kalam', cursive;
   font-weight: 700;
   color: var(--f-accent);
   text-align: left;
-  line-height: 0.95;
-  max-width: 150px;
+  line-height: 1.05;
+  max-width: 175px;
 }
 
 .f-offer-wide .f-item span {
@@ -276,8 +285,9 @@
 }
 
 .f-note {
+  text-wrap: balance;
   margin-top: 8px;
-  font-family: 'Caveat', cursive;
+  font-family: 'Kalam', cursive;
   font-weight: 700;
   color: var(--f-heading);
   line-height: 1;
@@ -304,11 +314,11 @@
 
 .f-badge span {
   position: relative;
-  font-family: 'Kaushan Script', cursive;
+  font-family: 'Lobster', cursive;
   color: var(--f-heading);
-  line-height: 1;
+  line-height: 1.1;
   white-space: nowrap;
-  margin-top: -14px;
+  margin-top: -16px;
 }
 
 .f-badge-heart {
@@ -342,10 +352,11 @@
 }
 
 .f-cta span {
-  font-family: 'Kaushan Script', cursive;
+  font-family: 'Lobster', cursive;
   color: var(--f-heading);
+  line-height: 1.1;
   white-space: nowrap;
-  margin-top: -8px;
+  margin-top: -6px;
 }
 
 .f-phone {
@@ -413,13 +424,47 @@
   transform: translateX(8px);
 }
 
+/* Indirizzo: pennellata bianca con segnaposto, in basso a destra */
+.f-address {
+  right: 14px;
+  bottom: 18px;
+  width: 470px;
+  height: 104px;
+  gap: 12px;
+  justify-content: flex-start;
+  padding: 0 28px 0 34px;
+  transform: rotate(-2deg);
+}
+
+.f-address svg:not(.f-brush) {
+  position: relative;
+  flex: none;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.1));
+}
+
+.f-address-text {
+  font-weight: 600;
+  color: var(--f-heading);
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.f-address-text div {
+  white-space: nowrap;
+}
+
+.f-address-text div + div {
+  font-weight: 500;
+  color: var(--f-accent);
+}
+
 .f-footer {
   position: absolute;
   left: 290px;
   right: 30px;
   bottom: 28px;
   text-align: center;
-  font-family: 'Caveat', cursive;
+  font-family: 'Kalam', cursive;
   font-weight: 700;
   line-height: 1.05;
   transform: rotate(-4deg);

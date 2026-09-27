@@ -28,12 +28,13 @@ const slug = (s: string) =>
 export default function FlyerEditor({ campaign, month, settings, onSettingsChange, onClose }: Props) {
   const notify = useToast()
   const initial = useMemo(
-    () => buildFlyer(campaign, month, { studioName: settings.studioName, phone: settings.phone }),
+    () => buildFlyer(campaign, month, { studioName: settings.studioName, phone: settings.phone, address: settings.address }),
     [campaign, month, settings.studioName], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const [data, setData] = useState<FlyerData>(initial)
   const [busy, setBusy] = useState<'png' | 'share' | null>(null)
-  const [rememberPhone, setRememberPhone] = useState(!settings.phone)
+  // Telefono e indirizzo si memorizzano nelle impostazioni per i volantini successivi.
+  const [rememberContacts, setRememberContacts] = useState(!settings.phone || !settings.address)
   const flyerRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.5)
@@ -85,11 +86,12 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
     return toPng(node, { pixelRatio: 2, width: FLYER_WIDTH, height: FLYER_HEIGHT, cacheBust: true })
   }
 
-  const savePhoneIfNeeded = async () => {
+  const saveContactsIfNeeded = async () => {
     const phone = data.phone.trim()
-    if (!rememberPhone || phone === settings.phone) return
+    const address = data.address.trim()
+    if (!rememberContacts || (phone === settings.phone && address === settings.address)) return
     try {
-      onSettingsChange(await api.saveSettings({ phone }))
+      onSettingsChange(await api.saveSettings({ phone, address }))
     } catch (e) {
       notify((e as Error).message, 'error')
     }
@@ -103,7 +105,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
       a.href = url
       a.download = fileName
       a.click()
-      await savePhoneIfNeeded()
+      await saveContactsIfNeeded()
       notify('Volantino scaricato')
     } catch (e) {
       notify(`Impossibile generare l'immagine: ${(e as Error).message}`, 'error')
@@ -122,7 +124,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
         notify('Condivisione non supportata da questo browser: usa "Scarica PNG".', 'error')
         return
       }
-      await savePhoneIfNeeded()
+      await saveContactsIfNeeded()
       await navigator.share({ files: [file], title: campaign.title, text: `${data.offerName} · ${data.cta}` })
     } catch (e) {
       if ((e as Error).name !== 'AbortError') notify((e as Error).message, 'error')
@@ -257,9 +259,19 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
                   />
                 </label>
               </div>
+              <label>
+                Indirizzo dello studio (in basso a destra)
+                <input
+                  className="input"
+                  value={data.address}
+                  onChange={(e) => set('address', e.target.value)}
+                  maxLength={120}
+                  placeholder="Via Roma 12, 20100 Milano"
+                />
+              </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="checkbox" checked={rememberPhone} onChange={(e) => setRememberPhone(e.target.checked)} />
-                Ricorda questo numero per i prossimi volantini
+                <input type="checkbox" checked={rememberContacts} onChange={(e) => setRememberContacts(e.target.checked)} />
+                Ricorda telefono e indirizzo per i prossimi volantini
               </label>
             </fieldset>
 
@@ -274,7 +286,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
                 <input className="input" value={data.topQuote} onChange={(e) => set('topQuote', e.target.value)} maxLength={60} />
               </label>
               <label>
-                Frase in basso
+                Frase in basso (mostrata se l'indirizzo è vuoto)
                 <input className="input" value={data.footer} onChange={(e) => set('footer', e.target.value)} maxLength={60} />
               </label>
               <div className="row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>

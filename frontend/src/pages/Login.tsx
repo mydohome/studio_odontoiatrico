@@ -60,7 +60,6 @@ export default function Login({
           <div className="login-brand">
             <StudioMark studio={studio} />
             <div className="login-studio">{studio.name}</div>
-            <div className="small muted">Accesso riservato · Prestazioni e campagne</div>
           </div>
         ) : (
           <div className="brand">

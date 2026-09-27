@@ -42,13 +42,15 @@ cd /home/ubuntu/docker/studio-odontoiatrico
    - *Sullo stesso host* → usa `_deploy_npm_example.yml`: l'app si collega alla rete Docker `proxy-net` e non apre porte.
      Se la rete `proxy-net` esiste già, lo script propone questa scelta come predefinita.
 2. **Configurazione**: crea `.env` (permessi `600`) generando **in automatico** la password del database e la chiave
-   delle sessioni; chiede la porta HTTP (solo nel primo caso) e il fuso orario (predefinito `Europe/Rome`).
+   delle sessioni; chiede il **nome dell'istanza** (vedi [Più studi sullo stesso server](#più-studi-sullo-stesso-server)),
+   la porta HTTP (solo nel primo caso: propone la prima libera tra 80 e 8080–8099) e il fuso orario (predefinito
+   `Europe/Rome`).
 3. **docker-compose.yml**: lo crea copiando il template scelto. Se ne esiste già uno diverso, ne salva una copia.
 4. **Primo utente**: nome utente, email (facoltativa) e password inserita due volte (invio = generata automaticamente).
 5. **Avvio**: esegue `docker compose up -d --build`, aspetta che le API siano pronte e crea l'utente. Alla fine mostra
    come configurare il Proxy Host in NPM.
 
-Opzioni: `--mode npm|network` (salta la domanda sul tipo di deploy), `--yes` (nessuna domanda: valori predefiniti e
+Opzioni: `--mode npm|network` (salta la domanda sul tipo di deploy), `--instance NOME` (nome dell'istanza), `--yes` (nessuna domanda: valori predefiniti e
 password generate), `--start` (avvia senza chiedere), `--force` (aggiorna `.env` e `docker-compose.yml` senza chiedere).
 Con `--yes` i valori si passano come variabili:
 
@@ -70,7 +72,7 @@ Crea un **Proxy Host** in NPM (`http://127.0.0.1:81` tramite tunnel SSH, se l'in
 
 | Deploy | Scheme | Forward Hostname | Forward Port |
 |---|---|---|---|
-| NPM sullo stesso host (`proxy-net`) | `http` | `studio-odontoiatrico-app` | `80` |
+| NPM sullo stesso host (`proxy-net`) | `http` | `<istanza>-app` (es. `studio-odontoiatrico-app`) | `80` |
 | NPM su un altro host | `http` | IP di questo server | `HTTP_PORT` (predefinita 80) |
 
 Nella scheda **SSL** richiedi il certificato Let's Encrypt e attiva *Force SSL*. Dietro HTTPS il cookie di sessione viene
@@ -82,13 +84,53 @@ Con NPM su un altro host, apri `HTTP_PORT` nel firewall **solo verso l'IP del se
 sudo iptables -I INPUT 6 -p tcp -s <IP-server-NPM> --dport 80 -j ACCEPT && sudo netfilter-persistent save
 ```
 
+### Più studi sullo stesso server
+
+Ogni studio è un'installazione separata: **una cartella e un nome di istanza diversi**, con database, utenti,
+impostazioni e logo propri. Il codice resta uno solo (stesso repository, stesso branch `main`): cambiano solo il `.env`
+e i dati di ciascuna cartella.
+
+```bash
+git clone https://github.com/mydohome/studio_odontoiatrico.git /home/ubuntu/docker/studio-rossi
+cd /home/ubuntu/docker/studio-rossi && ./setup.sh --instance studio-rossi
+
+git clone https://github.com/mydohome/studio_odontoiatrico.git /home/ubuntu/docker/studio-bianchi
+cd /home/ubuntu/docker/studio-bianchi && ./setup.sh --instance studio-bianchi
+```
+
+- Il nome (minuscole, cifre e trattini; predefinito: il nome della cartella) diventa il prefisso di container, immagini
+  e reti: `studio-rossi-app`, `studio-rossi-api`, `studio-rossi-db`. Si salva in `.env` come `INSTANCE`.
+- `setup.sh` rifiuta un nome già usato da un'altra cartella e una porta già occupata; con NPM sullo stesso host ogni
+  studio ha il suo Proxy Host con Forward Hostname `<istanza>-app`, porta `80`. Senza NPM ogni studio pubblica una
+  porta diversa (la prima libera tra 80 e 8080–8099).
+- Rinominare un'istanza (rilanciando `setup.sh` con un altro nome) ferma i container col vecchio nome; i dati restano.
+- `manage-users.sh`, `update.sh` e `docker compose` agiscono sempre sull'istanza della cartella in cui li lanci.
+  L'aggiornamento automatico (`./update.sh --install-cron`) va attivato in ogni cartella: conviene orari diversi
+  (es. 04:30 e 04:50) per non ricostruire le immagini in contemporanea.
+- Memoria: ogni istanza usa a riposo circa 75–100 MB di RAM (massimo circa 550 MB con i limiti dei container); su una
+  VM Ampere Always Free ne stanno comodamente diverse.
+
+Le installazioni create prima dell'introduzione delle istanze continuano a usare il nome `studio-odontoiatrico`.
+
 ### Sicurezza dei container
 
 | Container | Reti | Protezioni |
 |---|---|---|
-| `studio-odontoiatrico-app` | `proxy-net` oppure porta pubblicata, + `backend` | `no-new-privileges`, `cap_drop: ALL` con solo `CHOWN`/`SETUID`/`SETGID` (necessari a Nginx) |
-| `studio-odontoiatrico-api` | solo `backend` | `no-new-privileges`, `cap_drop: ALL`, utente non root |
-| `studio-odontoiatrico-db` | solo `backend` | `no-new-privileges` |
+| `<istanza>-app` | `proxy-net` oppure porta pubblicata, + `backend` | `no-new-privileges`, `cap_drop: ALL` con solo `CHOWN`/`SETUID`/`SETGID` (necessari a Nginx) |
+| `<istanza>-api` | solo `backend` | `no-new-privileges`, `cap_drop: ALL`, utente non root |
+| `<istanza>-db` | solo `backend` | `no-new-privileges` |
+
+## Logo dello studio
+
+In **Impostazioni → Studio → Logo** scegli il logo che compare sui volantini:
+
+- tre loghi pronti, che si colorano in automatico con la combinazione di colori del volantino: **Famiglia di dentini**
+  (papà, mamma e due figli), **Dente sorridente**, **Dente con cuore**;
+- **Carica logo**: PNG, JPG, WebP o SVG fino a 1 MB (meglio un PNG con sfondo trasparente, alto almeno 300 px). Il logo
+  caricato compare anche nell'intestazione dell'app e si può sostituire o eliminare (si torna alla famiglia di dentini).
+  Gli SVG con script, contenuti incorporati o collegamenti esterni vengono rifiutati.
+
+Nell'editor del volantino (*Altri testi → Logo*) puoi usare un logo diverso solo per quel volantino.
 
 ## Campagne personalizzate
 
@@ -151,6 +193,7 @@ Le password vengono chieste due volte senza mostrarle; da uno script si possono 
 
 | Variabile | Descrizione |
 |---|---|
+| `INSTANCE` | Nome dell'istanza, prefisso di container e immagini (predefinito `studio-odontoiatrico`). |
 | `POSTGRES_PASSWORD` | Password del database (generata da `setup.sh`). |
 | `SESSION_SECRET` | Chiave per firmare i cookie di sessione (generata; cambiandola si chiudono tutte le sessioni). |
 | `HTTP_PORT` | Porta pubblicata sull'host, solo con `_deploy_network_example.yml` (predefinita 80). |

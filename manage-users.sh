@@ -44,7 +44,8 @@ if [ -z "$(docker compose ps --status running -q api 2>/dev/null)" ]; then
     docker compose up -d
     printf 'Attendo che le API siano pronte'
     for _ in $(seq 1 60); do
-      [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' studio-odontoiatrico-api 2>/dev/null)" = healthy ] && break
+      id=$(docker compose ps -q api 2>/dev/null) || true
+      [ -n "$id" ] && [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$id" 2>/dev/null)" = healthy ] && break
       printf '.'
       sleep 2
     done

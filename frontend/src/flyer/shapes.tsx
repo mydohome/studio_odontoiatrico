@@ -117,26 +117,145 @@ export function Heart({ size = 40, color = '#fff', fill = 'none', width = 5 }: {
   )
 }
 
-/** Dente sorridente del logo. */
-export function ToothLogo({ size = 120, color = '#fff' }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 120 120" aria-hidden="true" fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M36 16c-14 0-22 11-22 25 0 16 8 24 10 38 2 13 6 28 14 28 7 0 7-12 10-22 2-6 5-9 12-9s10 3 12 9c3 10 3 22 10 22 8 0 12-15 14-28 2-14 10-22 10-38 0-14-8-25-22-25-10 0-15 6-24 6s-14-6-24-6z" />
-      <path d="M44 58c4 6 10 9 16 9s12-3 16-9" />
-      <circle cx="45" cy="44" r="2.5" fill={color} />
-      <circle cx="75" cy="44" r="2.5" fill={color} />
-      <path d="M100 6l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" strokeWidth="3" />
-    </svg>
-  )
-}
-
-/** Segnaposto stile mappe: goccia piena con foro centrale. */
 export function MapPin({ color, hole = '#fff', size = 60 }: { color: string; hole?: string; size?: number }) {
   return (
     <svg width={size * 0.8} height={size} viewBox="0 0 48 60" aria-hidden="true">
       <path d="M24 58C24 58 4 35.5 4 22a20 20 0 0 1 40 0c0 13.5-20 36-20 36z" fill={color} />
       <circle cx="24" cy="22" r="8" fill={hole} />
       <ellipse cx="24" cy="58" rx="9" ry="2" fill="#000" opacity=".15" />
+    </svg>
+  )
+}
+
+// Sagoma del dente del logo (coordinate in un riquadro 120×120, x 14–106, y 16–107).
+const TOOTH =
+  'M36 16c-14 0-22 11-22 25 0 16 8 24 10 38 2 13 6 28 14 28 7 0 7-12 10-22 2-6 5-9 12-9s10 3 12 9c3 10 3 22 10 22 8 0 12-15 14-28 2-14 10-22 10-38 0-14-8-25-22-25-10 0-15 6-24 6s-14-6-24-6z'
+
+interface LogoColors {
+  /** Colore dei tratti del viso. */
+  face: string
+  /** Contorno dei dentini (tono scuro del tema, separa i denti sovrapposti). */
+  outline: string
+  /** Accessori (papillon, fiocchi). */
+  accent: string
+  /** Secondo colore per gli accessori (guance, lentiggini). */
+  accent2: string
+  /** Fiocco della mamma: deve staccarsi dallo sfondo del volantino. */
+  bow: string
+}
+
+/** Un dentino con faccina; `extra` aggiunge i dettagli del personaggio. */
+function ToothFace({ x, y, scale, c, extra, smile = 'M44 60c4 6 10 9 16 9s12-3 16-9' }: {
+  x: number
+  y: number
+  scale: number
+  c: LogoColors
+  extra?: React.ReactNode
+  smile?: string
+}) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      <path d={TOOTH} fill="#fff" stroke={c.outline} strokeWidth={5 / scale} strokeLinejoin="round" />
+      <circle cx="46" cy="45" r="4.6" fill={c.face} />
+      <circle cx="74" cy="45" r="4.6" fill={c.face} />
+      <circle cx="47.5" cy="43.5" r="1.4" fill="#fff" />
+      <circle cx="75.5" cy="43.5" r="1.4" fill="#fff" />
+      <path d={smile} fill="none" stroke={c.face} strokeWidth="5" strokeLinecap="round" />
+      {extra}
+    </g>
+  )
+}
+
+/**
+ * Logo "famiglia di dentini": papà, mamma e due figli.
+ * I dentini sono bianchi; viso, contorni e accessori seguono i colori del tema del volantino.
+ */
+export function FamilyLogo({ height = 128, colors }: { height?: number; colors: LogoColors }) {
+  const c = colors
+  const cheeks = (
+    <>
+      <ellipse cx="36" cy="57" rx="6" ry="4" fill={c.accent2} opacity=".35" />
+      <ellipse cx="84" cy="57" rx="6" ry="4" fill={c.accent2} opacity=".35" />
+    </>
+  )
+  return (
+    <svg height={height} width={(height * 250) / 160} viewBox="0 0 250 160" aria-hidden="true">
+      {/* Papà: baffi e papillon */}
+      <ToothFace
+        x={-8}
+        y={-6}
+        scale={1.12}
+        c={c}
+        smile="M47 66c4 4 8 6 13 6s9-2 13-6"
+        extra={
+          <>
+            <path d="M40 38l10-3M70 35l10 3" stroke={c.face} strokeWidth="4" strokeLinecap="round" />
+            <path d="M44 59c5-6 11-6 16-1 5-5 11-5 16 1-5 4-11 4-16 0-5 4-11 4-16 0z" fill={c.face} />
+            <path d="M48 80l12 6 12-6v14l-12-6-12 6z" fill={c.accent} stroke={c.accent} strokeWidth="2" strokeLinejoin="round" />
+            <circle cx="60" cy="87" r="3.6" fill={c.accent} stroke="#fff" strokeWidth="1.5" />
+          </>
+        }
+      />
+      {/* Mamma: ciglia, guance e fiocco */}
+      <ToothFace
+        x={112}
+        y={2}
+        scale={1.04}
+        c={c}
+        extra={
+          <>
+            <path d="M40 40l-4-4M44 38l-2-5M80 40l4-4M76 38l2-5" stroke={c.face} strokeWidth="3" strokeLinecap="round" />
+            {cheeks}
+            <g transform="translate(86 16) rotate(20)">
+              <path d="M0 0L-15 -9V9zM0 0L15 -9V9z" fill={c.bow} stroke={c.outline} strokeWidth="2.5" strokeLinejoin="round" />
+              <circle r="4.5" fill={c.bow} stroke={c.outline} strokeWidth="2" />
+            </g>
+          </>
+        }
+      />
+      {/* Figlio: ciuffo e lentiggini */}
+      <ToothFace
+        x={74}
+        y={66}
+        scale={0.72}
+        c={c}
+        smile="M44 58c4 8 10 11 16 11s12-3 16-11z"
+        extra={
+          <>
+            <path d="M58 20c-2-8 3-13 9-12-4 3-4 7-1 10" fill="none" stroke={c.outline} strokeWidth="4" strokeLinecap="round" />
+            <g fill={c.accent2} opacity=".6">
+              <circle cx="36" cy="54" r="2" />
+              <circle cx="41" cy="58" r="2" />
+              <circle cx="84" cy="54" r="2" />
+              <circle cx="79" cy="58" r="2" />
+            </g>
+          </>
+        }
+      />
+      {/* Figlia: due fiocchetti */}
+      <ToothFace
+        x={160}
+        y={80}
+        scale={0.64}
+        c={c}
+        extra={
+          <>
+            {cheeks}
+            {[
+              [26, 22, -25],
+              [94, 22, 25],
+            ].map(([bx, by, r]) => (
+              <g key={bx} transform={`translate(${bx} ${by}) rotate(${r})`}>
+                <path d="M0 0L-12 -8V8zM0 0L12 -8V8z" fill={c.accent} stroke={c.accent} strokeWidth="3" strokeLinejoin="round" />
+                <circle r="4" fill={c.accent} stroke="#fff" strokeWidth="1.5" />
+              </g>
+            ))}
+          </>
+        }
+      />
+      {/* Stellina brillante */}
+      <path d="M232 4l3.5 8.5 8.5 3.5-8.5 3.5-3.5 8.5-3.5-8.5-8.5-3.5 8.5-3.5z" fill="#fff" />
+      <path d="M8 118l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#fff" opacity=".85" />
     </svg>
   )
 }

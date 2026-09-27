@@ -1,6 +1,6 @@
 import { forwardRef, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { formatPeriod, THEME_BY_ID, type FlyerData } from './flyerModel.ts'
-import { Brush, CalendarIcon, Heart, MapPin, OfferIcon, Splash, Swoosh, ToothLogo, WhatsApp } from './shapes.tsx'
+import { Brush, CalendarIcon, FamilyLogo, Heart, MapPin, OfferIcon, Splash, Swoosh, WhatsApp } from './shapes.tsx'
 import './flyer.css'
 
 export const FLYER_WIDTH = 800
@@ -157,7 +157,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
 
       {/* Intestazione con logo */}
       <div className="f-header">
-        <ToothLogo size={128} />
+        <FamilyLogo height={124} colors={{ face: t.heading, outline: t.bg2, accent: t.accent, accent2: t.heading, bow: t.light }} />
         <div className="f-brand">
           <BrandName first={nameFirst} rest={nameRest.join(' ')} size={fit(data.studioName, 62, 15)} lightColor={t.light} />
           <Swoosh className="f-swoosh" color={t.light} w={300} h={30} from={[4, 8]} ctrl={[150, 30]} to={[296, 4]} thickness={4} />

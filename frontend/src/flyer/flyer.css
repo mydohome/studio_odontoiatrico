@@ -73,12 +73,12 @@
 
 .f-header {
   position: absolute;
-  left: 34px;
+  left: 30px;
   top: 30px;
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  width: 520px;
+  gap: 12px;
+  width: 500px;
 }
 
 .f-brand {
@@ -102,8 +102,9 @@
 
 .f-tagline {
   font-weight: 600;
-  font-size: 19px;
-  letter-spacing: 0.22em;
+  font-size: 17px;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
   text-transform: uppercase;
 }
 

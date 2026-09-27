@@ -66,6 +66,8 @@ export interface FlyerData {
   theme: ThemeId
   studioName: string
   tagline: string
+  /** Nome del dottore, sotto "Studio odontoiatrico" (vuoto = riga nascosta). */
+  doctor: string
   topQuote: string
   headline: string
   bannerTop: string
@@ -251,7 +253,7 @@ export function formatPeriod(from: string, to: string): string {
 export function buildFlyer(
   campaign: CampaignSuggestion,
   month: string,
-  studio: { studioName: string; phone: string; address: string },
+  studio: { studioName: string; phone: string; address: string; doctorName?: string },
   period?: { from: string; to: string },
 ): FlyerData {
   const m = monthIndex(month)
@@ -281,6 +283,7 @@ export function buildFlyer(
     theme: copy.theme,
     studioName: studio.studioName,
     tagline: 'Studio odontoiatrico',
+    doctor: studio.doctorName ?? '',
     topQuote: copy.topQuote,
     headline: MONTHS[m],
     bannerTop: copy.bannerTop,

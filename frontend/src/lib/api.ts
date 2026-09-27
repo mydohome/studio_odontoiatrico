@@ -15,6 +15,8 @@ export interface AppSettings {
   phone: string
   /** Indirizzo dello studio (volantini). */
   address: string
+  /** Nome del dottore (volantini). */
+  doctorName: string
 }
 
 export interface SessionUser {

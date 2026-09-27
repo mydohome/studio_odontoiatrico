@@ -36,7 +36,7 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
   // Testi proposti automaticamente (usati anche da "Ripristina testi proposti").
   const initial = useMemo(
     () =>
-      buildFlyer(campaign, month, { studioName: settings.studioName, phone: settings.phone, address: settings.address }, period),
+      buildFlyer(campaign, month, { studioName: settings.studioName, phone: settings.phone, address: settings.address, doctorName: settings.doctorName }, period),
     [campaign, month, settings.studioName], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const [data, setData] = useState<FlyerData>(() => mergeFlyer(initial, saved))
@@ -315,6 +315,10 @@ export default function FlyerEditor({ campaign, month, settings, onSettingsChang
               <label>
                 Nome dello studio
                 <input className="input" value={data.studioName} onChange={(e) => set('studioName', e.target.value)} maxLength={30} />
+              </label>
+              <label>
+                Nome del dottore (sotto "Studio odontoiatrico"; vuoto per nasconderlo)
+                <input className="input" value={data.doctor} onChange={(e) => set('doctor', e.target.value)} maxLength={60} placeholder="es. Dott.ssa Maria Rossi" />
               </label>
               <label>
                 Frase in alto a destra

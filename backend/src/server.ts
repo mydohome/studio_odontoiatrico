@@ -178,6 +178,8 @@ interface Settings {
   phone: string
   /** Indirizzo dello studio, mostrato nei volantini. */
   address: string
+  /** Nome del dottore, mostrato nei volantini sotto "Studio odontoiatrico". */
+  doctorName: string
 }
 
 async function readSettings(): Promise<Settings> {
@@ -186,6 +188,7 @@ async function readSettings(): Promise<Settings> {
     showPrices: (await getSetting('showPrices')) !== 'false',
     phone: (await getSetting('phone')) ?? '',
     address: (await getSetting('address')) ?? '',
+    doctorName: (await getSetting('doctorName')) ?? '',
   }
 }
 
@@ -193,7 +196,7 @@ app.get('/api/settings', async () => readSettings())
 
 // Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown }
   if (body.studioName !== undefined) {
     const name = String(body.studioName).trim().slice(0, 80)
     if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
@@ -212,6 +215,11 @@ app.put('/api/settings', async (req) => {
     const address = String(body.address).replace(/\s+/g, ' ').trim()
     if (address.length > 120) throw new HttpError(400, 'Indirizzo troppo lungo (massimo 120 caratteri)')
     await setSetting('address', address)
+  }
+  if (body.doctorName !== undefined) {
+    const doctorName = String(body.doctorName).replace(/\s+/g, ' ').trim()
+    if (doctorName.length > 80) throw new HttpError(400, 'Nome del dottore troppo lungo (massimo 80 caratteri)')
+    await setSetting('doctorName', doctorName)
   }
   return readSettings()
 })

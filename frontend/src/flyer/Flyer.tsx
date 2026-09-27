@@ -162,6 +162,7 @@ const Flyer = forwardRef<HTMLDivElement, { data: FlyerData }>(function Flyer({ d
           <BrandName first={nameFirst} rest={nameRest.join(' ')} size={fit(data.studioName, 62, 15)} lightColor={t.light} />
           <Swoosh className="f-swoosh" color={t.light} w={300} h={30} from={[4, 8]} ctrl={[150, 30]} to={[296, 4]} thickness={4} />
           <div className="f-tagline">{data.tagline}</div>
+          {data.doctor.trim() && <FitLine block className="f-doctor" text={data.doctor.trim()} size={26} min={16} />}
         </div>
       </div>
       {data.topQuote && (

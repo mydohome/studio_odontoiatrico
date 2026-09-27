@@ -112,6 +112,7 @@ in tempo reale di un volantino verticale (800×1200, esportato in PNG a 1600×24
 - **periodo** "dal 01 al 31 Ottobre", modificabile con le date di inizio e fine;
 - **voci dell'offerta** con icone ricavate dal testo della campagna (igiene, check-up, ortopanoramica, sbiancamento, …);
 - **etichetta prezzo** proposta dal testo (GRATIS, -25%, A RATE) oppure scritta a mano (es. 90€), o nascosta;
+- **nome del dottore** (Impostazioni → Studio) su una riga sotto "Studio odontoiatrico", nascosta se vuoto;
 - **telefono/WhatsApp** e **indirizzo** dello studio: l'indirizzo compare in basso a destra con il segnaposto delle
   mappe (su due righe, via e città). Si impostano in **Impostazioni → Studio** oppure dall'editor;
 - 5 combinazioni di colori, e tutti i testi (slogan, parole chiave, nome dello studio) modificabili.

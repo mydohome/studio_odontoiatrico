@@ -108,6 +108,15 @@
   text-transform: uppercase;
 }
 
+/* Nome del dottore, sotto "Studio odontoiatrico" */
+.f-doctor {
+  margin-top: 4px;
+  font-family: 'Lobster', cursive;
+  color: var(--f-light);
+  line-height: 1.15;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+}
+
 .f-top-quote {
   text-wrap: balance;
   position: absolute;

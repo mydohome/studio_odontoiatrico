@@ -53,8 +53,10 @@ function StudioCard({ data }: { data: AppDataState }) {
   const [savingPrices, setSavingPrices] = useState(false)
   const [phone, setPhone] = useState(data.settings.phone)
   const [address, setAddress] = useState(data.settings.address)
+  const [doctorName, setDoctorName] = useState(data.settings.doctorName)
   const changed =
     name.trim() !== data.settings.studioName ||
+    doctorName.trim() !== data.settings.doctorName ||
     phone.trim() !== data.settings.phone ||
     address.trim() !== data.settings.address
   const { showPrices } = data.settings
@@ -80,9 +82,15 @@ function StudioCard({ data }: { data: AppDataState }) {
         onSubmit={async (e) => {
           e.preventDefault()
           try {
-            const r = await api.saveSettings({ studioName: name.trim(), phone: phone.trim(), address: address.trim() })
+            const r = await api.saveSettings({
+              studioName: name.trim(),
+              doctorName: doctorName.trim(),
+              phone: phone.trim(),
+              address: address.trim(),
+            })
             data.setSettings(r)
             setName(r.studioName)
+            setDoctorName(r.doctorName)
             setPhone(r.phone)
             setAddress(r.address)
             notify('Dati dello studio salvati')
@@ -94,6 +102,16 @@ function StudioCard({ data }: { data: AppDataState }) {
         <label>
           Nome dello studio
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required />
+        </label>
+        <label>
+          Nome del dottore
+          <input
+            className="input"
+            placeholder="es. Dott.ssa Maria Rossi"
+            value={doctorName}
+            maxLength={80}
+            onChange={(e) => setDoctorName(e.target.value)}
+          />
         </label>
         <label>
           Telefono / WhatsApp

@@ -30,6 +30,7 @@ REPO_DIR=$PWD
 
 # ---------- Opzioni ----------
 
+ORIG_ARGS=("$@")
 ASSUME_YES=0
 CHECK_ONLY=0
 BACKUP=1
@@ -121,9 +122,12 @@ fi
 # ---------- Controlli ----------
 
 # Un solo aggiornamento alla volta (es. cron + lancio manuale).
-exec 9>"$REPO_DIR/.update.lock"
-if command -v flock >/dev/null 2>&1 && ! flock -n 9; then
-  die "Un altro aggiornamento è già in corso."
+# (Quando lo script si rilancia nella nuova versione il blocco è già preso, ereditato sul descrittore 9.)
+if [ -z "${UPDATE_OLD:-}" ]; then
+  exec 9>"$REPO_DIR/.update.lock"
+  if command -v flock >/dev/null 2>&1 && ! flock -n 9; then
+    die "Un altro aggiornamento è già in corso."
+  fi
 fi
 
 [ -d .git ] || die "Questa cartella non è un clone git del repository."
@@ -131,13 +135,17 @@ fi
 [ -f .env ] || die ".env non trovato: esegui prima ./setup.sh"
 command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || die "Docker non è raggiungibile."
 
-echo "${B}[$(ts)] Aggiornamento Studio Odontoiatrico${N}"
+[ -n "${UPDATE_OLD:-}" ] || echo "${B}[$(ts)] Aggiornamento Studio Odontoiatrico${N}"
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 [ "$BRANCH" != HEAD ] || die "Il repository non è su un branch (HEAD staccato): esegui 'git checkout main'."
 UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "origin/$BRANCH")
 REMOTE=${UPSTREAM%%/*}
 REMOTE_BRANCH=${UPSTREAM#*/}
+
+version() { git describe --tags --always "$1" 2>/dev/null || git rev-parse --short "$1"; }
+
+if [ -z "${UPDATE_OLD:-}" ]; then
 
 # Modifiche locali ai file versionati bloccherebbero (o verrebbero perse con) l'aggiornamento.
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
@@ -150,7 +158,6 @@ git fetch --quiet "$REMOTE" "$REMOTE_BRANCH" || die "Impossibile contattare GitH
 
 OLD=$(git rev-parse HEAD)
 NEW=$(git rev-parse "$UPSTREAM")
-version() { git describe --tags --always "$1" 2>/dev/null || git rev-parse --short "$1"; }
 
 if [ "$OLD" = "$NEW" ]; then
   ok "Già aggiornato alla versione più recente ($(version "$OLD"))."
@@ -221,6 +228,23 @@ done
 if [ "$OLD" != "$NEW" ]; then
   git merge --ff-only --quiet "$NEW"
   ok "Codice aggiornato a $(version "$NEW")."
+  # Se è cambiato anche questo script, i passi successivi (es. nuove variabili nel .env) li fa la
+  # nuova versione: si rilancia da una sua copia, ripartendo da qui.
+  if ! git diff --quiet "$OLD" "$NEW" -- update.sh; then
+    NEXT=$(mktemp "${TMPDIR:-/tmp}/update-sh.XXXXXX")
+    cp update.sh "$NEXT"
+    rm -f "$UPDATE_SH_COPY"
+    trap - EXIT
+    UPDATE_SH_COPY=$NEXT UPDATE_REPO_DIR=$REPO_DIR UPDATE_OLD=$OLD UPDATE_TEMPLATE=$TEMPLATE \
+      exec bash "$NEXT" "${ORIG_ARGS[@]}"
+  fi
+fi
+
+else
+  # Rilanciato dalla versione precedente dello script, a codice già aggiornato.
+  OLD=$UPDATE_OLD
+  NEW=$(git rev-parse HEAD)
+  TEMPLATE=${UPDATE_TEMPLATE:-}
 fi
 
 if [ -n "$TEMPLATE" ] && [ -f "$TEMPLATE" ] && ! cmp -s docker-compose.yml "$TEMPLATE"; then

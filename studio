@@ -1,0 +1,320 @@
+#!/usr/bin/env bash
+# Comando unico per amministrare l'app dello studio (da lanciare nella cartella dell'istanza).
+#
+#   ./studio                       stato dell'app e dei controlli (come "status")
+#   ./studio status                container, versione, backup, chiave dei dati, avvisi
+#   ./studio start | stop | restart
+#   ./studio logs [api|app|db] [-f]           ultimi log (con -f li segue)
+#   ./studio backup [--list | --install-cron [HH:MM] | --remove-cron]
+#   ./studio restore [--latest | --file PERCORSO | --list]
+#   ./studio update [--check | --yes | --rebuild | --install-cron [HH:MM] | --remove-cron]
+#   ./studio user [list | create | edit | passwd | delete] [utente]
+#   ./studio key [show | verify]              chiave dei dati dei pazienti (DATA_KEY)
+#   ./studio cron                              attività pianificate (backup e aggiornamento)
+#   ./studio db                                console SQL del database (psql)
+#   ./studio setup [opzioni]                   configurazione iniziale (setup.sh)
+#   ./studio help                              questo elenco
+#
+# backup, restore, update, user e setup richiamano gli script backup.sh, recovery.sh, update.sh,
+# manage-users.sh e setup.sh con le stesse opzioni (./studio backup --help, ecc.).
+
+set -euo pipefail
+
+cd "$(dirname "$(readlink -f "$0")")"
+
+if [ -t 1 ]; then
+  B=$'\e[1m' D=$'\e[2m' G=$'\e[32m' Y=$'\e[33m' R=$'\e[31m' C=$'\e[36m' N=$'\e[0m'
+else
+  B='' D='' G='' Y='' R='' C='' N=''
+fi
+info() { printf '%s\n' "${C}›${N} $*"; }
+ok() { printf '%s\n' "${G}✔${N} $*"; }
+warn() { printf '%s\n' "${Y}!${N} $*" >&2; }
+die() {
+  printf '%s\n' "${R}✖${N} $*" >&2
+  exit 1
+}
+
+env_get() {
+  local line
+  line=$(grep -E "^$1=" .env 2>/dev/null | tail -n1) || true
+  line=${line#*=}
+  line=${line#\'}
+  line=${line%\'}
+  printf '%s' "$line"
+}
+
+usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; }
+
+need_install() {
+  [ -f docker-compose.yml ] && [ -f .env ] || die "App non ancora configurata in questa cartella: esegui ./studio setup"
+  command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || die "Docker non è raggiungibile."
+}
+
+running() { [ -n "$(docker compose ps --status running -q "$1" 2>/dev/null)" ]; }
+
+# Query sul database (una riga di risultato, campi separati da |).
+sql() {
+  docker compose exec -T db sh -c 'psql -X -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' sh "$1" </dev/null 2>/dev/null
+}
+
+# Impronta della chiave: 8 caratteri per riconoscere la copia salvata senza mostrarla.
+fingerprint() { printf '%s' "$1" | sha256sum | cut -c1-8; }
+
+human_age() {
+  local s=$1
+  if [ "$s" -lt 3600 ]; then
+    printf '%s min fa' $((s / 60))
+  elif [ "$s" -lt 172800 ]; then
+    printf '%s ore fa' $((s / 3600))
+  else
+    printf '%s giorni fa' $((s / 86400))
+  fi
+}
+
+# Righe di crontab di questa cartella per uno script (backup.sh o update.sh): "MM HH".
+cron_time() {
+  command -v crontab >/dev/null 2>&1 || return 0
+  crontab -l 2>/dev/null | awk -v d="cd '$PWD' " -v s="./$1" 'index($0, d) && index($0, s) { printf "%02d:%02d\n", $2, $1; exit }'
+}
+
+# ---------- status ----------
+
+cmd_status() {
+  need_install
+  local warnings=() instance version branch
+  instance=$(env_get INSTANCE)
+  instance=${instance:-studio-odontoiatrico}
+  version=$(git describe --tags --always 2>/dev/null || echo '?')
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
+
+  printf '\n%sStudio odontoiatrico · %s%s\n\n' "$B" "$instance" "$N"
+  printf '  %-16s %s %s(branch %s)%s\n' "Versione" "$version" "$D" "$branch" "$N"
+  [ -f .update-failed ] && warnings+=("L'ultimo aggiornamento è fallito ed è stato annullato: vedi update.log")
+
+  # Container.
+  printf '  %-16s' "Container"
+  local svc state health line all_ok=1 starting=0
+  for svc in app api db; do
+    line=$(docker compose ps -a --format '{{.State}}|{{.Health}}' "$svc" 2>/dev/null | head -n1) || true
+    state=${line%%|*}
+    health=${line#*|}
+    if [ -z "$line" ]; then
+      printf ' %s%s: assente%s' "$R" "$svc" "$N"
+      all_ok=0
+    elif [ "$state" != running ]; then
+      printf ' %s%s: %s%s' "$R" "$svc" "$state" "$N"
+      all_ok=0
+    elif [ "$health" = starting ]; then
+      printf ' %s%s: in avvio%s' "$Y" "$svc" "$N"
+      starting=1
+    elif [ -n "$health" ] && [ "$health" != healthy ]; then
+      printf ' %s%s: %s%s' "$Y" "$svc" "$health" "$N"
+      all_ok=0
+    else
+      printf ' %s%s ✔%s' "$G" "$svc" "$N"
+    fi
+  done
+  echo
+  [ "$starting" -eq 0 ] || warnings+=("Alcuni container si stanno ancora avviando: riprova tra qualche secondo")
+  [ "$all_ok" -eq 1 ] || warnings+=("Non tutti i container sono in funzione: ./studio logs per i dettagli, ./studio start per avviarli")
+
+  # Indirizzi.
+  local port cport curl_
+  port=$(env_get HTTP_PORT)
+  cport=$(env_get CONFIRM_PORT)
+  if grep -q 'proxy-net' docker-compose.yml; then
+    printf '  %-16s %s\n' "Deploy" "Nginx Proxy Manager sullo stesso host ($instance-app:80, conferme :8081)"
+  else
+    printf '  %-16s %s\n' "Deploy" "porta ${port:-80} pubblicata${cport:+, conferme sulla $cport}"
+  fi
+  curl_=$(env_get CONFIRM_URL)
+  if running db; then
+    local db_url
+    db_url=$(sql "SELECT value FROM settings WHERE key='publicUrl'" || true)
+    [ -n "$db_url" ] && curl_=$db_url
+  fi
+  printf '  %-16s %s\n' "Link conferma" "${curl_:-stesso indirizzo del gestionale}"
+
+  # Dati.
+  if running db; then
+    local counts users appts plain
+    counts=$(sql "SELECT (SELECT count(*) FROM users), (SELECT count(*) FROM appointments), (SELECT count(*) FROM appointments WHERE patient_name NOT LIKE 'v1:%')" || true)
+    IFS='|' read -r users appts plain <<<"$counts"
+    printf '  %-16s %s utenti, %s appuntamenti\n' "Dati" "${users:-?}" "${appts:-?}"
+    [ "${users:-1}" != 0 ] || warnings+=("Nessun utente può accedere: ./studio user create")
+  fi
+
+  # Chiave dei dati dei pazienti.
+  local key
+  key=$(env_get DATA_KEY)
+  if [ -z "$key" ]; then
+    printf '  %-16s %snon impostata: dati dei pazienti in chiaro%s\n' "Cifratura" "$Y" "$N"
+    warnings+=("DATA_KEY mancante: esegui ./studio update per generarla")
+  elif [ -n "${plain:-}" ] && [ "$plain" != 0 ]; then
+    printf '  %-16s %s%s appuntamenti ancora in chiaro%s %s(chiave %s)%s\n' "Cifratura" "$Y" "$plain" "$N" "$D" "$(fingerprint "$key")" "$N"
+    warnings+=("Ci sono appuntamenti non cifrati: riavvia le API con ./studio restart")
+  else
+    printf '  %-16s attiva %s(impronta della chiave %s)%s\n' "Cifratura" "$D" "$(fingerprint "$key")" "$N"
+  fi
+
+  # Backup.
+  local last last_ts n size
+  last=$(ls -1d backups/daily/????-??-??_??????/ 2>/dev/null | tail -n1) || true
+  n=$(ls -1d backups/daily/????-??-??_??????/ 2>/dev/null | wc -l) || true
+  if [ -n "$last" ]; then
+    last=${last%/}
+    local name=${last##*/}
+    last_ts=$(date -d "${name:0:10} ${name:11:2}:${name:13:2}:${name:15:2}" +%s 2>/dev/null || echo 0)
+    size=$(du -sh backups 2>/dev/null | cut -f1)
+    printf '  %-16s ultimo %s (%s), %s giornalieri, %s in totale\n' "Backup" \
+      "$(date -d "@$last_ts" '+%d/%m/%Y %H:%M')" "$(human_age $(($(date +%s) - last_ts)))" "$n" "$size"
+    [ $(($(date +%s) - last_ts)) -lt 129600 ] || warnings+=("L'ultimo backup ha più di 36 ore: controlla backup.log")
+  else
+    printf '  %-16s %snessuno%s\n' "Backup" "$Y" "$N"
+    warnings+=("Nessun backup giornaliero: ./studio backup (e ./studio backup --install-cron per farlo ogni notte)")
+  fi
+
+  # Attività pianificate.
+  local tb tu
+  tb=$(cron_time backup.sh)
+  tu=$(cron_time update.sh)
+  printf '  %-16s backup %s · aggiornamento %s\n' "Pianificati" "${tb:-${Y}no${N}}" "${tu:-no}"
+  [ -n "$tb" ] || warnings+=("Backup automatico non attivo: ./studio backup --install-cron")
+
+  # Spazio su disco.
+  local dbsize free pct
+  dbsize=$(du -sh db/data 2>/dev/null | cut -f1) || true
+  read -r free pct < <(df -Ph . | awk 'NR == 2 { print $4, $5 }')
+  printf '  %-16s database %s, liberi %s (occupato %s)\n' "Disco" "${dbsize:-?}" "$free" "$pct"
+  [ "${pct%\%}" -lt 90 ] || warnings+=("Disco quasi pieno ($pct)")
+
+  # Permessi del .env (contiene password e chiave).
+  [ "$(stat -c '%a' .env)" = 600 ] || warnings+=(".env leggibile da altri utenti del server: chmod 600 .env")
+
+  echo
+  if [ "${#warnings[@]}" -eq 0 ]; then
+    ok "Tutto in ordine."
+  else
+    for w in "${warnings[@]}"; do warn "$w"; done
+  fi
+  printf '\n%s\n' "${D}Comandi: ./studio help${N}"
+}
+
+# ---------- key ----------
+
+cmd_key() {
+  [ -f .env ] || die ".env non trovato: esegui ./studio setup"
+  local key
+  key=$(env_get DATA_KEY)
+  [ -n "$key" ] || die "DATA_KEY non impostata: esegui ./studio update per generarla."
+  case "${1:-}" in
+    '')
+      info "Impronta della chiave DATA_KEY: ${B}$(fingerprint "$key")${N}"
+      echo "  ./studio key show     mostra la chiave, per salvarne una copia fuori dal server"
+      echo "  ./studio key verify   controlla che la copia salvata sia giusta"
+      ;;
+    show)
+      warn "Chi ha questa chiave e un backup può leggere i dati dei pazienti: salvala in un posto sicuro, non insieme ai backup."
+      printf '\n  %sDATA_KEY=%s%s\n\n' "$B" "$key" "$N"
+      ;;
+    verify)
+      local k
+      read -r -s -p "Incolla la chiave salvata: " k </dev/tty
+      echo
+      k=$(printf '%s' "$k" | tr -d '[:space:]')
+      k=${k#DATA_KEY=}
+      if [ "$k" = "$key" ]; then
+        ok "La copia salvata è giusta (impronta $(fingerprint "$key"))."
+      else
+        die "La copia salvata NON corrisponde alla DATA_KEY di questo server."
+      fi
+      # La chiave del .env è anche quella con cui sono cifrati i dati?
+      if running db && running api; then
+        local check
+        check=$(sql "SELECT value FROM settings WHERE key='dataKeyCheck'" || true)
+        if [ -n "$check" ]; then
+          if docker compose exec -T -e DATA_KEY_CHECK="$check" api node src/keyCheck.ts </dev/null >/dev/null 2>&1; then
+            ok "È anche la chiave con cui sono cifrati i dati nel database."
+          else
+            warn "Le API in funzione usano un'altra chiave: riavviale con ./studio restart e controlla i log."
+          fi
+        fi
+      fi
+      ;;
+    *) die "Uso: ./studio key [show | verify]" ;;
+  esac
+}
+
+# ---------- cron ----------
+
+cmd_cron() {
+  command -v crontab >/dev/null 2>&1 || die "crontab non disponibile (installa il pacchetto cron)."
+  local tb tu
+  tb=$(cron_time backup.sh)
+  tu=$(cron_time update.sh)
+  printf '  %-26s %s\n' "Backup giornaliero" "$([ -n "$tb" ] && echo "ogni giorno alle $tb" || echo "non attivo")"
+  printf '  %-26s %s\n' "Aggiornamento automatico" "$([ -n "$tu" ] && echo "ogni giorno alle $tu" || echo "non attivo")"
+  echo
+  echo "  Attiva/disattiva: ./studio backup --install-cron [HH:MM] | --remove-cron"
+  echo "                    ./studio update --install-cron [HH:MM] | --remove-cron"
+}
+
+# ---------- logs ----------
+
+cmd_logs() {
+  need_install
+  local follow=() svc=()
+  for a in "$@"; do
+    case "$a" in
+      -f | --follow) follow=(-f) ;;
+      app | api | db) svc+=("$a") ;;
+      *) die "Uso: ./studio logs [api|app|db] [-f]" ;;
+    esac
+  done
+  docker compose logs --tail 100 "${follow[@]}" "${svc[@]}"
+}
+
+# ---------- avvio ----------
+
+CMD=${1:-status}
+[ $# -gt 0 ] && shift
+
+case "$CMD" in
+  status) cmd_status ;;
+  start)
+    need_install
+    docker compose up -d
+    ok "App avviata."
+    ;;
+  stop)
+    need_install
+    docker compose stop
+    ok "App fermata (i dati restano)."
+    ;;
+  restart)
+    need_install
+    # up -d ricrea i container se è cambiato il .env (es. una nuova chiave).
+    docker compose up -d
+    docker compose restart
+    ok "App riavviata."
+    ;;
+  logs) cmd_logs "$@" ;;
+  backup) exec ./backup.sh "$@" ;;
+  restore | recovery) exec ./recovery.sh "$@" ;;
+  update) exec ./update.sh "$@" ;;
+  user | users) exec ./manage-users.sh "$@" ;;
+  setup) exec ./setup.sh "$@" ;;
+  key) cmd_key "$@" ;;
+  cron) cmd_cron ;;
+  db | psql)
+    need_install
+    running db || die "Il database non è in funzione: ./studio start"
+    exec docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+    ;;
+  help | -h | --help) usage ;;
+  *)
+    usage >&2
+    die "Comando sconosciuto: $CMD"
+    ;;
+esac

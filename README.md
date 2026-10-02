@@ -135,6 +135,30 @@ Le installazioni create prima dell'introduzione delle istanze continuano a usare
 | `<istanza>-api` | solo `backend` | `no-new-privileges`, `cap_drop: ALL`, utente non root |
 | `<istanza>-db` | solo `backend` | `no-new-privileges` |
 
+## Amministrazione: il comando `./studio`
+
+Tutte le operazioni di amministrazione passano da un unico comando, da lanciare nella cartella dell'istanza:
+
+```bash
+./studio                  # stato: container, versione, cifratura, ultimo backup, attività pianificate, disco, avvisi
+./studio start | stop | restart
+./studio logs [api|app|db] [-f]
+./studio backup           # backup subito (--list, --install-cron [HH:MM], --remove-cron)
+./studio restore          # ripristino da un elenco (--latest, --file PERCORSO)
+./studio update           # aggiornamento (--check, --yes, --rebuild, --install-cron, --remove-cron)
+./studio user             # utenti: list, create, edit, passwd, delete
+./studio key              # impronta della chiave dei dati; key show la mostra, key verify controlla la copia salvata
+./studio cron             # backup e aggiornamento automatici attivi
+./studio db               # console SQL del database
+./studio setup            # configurazione iniziale
+```
+
+`./studio` (senza argomenti) segnala cosa sistemare, ad esempio backup più vecchio di 36 ore, backup automatico
+spento, chiave mancante, appuntamenti non cifrati, container fermi, disco quasi pieno o `.env` leggibile da altri.
+`./studio key verify` chiede di incollare la copia della chiave che hai salvato e conferma che sia giusta: conviene
+farlo subito dopo averla salvata. Gli script `setup.sh`, `backup.sh`, `recovery.sh`, `update.sh` e `manage-users.sh`
+restano utilizzabili direttamente (le attività pianificate usano quelli) e `./studio` accetta le stesse opzioni.
+
 ## Logo dello studio
 
 In **Impostazioni → Studio → Logo** scegli il logo che compare sui volantini:

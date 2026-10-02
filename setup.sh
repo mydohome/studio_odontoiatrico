@@ -698,10 +698,9 @@ if [ -n "$CONFIRM_LINK" ]; then
   echo "  in NPM aggiungi al suo Proxy Host una Access List (solo gli IP dello studio, o utente e password)."
 fi
 echo
-echo "  Gestione utenti:  ./manage-users.sh"
-echo "  Ripristino:       ./recovery.sh (sceglie da un elenco dei backup disponibili)"
+echo "  Amministrazione:  ./studio (stato, backup, ripristino, aggiornamenti, utenti, log: ./studio help)"
 if [ "$STARTED" -eq 1 ]; then
-  echo "  Log dell'app:     docker compose logs -f"
+  echo "  Log dell'app:     ./studio logs -f"
 else
   echo "  Avvio dell'app:   docker compose up -d --build"
 fi

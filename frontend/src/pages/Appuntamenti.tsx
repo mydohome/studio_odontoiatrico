@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarClock, CalendarDays, CalendarX2, Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Loader2, MessageCircle, Phone, PhoneMissed, Plus, Send } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CalendarDays, CalendarX2, Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Loader2, MessageCircle, Phone, PhoneMissed, Plus, Send, UserX } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { endTime, nextWorkday } from '../../../shared/appointments.ts'
 import { addDays, formatDay, formatLongDay, formatWeek, fromISO, isValidISO, startOfWeek, today, WEEKDAYS_SHORT } from '../../../shared/dates.ts'
@@ -22,6 +22,7 @@ const STATUS_ICON: Record<AppointmentStatus, typeof Check> = {
   'confermato-manuale': Check,
   inviato: Clock,
   'da-inviare': Send,
+  'non-presentato': UserX,
   'da-riprogrammare': CalendarX2,
 }
 
@@ -205,7 +206,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
   }, [view, anchor, from, list])
 
   const counts = useMemo(() => {
-    const c: Record<AppointmentStatus, number> = { 'confermato-link': 0, 'confermato-manuale': 0, inviato: 0, 'da-inviare': 0, 'da-riprogrammare': 0 }
+    const c: Record<AppointmentStatus, number> = { 'confermato-link': 0, 'confermato-manuale': 0, inviato: 0, 'da-inviare': 0, 'non-presentato': 0, 'da-riprogrammare': 0 }
     for (const a of list) c[a.status]++
     c['da-riprogrammare'] = toResched.length
     return c

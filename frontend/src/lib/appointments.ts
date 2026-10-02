@@ -8,10 +8,11 @@ export const STATUS: Record<AppointmentStatus, { label: string; short: string; c
   'confermato-manuale': { label: 'Confermato dallo studio', short: 'Confermato · studio', cls: 'st-manual' },
   inviato: { label: 'Messaggio inviato, in attesa di conferma', short: 'In attesa', cls: 'st-sent' },
   'da-inviare': { label: 'Messaggio non ancora inviato', short: 'Da inviare', cls: 'st-new' },
+  'non-presentato': { label: 'Il paziente non si è presentato', short: 'Non presentato', cls: 'st-noshow' },
   'da-riprogrammare': { label: 'Da riprogrammare: il paziente deve spostare l\'appuntamento', short: 'Da riprogrammare', cls: 'st-resched' },
 }
 
-export const STATUS_ORDER: AppointmentStatus[] = ['confermato-link', 'confermato-manuale', 'inviato', 'da-inviare', 'da-riprogrammare']
+export const STATUS_ORDER: AppointmentStatus[] = ['confermato-link', 'confermato-manuale', 'inviato', 'da-inviare', 'non-presentato', 'da-riprogrammare']
 
 /** Indirizzo da usare nei link: quello impostato, altrimenti quello con cui si usa l'app. */
 export function publicBase(settings: AppSettings): string {

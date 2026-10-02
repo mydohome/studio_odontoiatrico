@@ -70,14 +70,14 @@ export async function listRecords(from?: string, to?: string): Promise<RecordRow
 }
 
 /**
- * Prestazioni degli appuntamenti confermati fino a oggi: nelle statistiche contano come quelle
+ * Prestazioni degli appuntamenti confermati fino a oggi (esclusi i pazienti non presentati): nelle statistiche contano come quelle
  * registrate a mano. Calcolate al volo, così spostamenti, annullamenti e conferme tolte si
  * riflettono subito senza dover tenere allineate due tabelle.
  */
 export async function listAppointmentRecords(from?: string, to?: string): Promise<RecordRow[]> {
   const { rows } = await pool.query(
     `SELECT day AS d, service_id AS s, count(*)::int AS q FROM appointments
-     WHERE confirmed_at IS NOT NULL AND service_id IS NOT NULL AND day IS NOT NULL AND day <= $3
+     WHERE confirmed_at IS NOT NULL AND no_show_at IS NULL AND service_id IS NOT NULL AND day IS NOT NULL AND day <= $3
        AND ($1::date IS NULL OR day >= $1) AND ($2::date IS NULL OR day <= $2)
      GROUP BY day, service_id ORDER BY day`,
     [from ?? null, to ?? null, today()],

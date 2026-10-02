@@ -131,6 +131,7 @@ export const api = {
   deleteAppointment: (id: number) => request<{ ok: boolean }>('DELETE', `/api/appointments/${id}`),
   appointmentSent: (id: number) => request<Appointment>('POST', `/api/appointments/${id}/sent`, {}),
   appointmentCalled: (id: number) => request<Appointment>('POST', `/api/appointments/${id}/call`, {}),
+  appointmentNoShow: (id: number, noShow: boolean) => request<Appointment>('POST', `/api/appointments/${id}/no-show`, { noShow }),
   appointmentConfirmation: (id: number, confirmed: boolean) =>
     request<Appointment>('POST', `/api/appointments/${id}/confirmation`, { confirmed }),
   publicAppointment: (token: string) => request<PublicAppointment>('GET', `/api/public/appointments/${encodeURIComponent(token)}`),

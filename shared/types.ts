@@ -102,7 +102,7 @@ export type CustomCampaignInput = Pick<
 >
 
 /** Stato della conferma di un appuntamento. */
-export type AppointmentStatus = 'da-inviare' | 'inviato' | 'confermato-link' | 'confermato-manuale' | 'da-riprogrammare'
+export type AppointmentStatus = 'da-inviare' | 'inviato' | 'confermato-link' | 'confermato-manuale' | 'non-presentato' | 'da-riprogrammare'
 
 export interface Appointment {
   id: number
@@ -126,6 +126,8 @@ export interface Appointment {
   notes: string
   /** Codice segreto del link di conferma. */
   token: string
+  /** Il paziente non si è presentato (da quel momento non conta nelle statistiche). */
+  noShowAt: string | null
   status: AppointmentStatus
   sentAt: string | null
   /** Quante volte è stato preparato il messaggio (primo invio e solleciti) e quando l'ultima. */

@@ -20,6 +20,7 @@ import {
   migrateAppointments,
   parseAppointment,
   setManualConfirmation,
+  setNoShow,
   setToReschedule,
   updateAppointment,
 } from './appointments.ts'
@@ -574,6 +575,12 @@ app.post('/api/appointments/:id/confirmation', async (req) => {
   const confirmed = (req.body as { confirmed?: unknown } | null)?.confirmed
   if (typeof confirmed !== 'boolean') throw new HttpError(400, 'Valore di confirmed non valido')
   return appointmentCall(() => setManualConfirmation(appointmentId(req), confirmed))
+})
+
+app.post('/api/appointments/:id/no-show', async (req) => {
+  const noShow = (req.body as { noShow?: unknown } | null)?.noShow
+  if (typeof noShow !== 'boolean') throw new HttpError(400, 'Valore di noShow non valido')
+  return appointmentCall(() => setNoShow(appointmentId(req), noShow))
 })
 
 app.delete('/api/appointments/:id', async (req) => {

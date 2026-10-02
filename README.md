@@ -191,7 +191,8 @@ Nell'editor del volantino (*Altri testi → Logo*) puoi usare un logo diverso so
 
 ## Appuntamenti
 
-La scheda **Appuntamenti** (icona del calendario) contiene l'agenda dello studio.
+La scheda **Appuntamenti** (icona del calendario, la prima e quella che si apre all'accesso) contiene l'agenda dello
+studio.
 
 - **Nuovo appuntamento** (oppure un clic su un orario libero della griglia): data, ora, durata, nome e telefono del
   paziente, prestazione (dall'elenco delle prestazioni) e note interne. I pazienti già inseriti vengono proposti mentre
@@ -210,7 +211,11 @@ La scheda **Appuntamenti** (icona del calendario) contiene l'agenda dello studio
   | 🔵 *Confermato · studio* | confermato a mano dallo studio (es. al telefono), con *Segna confermato* |
   | 🟠 *In attesa* | messaggio preparato, il paziente non ha ancora confermato |
   | ⚪ *Da inviare* | messaggio non ancora preparato |
+  | 🔴 *Non presentato* | il paziente non si è presentato (nome barrato in agenda): non conta nelle statistiche |
   | 🟣 *Da riprogrammare* | il paziente deve spostare l'appuntamento: è senza data né ora |
+
+  *Non presentato* si segna dalla scheda dell'appuntamento, dal suo giorno in poi (*Era presente* lo annulla).
+  Spostando l'appuntamento a un'altra data lo stato riparte da capo.
 
 ### Dati dei pazienti cifrati
 
@@ -234,7 +239,8 @@ lettura.
 Un appuntamento **confermato** (dal link o dallo studio) e con una **prestazione** conta nelle statistiche come una
 prestazione registrata a mano, dal suo giorno in poi: dashboard, campagne ed Excel lo includono. Il conteggio è calcolato
 dall'agenda, quindi spostando, riprogrammando o eliminando l'appuntamento, o togliendo la conferma, i numeri si aggiornano
-da soli. Non contano gli appuntamenti futuri, quelli non confermati e quelli senza prestazione.
+da soli. Non contano gli appuntamenti futuri, quelli non confermati, quelli senza prestazione e i pazienti non
+presentati.
 
 In **Registra** accanto a ogni prestazione compare *N da agenda*: lì si inseriscono solo le prestazioni in più (es.
 pazienti senza appuntamento o trattamenti aggiunti), altrimenti verrebbero contate due volte. *Esporta tutto in Excel*

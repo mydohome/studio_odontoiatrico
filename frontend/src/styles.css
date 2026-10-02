@@ -44,6 +44,8 @@
   --whatsapp: #1fa855;
   --st-resched: #6d28d9;
   --st-resched-soft: #efe7fd;
+  --st-noshow: #9f1239;
+  --st-noshow-soft: #fde4ea;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -92,6 +94,8 @@
     --whatsapp: #25c463;
     --st-resched: #b69bf7;
     --st-resched-soft: #2a1f45;
+    --st-noshow: #fb7f99;
+    --st-noshow-soft: #3b1420;
   }
 }
 
@@ -1536,6 +1540,27 @@ tbody tr:last-child td {
 .st-new {
   --c: var(--st-new);
   --c-soft: var(--st-new-soft);
+}
+
+/* Non presentato: l'appuntamento resta visibile in agenda, barrato. */
+.st-noshow {
+  --c: var(--st-noshow);
+  --c-soft: var(--st-noshow-soft);
+}
+
+.cal-ev.st-noshow .cal-ev-name,
+.agenda-item.st-noshow strong {
+  text-decoration: line-through;
+}
+
+.alert-noshow {
+  background: var(--st-noshow-soft);
+  color: var(--st-noshow);
+}
+
+.btn-noshow {
+  color: var(--st-noshow);
+  border-color: color-mix(in srgb, var(--st-noshow) 40%, var(--border));
 }
 
 .appt-tag {

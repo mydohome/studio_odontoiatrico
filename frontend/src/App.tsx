@@ -17,8 +17,8 @@ const Dashboard = lazy(() => import('./pages/Dashboard.tsx'))
 type TabId = 'appuntamenti' | 'registra' | 'dashboard' | 'campagne' | 'impostazioni'
 
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
-  { id: 'registra', label: 'Registra', icon: <ClipboardPlus size={17} /> },
   { id: 'appuntamenti', label: 'Appuntamenti', icon: <CalendarDays size={17} /> },
+  { id: 'registra', label: 'Registra', icon: <ClipboardPlus size={17} /> },
   { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={17} /> },
   { id: 'campagne', label: 'Campagne', icon: <Megaphone size={17} /> },
   { id: 'impostazioni', label: 'Impostazioni', icon: <Settings size={17} /> },
@@ -26,7 +26,7 @@ const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
 
 const tabFromHash = (): TabId => {
   const h = window.location.hash.replace('#', '') as TabId
-  return TABS.some((t) => t.id === h) ? h : 'registra'
+  return TABS.some((t) => t.id === h) ? h : 'appuntamenti'
 }
 
 export default function App() {

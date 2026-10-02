@@ -19,7 +19,7 @@ const COLUMNS = `a.id, a.day, to_char(a.start_time, 'HH24:MI') AS time, a.durati
   a.notes, a.token,
   a.sent_at AS "sentAt", a.send_count AS "sendCount", a.last_sent_at AS "lastSentAt",
   a.call_count AS "callCount", a.last_call_at AS "lastCallAt",
-  a.confirmed_at AS "confirmedAt", a.confirmed_via AS "confirmedVia",
+  a.confirmed_at AS "confirmedAt", a.confirmed_via AS "confirmedVia", a.no_show_at AS "noShowAt",
   a.created_by AS "createdBy", a.created_at AS "createdAt", a.updated_at AS "updatedAt"`
 const FROM = 'appointments a LEFT JOIN services s ON s.id = a.service_id'
 
@@ -57,6 +57,8 @@ export async function migrateAppointments(): Promise<void> {
     ALTER TABLE appointments ADD COLUMN IF NOT EXISTS prev_time time;
     ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reschedule_at timestamptz;
     CREATE INDEX IF NOT EXISTS appointments_reschedule ON appointments (reschedule_at) WHERE day IS NULL;
+    -- Non presentato: segnato dallo studio dal giorno dell'appuntamento.
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS no_show_at timestamptz;
   `)
 }
 
@@ -64,6 +66,7 @@ type Row = Omit<Appointment, 'status'> & { confirmedVia: 'link' | 'manuale' | nu
 
 function statusOf(r: Row): AppointmentStatus {
   if (r.day === null) return 'da-riprogrammare'
+  if (r.noShowAt) return 'non-presentato'
   if (r.confirmedAt) return r.confirmedVia === 'manuale' ? 'confermato-manuale' : 'confermato-link'
   return r.sentAt ? 'inviato' : 'da-inviare'
 }
@@ -199,6 +202,7 @@ export async function updateAppointment(id: number, input: AppointmentInput): Pr
        last_call_at = CASE WHEN ${CHANGED} THEN NULL ELSE last_call_at END,
        confirmed_at = CASE WHEN ${MOVED} THEN NULL ELSE confirmed_at END,
        confirmed_via = CASE WHEN ${MOVED} THEN NULL ELSE confirmed_via END,
+       no_show_at = CASE WHEN ${MOVED} THEN NULL ELSE no_show_at END,
        day = $2, start_time = $3, duration_min = $4, patient_name = $5, patient_phone = $6,
        service_id = $7, service_name = $8, notes = $9, updated_at = now(),
        prev_day = NULL, prev_time = NULL, reschedule_at = NULL
@@ -232,7 +236,7 @@ export async function setToReschedule(id: number): Promise<Appointment> {
   const r = await pool.query(
     `UPDATE appointments SET prev_day = day, prev_time = start_time, day = NULL, start_time = NULL,
        reschedule_at = now(), sent_at = NULL, send_count = 0, last_sent_at = NULL, call_count = 0, last_call_at = NULL,
-       confirmed_at = NULL, confirmed_via = NULL, updated_at = now()
+       confirmed_at = NULL, confirmed_via = NULL, no_show_at = NULL, updated_at = now()
      WHERE id = $1 AND day IS NOT NULL`,
     [id],
   )
@@ -264,6 +268,24 @@ export async function setManualConfirmation(id: number, confirmed: boolean): Pro
     [id],
   )
   if (!r.rowCount) throw new AppointmentError('Appuntamento non trovato')
+  return getById(id)
+}
+
+/** Non presentato (o annullamento): solo dal giorno dell'appuntamento in poi. */
+export async function setNoShow(id: number, noShow: boolean): Promise<Appointment> {
+  if (noShow) {
+    const r = await pool.query(
+      'UPDATE appointments SET no_show_at = coalesce(no_show_at, now()) WHERE id = $1 AND day IS NOT NULL AND day <= $2',
+      [id, today()],
+    )
+    if (!r.rowCount) {
+      await getById(id) // "non trovato" se non esiste
+      throw new AppointmentError("Si può segnare «non presentato» solo dal giorno dell'appuntamento.")
+    }
+  } else {
+    const r = await pool.query('UPDATE appointments SET no_show_at = NULL WHERE id = $1', [id])
+    if (!r.rowCount) throw new AppointmentError('Appuntamento non trovato')
+  }
   return getById(id)
 }
 

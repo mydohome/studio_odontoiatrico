@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarX2, Check, ClipboardCheck, Copy, Link2, MessageCircle, Pencil, Phone, RotateCcw, Trash2, TriangleAlert, X } from 'lucide-react'
+import { CalendarClock, CalendarX2, Check, ClipboardCheck, Copy, Link2, MessageCircle, Pencil, Phone, RotateCcw, Trash2, TriangleAlert, UserCheck, UserX, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { endTime, LINK_DAYS_AFTER, linkExpiry, whatsAppLink, whatsAppWebLink } from '../../../shared/appointments.ts'
 import { formatDay, formatLongDay, today } from '../../../shared/dates.ts'
@@ -50,7 +50,10 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
   const [busy, setBusy] = useState(false)
   const status = STATUS[a.status]
   const scheduled = isScheduled(a)
-  const confirmed = a.status === 'confermato-link' || a.status === 'confermato-manuale'
+  const confirmed = !!a.confirmedAt
+  const noShow = !!a.noShowAt
+  // "Non presentato" si può segnare dal giorno dell'appuntamento in poi.
+  const started = scheduled && a.day <= today()
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -63,6 +66,19 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
     try {
       onChange(await api.appointmentConfirmation(a.id, value))
       notify(value ? 'Appuntamento segnato come confermato' : 'Conferma annullata')
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const setNoShow = async (value: boolean) => {
+    if (value && !window.confirm(`Segnare che ${a.patientName} non si è presentato? L'appuntamento non conterà nelle statistiche.`)) return
+    setBusy(true)
+    try {
+      onChange(await api.appointmentNoShow(a.id, value))
+      notify(value ? 'Segnato come non presentato' : 'Il paziente risulta di nuovo presente')
     } catch (e) {
       notify((e as Error).message, 'error')
     } finally {
@@ -140,10 +156,19 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
                   {a.status === 'confermato-link' ? 'Confermato dal paziente con il link' : 'Confermato dallo studio'} {stamp(a.confirmedAt)}
                 </li>
               )}
+              {a.noShowAt && <li>Segnato come non presentato {stamp(a.noShowAt)}</li>}
             </ul>
           </div>
 
-          {scheduled ? (
+          {scheduled && noShow ? (
+            <div className="alert alert-noshow small">
+              <UserX size={18} style={{ flex: 'none' }} />
+              <span>
+                Il paziente non si è presentato: l'appuntamento non conta nelle statistiche. Per fissarne un altro usa{' '}
+                <strong>Modifica</strong> e scegli la nuova data (lo stato riparte da capo) oppure crea un nuovo appuntamento.
+              </span>
+            </div>
+          ) : scheduled ? (
             <MessageSection appointment={a} settings={settings} onChange={onChange} />
           ) : (
             <div className="alert alert-resched small">
@@ -163,7 +188,17 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
           <span style={{ flex: 1 }} />
           {scheduled ? (
             <>
-              {confirmed ? (
+              {started &&
+                (noShow ? (
+                  <button type="button" className="btn" onClick={() => setNoShow(false)} disabled={busy} title="Annulla «non presentato»">
+                    <UserCheck size={16} /> Era presente
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-noshow" onClick={() => setNoShow(true)} disabled={busy}>
+                    <UserX size={16} /> Non presentato
+                  </button>
+                ))}
+              {noShow ? null : confirmed ? (
                 <button type="button" className="btn" onClick={() => setConfirmed(false)} disabled={busy}>
                   <RotateCcw size={16} /> Annulla conferma
                 </button>

@@ -52,6 +52,15 @@ export function decrypt(value: string, field: string): string {
   return decryptWith(KEY, value, field)
 }
 
+/** La chiave è quella del valore di controllo salvato nelle impostazioni (anche di un backup)? */
+export function keyMatchesCheck(key: Buffer, check: string): boolean {
+  try {
+    return isEncrypted(check) && decryptWith(key, check, CHECK_KEY) === CHECK_TEXT
+  } catch {
+    return false
+  }
+}
+
 /** Campi cifrati della tabella appuntamenti. */
 export const PATIENT_FIELDS = ['patient_name', 'patient_phone', 'notes'] as const
 
@@ -80,7 +89,7 @@ export async function initDataCrypto(): Promise<{ encrypted: number; enabled: bo
   // Verifica sul valore di controllo oppure, se manca, su un appuntamento già cifrato.
   let ok = true
   try {
-    if (check) ok = isEncrypted(check) && decryptWith(key, check, CHECK_KEY) === CHECK_TEXT
+    if (check) ok = keyMatchesCheck(key, check)
     else if (encryptedSample && isEncrypted(encryptedSample)) decryptWith(key, encryptedSample, 'patient_name')
   } catch {
     ok = false

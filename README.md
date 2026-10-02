@@ -498,8 +498,30 @@ ripristino". Dopo la scelta chiede di scrivere `RIPRISTINA` per conferma, poi:
 Altre opzioni: `--list` (solo elenco), `--latest` (il più recente), `--file PERCORSO` (una cartella di backup o un file
 `.sql.gz`, anche copiati da un altro server), `--yes` (senza domande, con `--latest` o `--file`).
 
-Nei backup nome, telefono e note dei pazienti sono cifrati: per ripristinarli su un altro server serve la stessa
-`DATA_KEY` nel `.env`. Un backup fatto prima della cifratura viene cifrato al riavvio.
+Nei backup nome, telefono e note dei pazienti sono cifrati con `DATA_KEY`. Prima di toccare il database
+`recovery.sh` verifica che la chiave del `.env` apra il backup; se non è quella (es. backup di un altro server)
+**chiede la chiave originale**, la verifica e dopo il ripristino la scrive nel `.env` (la precedente resta in una copia
+`.env.bak-*`). Senza la chiave giusta non ripristina nulla. Con `--yes` la chiave si passa con
+`RESTORE_DATA_KEY=... ./recovery.sh --file ... --yes`. Un backup fatto prima della cifratura viene cifrato al riavvio.
+
+### Recupero completo su un altro server
+
+Per poter ricostruire lo studio se il server si guasta o va sostituito, conserva **fuori dal server**:
+
+- una copia recente dei backup (`backups/daily/`, es. con `rsync` o `scp` su un altro computer o NAS): i backup che
+  restano solo sul server si perdono insieme a lui;
+- la chiave `DATA_KEY` (es. in un gestore di password), **separata** dai backup.
+
+Sul nuovo server:
+
+1. Installa Docker, clona il repository e lancia `./setup.sh` come per una nuova installazione (stesso nome
+   dell'istanza, stesso tipo di deploy, indirizzo dei link di conferma). L'utente creato ora verrà sostituito da quelli
+   del backup.
+2. Copia sul nuovo server la cartella del backup più recente, es.
+   `scp -r backups/daily/2026-10-02_023000 nuovo-server:~/docker/studio_odontoiatrico/backups/`.
+3. Ripristina: `./recovery.sh --file backups/2026-10-02_023000`. Lo script chiede la `DATA_KEY` del vecchio server,
+   la verifica sul backup, ripristina utenti, appuntamenti, impostazioni e logo e riavvia l'app.
+4. Punta DNS e Nginx Proxy Manager al nuovo server (gestionale e link di conferma).
 
 In alternativa, *Esporta tutto in Excel* produce un file reimportabile con tutte le registrazioni.
 

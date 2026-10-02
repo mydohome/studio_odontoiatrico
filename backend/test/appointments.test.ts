@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { endTime, whatsAppLink, whatsAppMessage, whatsAppNumber, whatsAppWebLink } from '../../shared/appointments.ts'
+import { endTime, whatsAppChatLink, whatsAppLink, whatsAppMessage, whatsAppNumber, whatsAppWebChatLink } from '../../shared/appointments.ts'
 import { buildIcs, googleCalendarUrl, icsStamp, zonedToUtc } from '../../shared/calendar.ts'
 import { AppointmentError, newToken, parseAppointment, TOKEN_RE } from '../src/appointments.ts'
 
@@ -72,7 +72,8 @@ test('messaggio WhatsApp: riepilogo con data, ora, prestazione e link', () => {
   const link = whatsAppLink('333 1234567', msg)!
   assert.ok(link.startsWith('https://wa.me/393331234567?text='))
   assert.equal(decodeURIComponent(link.split('text=')[1]), msg)
-  assert.ok(whatsAppWebLink('333 1234567', msg)!.startsWith('https://web.whatsapp.com/send?phone=393331234567&text='))
+  assert.equal(whatsAppChatLink('333 1234567'), 'https://wa.me/393331234567')
+  assert.equal(whatsAppWebChatLink('333 1234567'), 'https://web.whatsapp.com/send?phone=393331234567')
 })
 
 test('ora di fine', () => {

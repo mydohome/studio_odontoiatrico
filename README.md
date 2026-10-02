@@ -179,10 +179,9 @@ A presto!
 
 Le icone sono solo emoji del 2010 (Unicode 6.0), visibili su qualsiasi telefono.
 
-- **Dal computer**: **Apri in WhatsApp Web** apre la chat del paziente in WhatsApp Web con il messaggio già scritto;
-  basta premere invio. **App WhatsApp** usa invece l'app per computer, che però può mostrare le icone come «�»: per
-  questo, aprendo la chat dal computer, il messaggio viene copiato anche negli appunti e basta incollarlo
-  (Cmd/Ctrl + V) al posto di quello alterato.
+- **Dal computer**: **App WhatsApp** (o **WhatsApp Web**) apre la chat del paziente e copia il messaggio: nella chat
+  si preme Cmd/Ctrl + V e invio. Il messaggio non viene passato già scritto perché da computer WhatsApp, sia l'app sia
+  Web, ricevendolo dal link sostituisce le icone con «�»; incollato dagli appunti resta intatto.
 - **Dal telefono**: **Apri in WhatsApp** apre l'app con il messaggio già scritto.
 - Il numero senza prefisso viene considerato italiano (+39). **Copia messaggio** lo copia negli appunti.
 - Il **link è univoco** per ogni appuntamento (codice casuale di 24 caratteri, impossibile da indovinare). Il paziente

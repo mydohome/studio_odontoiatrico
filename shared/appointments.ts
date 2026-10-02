@@ -79,12 +79,18 @@ export function whatsAppLink(phone: string, text: string): string | null {
 }
 
 /**
- * Stessa chat in WhatsApp Web. Dal computer è più affidabile: passando da wa.me l'app WhatsApp
- * per computer può sostituire le emoji del messaggio già scritto con "�".
+ * Chat con il paziente senza testo. Dal computer WhatsApp (app e Web) sostituisce con «�» le emoji
+ * del messaggio passato nel link: il messaggio si incolla dagli appunti, dove resta intatto.
  */
-export function whatsAppWebLink(phone: string, text: string): string | null {
+export function whatsAppChatLink(phone: string): string | null {
   const n = whatsAppNumber(phone)
-  return n ? `https://web.whatsapp.com/send?phone=${n}&text=${encodeURIComponent(text)}` : null
+  return n ? `https://wa.me/${n}` : null
+}
+
+/** Stessa chat, vuota, in WhatsApp Web (anche lì il messaggio si incolla dagli appunti). */
+export function whatsAppWebChatLink(phone: string): string | null {
+  const n = whatsAppNumber(phone)
+  return n ? `https://web.whatsapp.com/send?phone=${n}` : null
 }
 
 /** Titolo, descrizione e luogo dell'evento di calendario dell'appuntamento. */

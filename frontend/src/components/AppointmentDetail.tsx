@@ -1,6 +1,6 @@
-import { CalendarClock, Check, Copy, Link2, MessageCircle, Pencil, Phone, RotateCcw, Stethoscope, Trash2, TriangleAlert, X } from 'lucide-react'
+import { CalendarClock, Check, ClipboardCheck, Copy, Link2, MessageCircle, Pencil, Phone, RotateCcw, Stethoscope, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { endTime, LINK_DAYS_AFTER, linkExpiry, whatsAppLink, whatsAppWebLink } from '../../../shared/appointments.ts'
+import { endTime, LINK_DAYS_AFTER, linkExpiry, whatsAppChatLink, whatsAppLink, whatsAppWebChatLink } from '../../../shared/appointments.ts'
 import { formatDay, formatLongDay, today } from '../../../shared/dates.ts'
 import type { Appointment } from '../../../shared/types.ts'
 import { api, type AppSettings } from '../lib/api.ts'
@@ -32,6 +32,8 @@ async function copy(text: string) {
 const IS_MOBILE =
   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent))
 
+const PASTE_KEYS = /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'Cmd + V' : 'Ctrl + V'
+
 interface Props {
   appointment: Appointment
   settings: AppSettings
@@ -48,7 +50,9 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
   const status = STATUS[a.status]
   const confirmed = a.status === 'confermato-link' || a.status === 'confermato-manuale'
   const waLink = whatsAppLink(a.patientPhone, message)
-  const webLink = whatsAppWebLink(a.patientPhone, message)
+  const webLink = whatsAppWebChatLink(a.patientPhone)
+  const chatLink = whatsAppChatLink(a.patientPhone)
+  const [pasteHint, setPasteHint] = useState(false)
   const warning = linkWarning(settings)
   const linkUntil = linkExpiry(a.day)
   const expired = linkUntil < today()
@@ -73,13 +77,22 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
     }
   }
 
+  // Telefono: messaggio già scritto nella chat.
   const openWhatsApp = (link: string | null) => {
     if (!link) return
     // Va aperto subito, nello stesso clic: altrimenti il browser lo blocca come popup.
     window.open(link, '_blank', 'noopener')
     markSent()
-    // Dal computer il messaggio va anche negli appunti: se WhatsApp lo altera, basta incollarlo.
-    if (!IS_MOBILE) copy(message).then((ok) => ok && notify('Chat aperta. Il messaggio è anche negli appunti, se serve incollarlo.'))
+  }
+
+  // Computer (app o Web): chat vuota e messaggio negli appunti, da incollare (emoji intatte).
+  const openDesktop = async (link: string | null) => {
+    if (!link) return
+    window.open(link, '_blank', 'noopener')
+    if (await copy(message)) {
+      setPasteHint(true)
+      markSent()
+    } else notify('Impossibile copiare il messaggio: usa "Copia messaggio"', 'error')
   }
 
   const copyMessage = async () => {
@@ -184,17 +197,23 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
                 </button>
               ) : (
                 <>
-                  <button type="button" className="btn btn-whatsapp" onClick={() => openWhatsApp(webLink)} disabled={!webLink}>
-                    <MessageCircle size={16} /> Apri in WhatsApp Web
+                  <button
+                    type="button"
+                    className="btn btn-whatsapp"
+                    onClick={() => openDesktop(chatLink)}
+                    disabled={!chatLink}
+                    title={`Apre la chat nell'app WhatsApp e copia il messaggio: poi basta incollarlo (${PASTE_KEYS})`}
+                  >
+                    <MessageCircle size={16} /> App WhatsApp
                   </button>
                   <button
                     type="button"
                     className="btn"
-                    onClick={() => openWhatsApp(waLink)}
-                    disabled={!waLink}
-                    title="Apre l'app WhatsApp per computer: può mostrare le icone come «�», in quel caso incolla il messaggio (è già negli appunti)"
+                    onClick={() => openDesktop(webLink)}
+                    disabled={!webLink}
+                    title={`Apre la chat in WhatsApp Web e copia il messaggio: poi basta incollarlo (${PASTE_KEYS})`}
                   >
-                    App WhatsApp
+                    WhatsApp Web
                   </button>
                 </>
               )}
@@ -205,6 +224,14 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
                 <Link2 size={16} /> Copia link
               </button>
             </div>
+            {pasteHint && (
+              <div className="alert alert-good small appt-paste-hint">
+                <ClipboardCheck size={18} style={{ flex: 'none' }} />
+                <span>
+                  Messaggio copiato. Nella chat di WhatsApp premi <kbd>{PASTE_KEYS}</kbd> e poi invio.
+                </span>
+              </div>
+            )}
             <p className="small muted" style={{ margin: 0 }}>
               Il link è personale: chi lo apre vede solo nome di battesimo, data, ora e prestazione, e può confermare.
               Smette di funzionare {LINK_DAYS_AFTER} giorni dopo l'appuntamento.

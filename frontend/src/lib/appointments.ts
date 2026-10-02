@@ -1,5 +1,6 @@
 import type { Appointment, AppointmentStatus } from '../../../shared/types.ts'
 import { whatsAppMessage } from '../../../shared/appointments.ts'
+import { today } from '../../../shared/dates.ts'
 import type { AppSettings } from './api.ts'
 
 export const STATUS: Record<AppointmentStatus, { label: string; short: string; cls: string }> = {
@@ -32,17 +33,23 @@ export function linkWarning(settings: AppSettings): string | null {
 
 export const confirmUrl = (settings: AppSettings, a: Appointment) => `${publicBase(settings)}/c/${a.token}`
 
-export function messageFor(settings: AppSettings, a: Appointment): string {
-  return whatsAppMessage({
-    studioName: settings.studioName,
-    studioPhone: settings.phone,
-    address: settings.address,
-    patientName: a.patientName,
-    day: a.day,
-    time: a.time,
-    serviceName: a.serviceName,
-    confirmUrl: confirmUrl(settings, a),
-  })
+/** In attesa: il messaggio è già stato preparato almeno una volta ma la conferma non è arrivata. */
+export const needsReminder = (a: Appointment) => a.status === 'inviato' && a.sendCount > 0
+
+export function messageFor(settings: AppSettings, a: Appointment, opt: { icons?: boolean; reminder?: boolean } = {}): string {
+  return whatsAppMessage(
+    {
+      studioName: settings.studioName,
+      studioPhone: settings.phone,
+      address: settings.address,
+      patientName: a.patientName,
+      day: a.day,
+      time: a.time,
+      serviceName: a.serviceName,
+      confirmUrl: confirmUrl(settings, a),
+    },
+    { icons: opt.icons ?? true, reminder: opt.reminder ?? needsReminder(a), today: today() },
+  )
 }
 
 export const toMinutes = (time: string) => {

@@ -39,58 +39,91 @@ export interface MessageInput {
   confirmUrl: string
 }
 
-/**
- * Riepilogo dell'appuntamento per WhatsApp. Le icone sono solo emoji del 2010 (Unicode 6.0),
- * presenti su qualsiasi telefono; *grassetto* solo per il nome dello studio e per la richiesta
- * di conferma, così il messaggio resta pulito anche dove WhatsApp sottolinea date e numeri.
- */
-export function whatsAppMessage(m: MessageInput): string {
-  const lines = [
-    `*${m.studioName.trim()}*`,
-    'Promemoria appuntamento',
+export interface MessageOptions {
+  /**
+   * Con le icone (emoji del 2010, presenti su qualsiasi telefono). Senza icone il messaggio usa
+   * solo lettere, anche accentate, e asterischi: arriva intatto anche quando WhatsApp per computer
+   * riceve il testo già scritto dal link (con le icone le sostituirebbe con «�»).
+   */
+  icons?: boolean
+  /** Sollecito: la conferma non è ancora arrivata. */
+  reminder?: boolean
+  /** Giorno di oggi (YYYY-MM-DD), per scrivere "di oggi" / "di domani" nel sollecito. */
+  today?: string
+}
+
+/** "di oggi", "di domani" oppure "di lunedì 5 ottobre". */
+function whenWords(day: string, today?: string): string {
+  if (today && day === today) return 'di oggi'
+  if (today && day === addDays(today, 1)) return 'di domani'
+  const long = formatLongDay(day)
+  return `di ${long.charAt(0).toLowerCase()}${long.slice(1).replace(/ \d{4}$/, '')}`
+}
+
+/** Riepilogo dell'appuntamento per WhatsApp, con o senza icone, primo invio o sollecito. */
+export function whatsAppMessage(m: MessageInput, opt: MessageOptions = {}): string {
+  const icons = opt.icons ?? true
+  const studio = m.studioName.trim()
+  const lines = icons ? [`*${studio}*`, opt.reminder ? 'Conferma appuntamento' : 'Promemoria appuntamento'] : [`*${studio}* - ${opt.reminder ? 'Conferma appuntamento' : 'Promemoria appuntamento'}`]
+  lines.push('', `Gentile ${m.patientName.trim()},`)
+  lines.push(
+    opt.reminder
+      ? `non abbiamo ancora ricevuto la conferma del suo appuntamento ${whenWords(m.day, opt.today)}:`
+      : 'le ricordiamo il suo prossimo appuntamento:',
     '',
-    `Gentile ${m.patientName.trim()},`,
-    'le ricordiamo il suo prossimo appuntamento:',
-    '',
-    `📅 ${formatLongDay(m.day)}`,
-    `⏰ Ore ${m.time}`,
-  ]
-  if (m.serviceName.trim()) lines.push(`📋 ${m.serviceName.trim()}`)
-  if (m.address.trim()) lines.push(`📍 ${m.address.trim()}`)
+  )
+  const row = (icon: string, label: string, value: string) => lines.push(icons ? `${icon} ${value}` : `*${label}:* ${value}`)
+  row('📅', 'Data', formatLongDay(m.day))
+  row('⏰', 'Ora', icons ? `Ore ${m.time}` : m.time)
+  if (m.serviceName.trim()) row('📋', 'Prestazione', m.serviceName.trim())
+  if (m.address.trim()) row('📍', 'Indirizzo', m.address.trim())
   lines.push(
     '',
-    '👉 *Confermi la sua presenza* da questo link:',
+    `${icons ? '👉 ' : ''}*${opt.reminder ? 'La preghiamo di confermare' : 'Confermi la sua presenza'}* da questo link:`,
     m.confirmUrl,
     "Dalla stessa pagina può aggiungere l'appuntamento al calendario del telefono.",
     '',
-    m.studioPhone.trim()
-      ? `📞 Per spostarlo o annullarlo risponda a questo messaggio o chiami lo ${m.studioPhone.trim()}.`
-      : '📞 Per spostarlo o annullarlo risponda a questo messaggio.',
+    `${icons ? '📞 ' : ''}${
+      m.studioPhone.trim()
+        ? `Per spostarlo o annullarlo risponda a questo messaggio o chiami lo ${m.studioPhone.trim()}.`
+        : 'Per spostarlo o annullarlo risponda a questo messaggio.'
+    }`,
     '',
-    'A presto!',
+    opt.reminder ? 'Grazie, a presto!' : 'A presto!',
   )
   return lines.join('\n')
 }
 
-/** Link wa.me che apre la chat con il paziente e il messaggio già scritto (telefoni e app). */
-export function whatsAppLink(phone: string, text: string): string | null {
-  const n = whatsAppNumber(phone)
-  return n ? `https://wa.me/${n}?text=${encodeURIComponent(text)}` : null
+/**
+ * Prossimo giorno lavorativo dopo `day` (sabato e domenica esclusi): il venerdì è il lunedì.
+ * Serve a capire quali appuntamenti vanno confermati per tempo.
+ */
+export function nextWorkday(day: string): string {
+  let d = addDays(day, 1)
+  for (;;) {
+    const [y, mo, dd] = d.split('-').map(Number)
+    const dow = new Date(y, mo - 1, dd).getDay()
+    if (dow !== 0 && dow !== 6) return d
+    d = addDays(d, 1)
+  }
 }
 
 /**
- * Chat con il paziente senza testo. Dal computer WhatsApp (app e Web) sostituisce con «�» le emoji
- * del messaggio passato nel link: il messaggio si incolla dagli appunti, dove resta intatto.
+ * Chat con il paziente su wa.me (app sul telefono o sul computer), con il messaggio già scritto
+ * se `text` è indicato. Attenzione: da computer WhatsApp sostituisce con «�» le emoji del testo
+ * ricevuto dal link, per cui lì si usa il messaggio senza icone oppure lo si incolla.
  */
-export function whatsAppChatLink(phone: string): string | null {
+export function whatsAppLink(phone: string, text?: string): string | null {
   const n = whatsAppNumber(phone)
-  return n ? `https://wa.me/${n}` : null
+  if (!n) return null
+  return text ? `https://wa.me/${n}?text=${encodeURIComponent(text)}` : `https://wa.me/${n}`
 }
 
-/** Stessa chat, vuota, in WhatsApp Web (anche lì il messaggio si incolla dagli appunti). */
-export function whatsAppWebChatLink(phone: string): string | null {
+/** Stessa chat in WhatsApp Web. */
+export function whatsAppWebLink(phone: string, text?: string): string | null {
   const n = whatsAppNumber(phone)
-  return n ? `https://web.whatsapp.com/send?phone=${n}` : null
+  if (!n) return null
+  return `https://web.whatsapp.com/send?phone=${n}${text ? `&text=${encodeURIComponent(text)}` : ''}`
 }
 
 /** Titolo, descrizione e luogo dell'evento di calendario dell'appuntamento. */

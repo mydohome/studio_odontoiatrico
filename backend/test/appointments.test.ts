@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { endTime, whatsAppChatLink, whatsAppLink, whatsAppMessage, whatsAppNumber, whatsAppWebChatLink } from '../../shared/appointments.ts'
+import { endTime, nextWorkday, whatsAppLink, whatsAppMessage, whatsAppNumber, whatsAppWebLink } from '../../shared/appointments.ts'
 import { buildIcs, googleCalendarUrl, icsStamp, zonedToUtc } from '../../shared/calendar.ts'
 import { AppointmentError, newToken, parseAppointment, TOKEN_RE } from '../src/appointments.ts'
 
@@ -72,8 +72,9 @@ test('messaggio WhatsApp: riepilogo con data, ora, prestazione e link', () => {
   const link = whatsAppLink('333 1234567', msg)!
   assert.ok(link.startsWith('https://wa.me/393331234567?text='))
   assert.equal(decodeURIComponent(link.split('text=')[1]), msg)
-  assert.equal(whatsAppChatLink('333 1234567'), 'https://wa.me/393331234567')
-  assert.equal(whatsAppWebChatLink('333 1234567'), 'https://web.whatsapp.com/send?phone=393331234567')
+  assert.equal(whatsAppLink('333 1234567'), 'https://wa.me/393331234567')
+  assert.equal(whatsAppWebLink('333 1234567'), 'https://web.whatsapp.com/send?phone=393331234567')
+  assert.ok(whatsAppWebLink('333 1234567', 'ciao')!.endsWith('&text=ciao'))
 })
 
 test('ora di fine', () => {
@@ -126,4 +127,39 @@ test('calendario: link di Google Calendar', () => {
   assert.equal(url.hostname, 'calendar.google.com')
   assert.equal(url.searchParams.get('dates'), '20261002T083000Z/20261002T090000Z')
   assert.equal(url.searchParams.get('action'), 'TEMPLATE')
+})
+
+const msgInput = {
+  studioName: 'Family Smile',
+  studioPhone: '328 12345678',
+  address: 'Via Augusto Pierantoni 16',
+  patientName: 'Mario Rossi',
+  day: '2026-10-05',
+  time: '12:30',
+  serviceName: 'Visita di controllo',
+  confirmUrl: 'https://studio.pwdnet.it/c/abc',
+}
+
+test('messaggio senza icone: solo lettere (anche accentate) e asterischi', () => {
+  const msg = whatsAppMessage({ ...msgInput, day: '2026-10-02' }, { icons: false })
+  assert.match(msg, /^\*Family Smile\* - Promemoria appuntamento\n/)
+  assert.match(msg, /\*Data:\* Venerdì 2 ottobre 2026\n\*Ora:\* 12:30\n\*Prestazione:\* Visita di controllo\n\*Indirizzo:\* Via Augusto Pierantoni 16/)
+  // Niente caratteri oltre il Latin-1: arrivano intatti anche dal computer.
+  for (const c of msg) assert.ok(c.codePointAt(0)! <= 0xff, `carattere ${c} (U+${c.codePointAt(0)!.toString(16)})`)
+})
+
+test('sollecito: "di domani", "di oggi" o il giorno', () => {
+  const r = (day: string) => whatsAppMessage({ ...msgInput, day }, { reminder: true, today: '2026-10-02' })
+  assert.match(r('2026-10-03'), /non abbiamo ancora ricevuto la conferma del suo appuntamento di domani:/)
+  assert.match(r('2026-10-02'), /appuntamento di oggi:/)
+  assert.match(r('2026-10-05'), /appuntamento di lunedì 5 ottobre:/)
+  assert.match(r('2026-10-05'), /\*La preghiamo di confermare\* da questo link:/)
+  assert.match(r('2026-10-05'), /^\*Family Smile\*\nConferma appuntamento\n/)
+})
+
+test('prossimo giorno lavorativo: il venerdì e il fine settimana portano al lunedì', () => {
+  assert.equal(nextWorkday('2026-10-01'), '2026-10-02') // giovedì → venerdì
+  assert.equal(nextWorkday('2026-10-02'), '2026-10-05') // venerdì → lunedì
+  assert.equal(nextWorkday('2026-10-03'), '2026-10-05') // sabato → lunedì
+  assert.equal(nextWorkday('2026-10-04'), '2026-10-05') // domenica → lunedì
 })

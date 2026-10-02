@@ -1,6 +1,6 @@
-import { CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Send } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Loader2, MessageCircle, Phone, PhoneMissed, Plus, Send } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
-import { endTime } from '../../../shared/appointments.ts'
+import { endTime, nextWorkday } from '../../../shared/appointments.ts'
 import { addDays, formatDay, formatLongDay, formatWeek, fromISO, isValidISO, startOfWeek, today, WEEKDAYS_SHORT } from '../../../shared/dates.ts'
 import type { Appointment, AppointmentInput, AppointmentStatus } from '../../../shared/types.ts'
 import AppointmentDetail from '../components/AppointmentDetail.tsx'
@@ -60,6 +60,8 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
   const [view, setView] = useState<View>(loadView)
   const [anchor, setAnchor] = useState(today())
   const [list, setList] = useState<Appointment[]>([])
+  // Da confermare: da oggi al prossimo giorno lavorativo (il venerdì comprende sabato e lunedì).
+  const [pending, setPending] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [openId, setOpenId] = useState<number | null>(null)
   const [form, setForm] = useState<FormState>(null)
@@ -81,18 +83,21 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
     async (quiet = false) => {
       if (!quiet) setLoading(true)
       try {
-        const l = await api.appointments(from, to)
+        const t = today()
+        const [l, p] = await Promise.all([api.appointments(from, to), api.appointments(t, nextWorkday(t))])
+        const all = [...new Map([...l, ...p].map((a) => [a.id, a])).values()]
         // Avvisa delle conferme arrivate dal link mentre la pagina era aperta.
         if (quiet) {
-          for (const a of l) {
+          for (const a of all) {
             const before = known.current.get(a.id)
             if (before && before !== 'confermato-link' && a.status === 'confermato-link') {
               notify(`${a.patientName} ha confermato l'appuntamento di ${formatDay(a.day)} alle ${a.time}`)
             }
           }
         }
-        known.current = new Map(l.map((a) => [a.id, a.status]))
+        known.current = new Map(all.map((a) => [a.id, a.status]))
         setList(l)
+        setPending(p)
       } catch (e) {
         if (!quiet) notify((e as Error).message, 'error')
       } finally {
@@ -119,6 +124,12 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
 
   const replace = (a: Appointment) => {
     known.current.set(a.id, a.status)
+    setPending((l) => {
+      const t = today()
+      const inRange = a.day >= t && a.day <= nextWorkday(t)
+      const others = l.filter((x) => x.id !== a.id)
+      return inRange ? [...others, a].sort((x, y) => x.day.localeCompare(y.day) || x.time.localeCompare(y.time)) : others
+    })
     setList((l) => {
       const inRange = a.day >= from && a.day <= to
       const others = l.filter((x) => x.id !== a.id)
@@ -126,7 +137,16 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
     })
   }
 
-  const opened = openId !== null ? list.find((a) => a.id === openId) ?? null : null
+  const opened = openId !== null ? list.find((a) => a.id === openId) ?? pending.find((a) => a.id === openId) ?? null : null
+
+  const quick = async (fn: () => Promise<Appointment>, ok: string) => {
+    try {
+      replace(await fn())
+      notify(ok)
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    }
+  }
 
   const newAppointment = (day?: string, time?: string) => {
     const t = today()
@@ -179,6 +199,14 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
           <Plus size={16} /> Nuovo appuntamento
         </button>
       </div>
+
+      <ToConfirm
+        list={pending}
+        now={now}
+        onOpen={setOpenId}
+        onCalled={(a) => quick(() => api.appointmentCalled(a.id), `Chiamata a ${a.patientName} registrata`)}
+        onConfirmed={(a) => quick(() => api.appointmentConfirmation(a.id, true), `${a.patientName}: appuntamento confermato`)}
+      />
 
       <div className="card cal-card">
         <div className="cal-toolbar">
@@ -266,6 +294,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
             try {
               await api.deleteAppointment(opened.id)
               setList((l) => l.filter((x) => x.id !== opened.id))
+              setPending((l) => l.filter((x) => x.id !== opened.id))
               setOpenId(null)
               notify('Appuntamento eliminato')
             } catch (e) {
@@ -465,5 +494,108 @@ function Agenda({
         )
       })}
     </div>
+  )
+}
+
+// ---------- Da confermare (fino al prossimo giorno lavorativo) ----------
+
+const ago = (iso: string) =>
+  new Date(iso).toLocaleString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+
+function dayWords(day: string, t: string) {
+  if (day === t) return 'Oggi'
+  if (day === addDays(t, 1)) return 'Domani'
+  return formatLongDay(day).replace(/ \d{4}$/, '')
+}
+
+function ToConfirm({
+  list,
+  now,
+  onOpen,
+  onCalled,
+  onConfirmed,
+}: {
+  list: Appointment[]
+  now: Date
+  onOpen: (id: number) => void
+  onCalled: (a: Appointment) => void
+  onConfirmed: (a: Appointment) => void
+}) {
+  const t = today()
+  const until = nextWorkday(t)
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  // Solo quelli non confermati e non ancora iniziati.
+  const items = list.filter(
+    (a) => (a.status === 'inviato' || a.status === 'da-inviare') && (a.day > t || toMinutes(a.time) > nowMin),
+  )
+  const days = [...new Set(items.map((a) => a.day))]
+  const range = until === addDays(t, 1) ? 'oggi e domani' : `fino a ${formatLongDay(until).replace(/ \d{4}$/, '').toLowerCase()}`
+
+  return (
+    <section className={`card to-confirm ${items.length ? 'has-items' : ''}`} aria-labelledby="tc-title">
+      <div className="to-confirm-head">
+        <h2 id="tc-title">
+          {items.length ? <AlertTriangle size={18} /> : <CheckCheck size={18} />} Da confermare
+          {items.length > 0 && <span className="to-confirm-count">{items.length}</span>}
+        </h2>
+        <span className="small muted">Appuntamenti {range} non ancora confermati</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="small muted" style={{ margin: 0 }}>
+          Tutti gli appuntamenti {range} sono confermati.
+        </p>
+      ) : (
+        days.map((d) => (
+          <div key={d} className="to-confirm-day">
+            <div className="to-confirm-day-title">{dayWords(d, t)}</div>
+            {items
+              .filter((a) => a.day === d)
+              .map((a) => {
+                const Icon = STATUS_ICON[a.status]
+                return (
+                  <div key={a.id} className={`to-confirm-row ${STATUS[a.status].cls}`}>
+                    <button className="to-confirm-main" onClick={() => onOpen(a.id)} title="Apri l'appuntamento">
+                      <span className="to-confirm-time">{a.time}</span>
+                      <span className="to-confirm-who">
+                        <strong>{a.patientName}</strong>
+                        <span className="small muted">
+                          {a.patientPhone}
+                          {a.serviceName ? ` · ${a.serviceName}` : ''}
+                        </span>
+                      </span>
+                    </button>
+                    <span className="to-confirm-info small">
+                      <span className={`appt-tag ${STATUS[a.status].cls}`}>
+                        <Icon size={13} />
+                        {a.status === 'da-inviare' ? 'Mai inviato' : a.sendCount > 1 ? `Inviato ${a.sendCount} volte` : 'Inviato'}
+                      </span>
+                      {a.lastSentAt && <span className="muted">ultimo {ago(a.lastSentAt)}</span>}
+                      {a.callCount > 0 && a.lastCallAt && (
+                        <span className="to-confirm-called">
+                          <PhoneMissed size={13} /> {a.callCount === 1 ? 'non risponde' : `${a.callCount} chiamate senza risposta`} ({ago(a.lastCallAt)})
+                        </span>
+                      )}
+                    </span>
+                    <span className="to-confirm-actions">
+                      <button className="btn btn-whatsapp" onClick={() => onOpen(a.id)} title={a.status === 'da-inviare' ? 'Prepara il messaggio' : 'Prepara il sollecito'}>
+                        <MessageCircle size={15} /> {a.status === 'da-inviare' ? 'Invia' : 'Reinvia'}
+                      </button>
+                      <a className="btn" href={`tel:${a.patientPhone.replace(/[^\d+]/g, '')}`} title={`Chiama ${a.patientPhone}`}>
+                        <Phone size={15} /> Chiama
+                      </a>
+                      <button className="btn btn-ghost" onClick={() => onCalled(a)} title="Registra una chiamata senza risposta">
+                        <PhoneMissed size={15} /> Non risponde
+                      </button>
+                      <button className="btn btn-ghost" onClick={() => onConfirmed(a)} title="Il paziente ha confermato (es. al telefono)">
+                        <Check size={15} /> Confermato
+                      </button>
+                    </span>
+                  </div>
+                )
+              })}
+          </div>
+        ))
+      )}
+    </section>
   )
 }

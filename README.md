@@ -152,6 +152,20 @@ La scheda **Appuntamenti** (icona del calendario) contiene l'agenda dello studio
   | 🟠 *In attesa* | messaggio preparato, il paziente non ha ancora confermato |
   | ⚪ *Da inviare* | messaggio non ancora preparato |
 
+### Da confermare
+
+In cima alla scheda c'è il riquadro **Da confermare**: gli appuntamenti non ancora confermati da adesso al **prossimo
+giorno lavorativo** (dal lunedì al giovedì: oggi e domani; il **venerdì** anche sabato e **lunedì**), raggruppati per
+giorno. Per ogni paziente mostra telefono, prestazione, quante volte è stato inviato il messaggio e quando l'ultima,
+e le chiamate senza risposta già fatte. Le azioni:
+
+- **Invia / Reinvia**: apre il messaggio. Se il paziente l'ha già ricevuto, il testo diventa un **sollecito**
+  ("non abbiamo ancora ricevuto la conferma del suo appuntamento di domani…");
+- **Chiama** (sul telefono avvia la chiamata), poi **Non risponde** per registrare il tentativo (così chi arriva dopo
+  sa che è già stato cercato) oppure **Confermato** se il paziente conferma a voce.
+
+Quando tutti hanno confermato il riquadro lo dice in verde. Spostando un appuntamento, invii e chiamate si azzerano.
+
 ### Promemoria su WhatsApp
 
 Aprendo un appuntamento si vede il messaggio già pronto (modificabile prima dell'invio), per esempio:
@@ -179,9 +193,10 @@ A presto!
 
 Le icone sono solo emoji del 2010 (Unicode 6.0), visibili su qualsiasi telefono.
 
-- **Dal computer**: **App WhatsApp** (o **WhatsApp Web**) apre la chat del paziente e copia il messaggio: nella chat
-  si preme Cmd/Ctrl + V e invio. Il messaggio non viene passato già scritto perché da computer WhatsApp, sia l'app sia
-  Web, ricevendolo dal link sostituisce le icone con «�»; incollato dagli appunti resta intatto.
+- **Dal computer**: **App WhatsApp** (o **WhatsApp Web**) apre la chat del paziente con il messaggio già scritto
+  **senza icone** (voci in grassetto: *Data:*, *Ora:*…): da computer WhatsApp, sia l'app sia Web, sostituisce con «�»
+  le icone del testo ricevuto dal link, mentre lettere accentate e grassetto arrivano intatti. Con la casella **Con le
+  icone** la chat si apre vuota e il messaggio con le icone viene copiato: si incolla con Cmd/Ctrl + V.
 - **Dal telefono**: **Apri in WhatsApp** apre l'app con il messaggio già scritto.
 - Il numero senza prefisso viene considerato italiano (+39). **Copia messaggio** lo copia negli appunti.
 - Il **link è univoco** per ogni appuntamento (codice casuale di 24 caratteri, impossibile da indovinare). Il paziente

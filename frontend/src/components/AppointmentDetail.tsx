@@ -1,10 +1,10 @@
 import { CalendarClock, Check, ClipboardCheck, Copy, Link2, MessageCircle, Pencil, Phone, RotateCcw, Stethoscope, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { endTime, LINK_DAYS_AFTER, linkExpiry, whatsAppChatLink, whatsAppLink, whatsAppWebChatLink } from '../../../shared/appointments.ts'
+import { endTime, LINK_DAYS_AFTER, linkExpiry, whatsAppLink, whatsAppWebLink } from '../../../shared/appointments.ts'
 import { formatDay, formatLongDay, today } from '../../../shared/dates.ts'
 import type { Appointment } from '../../../shared/types.ts'
 import { api, type AppSettings } from '../lib/api.ts'
-import { confirmUrl, linkWarning, messageFor, STATUS } from '../lib/appointments.ts'
+import { confirmUrl, linkWarning, messageFor, needsReminder, STATUS } from '../lib/appointments.ts'
 import { useToast } from './Toast.tsx'
 
 const stamp = (iso: string) =>
@@ -28,7 +28,7 @@ async function copy(text: string) {
   }
 }
 
-/** Telefono o tablet: lì il link wa.me apre l'app WhatsApp con le emoji intatte. */
+/** Telefono o tablet: lì il link wa.me apre l'app WhatsApp con il messaggio (icone comprese) già scritto. */
 const IS_MOBILE =
   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent))
 
@@ -45,22 +45,25 @@ interface Props {
 
 export default function AppointmentDetail({ appointment: a, settings, onChange, onEdit, onDelete, onClose }: Props) {
   const notify = useToast()
-  const [message, setMessage] = useState(() => messageFor(settings, a))
+  // Dal computer il messaggio già scritto arriva intatto solo senza icone; con le icone va incollato.
+  const [icons, setIcons] = useState(IS_MOBILE)
+  // Sollecito deciso all'apertura: il testo non cambia mentre si invia il primo messaggio.
+  const [reminder] = useState(() => needsReminder(a))
+  const [message, setMessage] = useState(() => messageFor(settings, a, { icons: IS_MOBILE, reminder }))
   const [busy, setBusy] = useState(false)
+  const [pasteHint, setPasteHint] = useState(false)
   const status = STATUS[a.status]
   const confirmed = a.status === 'confermato-link' || a.status === 'confermato-manuale'
-  const waLink = whatsAppLink(a.patientPhone, message)
-  const webLink = whatsAppWebChatLink(a.patientPhone)
-  const chatLink = whatsAppChatLink(a.patientPhone)
-  const [pasteHint, setPasteHint] = useState(false)
+  const valid = whatsAppLink(a.patientPhone) !== null
   const warning = linkWarning(settings)
   const linkUntil = linkExpiry(a.day)
   const expired = linkUntil < today()
 
-  // Se l'appuntamento cambia (es. modificato), il messaggio si rigenera.
+  // Se cambiano l'appuntamento o la scelta delle icone, il messaggio si rigenera.
   useEffect(() => {
-    setMessage(messageFor(settings, a))
-  }, [a.day, a.time, a.patientName, a.serviceName, a.token]) // eslint-disable-line react-hooks/exhaustive-deps
+    setMessage(messageFor(settings, a, { icons, reminder }))
+    setPasteHint(false)
+  }, [a.day, a.time, a.patientName, a.serviceName, a.token, icons]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -68,8 +71,8 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
     return () => window.removeEventListener('keydown', h)
   }, [onClose])
 
+  // Ogni invio (anche i solleciti) viene contato.
   const markSent = async () => {
-    if (a.sentAt) return
     try {
       onChange(await api.appointmentSent(a.id))
     } catch (e) {
@@ -77,22 +80,25 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
     }
   }
 
-  // Telefono: messaggio già scritto nella chat.
-  const openWhatsApp = (link: string | null) => {
+  /**
+   * Apre la chat del paziente. Il messaggio è già scritto, tranne dal computer con le icone:
+   * lì la chat si apre vuota e il messaggio va incollato dagli appunti (le icone restano intatte).
+   */
+  const send = async (where: 'app' | 'web') => {
+    const paste = icons && !IS_MOBILE
+    const make = where === 'web' ? whatsAppWebLink : whatsAppLink
+    const link = make(a.patientPhone, paste ? undefined : message)
     if (!link) return
     // Va aperto subito, nello stesso clic: altrimenti il browser lo blocca come popup.
     window.open(link, '_blank', 'noopener')
-    markSent()
-  }
-
-  // Computer (app o Web): chat vuota e messaggio negli appunti, da incollare (emoji intatte).
-  const openDesktop = async (link: string | null) => {
-    if (!link) return
-    window.open(link, '_blank', 'noopener')
-    if (await copy(message)) {
+    if (paste) {
+      if (!(await copy(message))) {
+        notify('Impossibile copiare il messaggio: usa "Copia messaggio"', 'error')
+        return
+      }
       setPasteHint(true)
-      markSent()
-    } else notify('Impossibile copiare il messaggio: usa "Copia messaggio"', 'error')
+    }
+    markSent()
   }
 
   const copyMessage = async () => {
@@ -161,7 +167,17 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
                 Creato {stamp(a.createdAt)}
                 {a.createdBy ? ` da ${a.createdBy}` : ''}
               </li>
-              {a.sentAt && <li>Messaggio preparato {stamp(a.sentAt)}</li>}
+              {a.sentAt && (
+                <li>
+                  Messaggio preparato {stamp(a.sentAt)}
+                  {a.sendCount > 1 && a.lastSentAt ? ` · ${a.sendCount} invii, l'ultimo ${stamp(a.lastSentAt)}` : ''}
+                </li>
+              )}
+              {a.callCount > 0 && a.lastCallAt && (
+                <li>
+                  Chiamato senza risposta {a.callCount === 1 ? 'una volta' : `${a.callCount} volte`}, l'ultima {stamp(a.lastCallAt)}
+                </li>
+              )}
               {a.confirmedAt && (
                 <li>
                   {a.status === 'confermato-link' ? 'Confermato dal paziente con il link' : 'Confermato dallo studio'} {stamp(a.confirmedAt)}
@@ -171,7 +187,24 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
           </div>
 
           <div className="appt-message">
-            <div className="field-label">Messaggio WhatsApp</div>
+            <div className="appt-message-head">
+              <span className="field-label">{reminder ? 'Sollecito di conferma' : 'Messaggio WhatsApp'}</span>
+              {!IS_MOBILE && (
+                <label className="small muted appt-icons-toggle" title="Dal computer WhatsApp altera le icone del messaggio già scritto: con le icone il messaggio va incollato">
+                  <input type="checkbox" checked={icons} onChange={(e) => setIcons(e.target.checked)} />
+                  Con le icone (da incollare con {PASTE_KEYS})
+                </label>
+              )}
+            </div>
+            {reminder && (
+              <div className="alert alert-warn small">
+                <TriangleAlert size={16} style={{ flex: 'none' }} />
+                <span>
+                  Messaggio già inviato {a.sendCount === 1 ? 'una volta' : `${a.sendCount} volte`}
+                  {a.lastSentAt ? ` (l'ultima ${stamp(a.lastSentAt)})` : ''} e conferma non ancora arrivata: il testo è quello del sollecito.
+                </span>
+              </div>
+            )}
             <textarea className="input" rows={17} value={message} onChange={(e) => setMessage(e.target.value)} />
             {expired && (
               <div className="alert alert-warn small">
@@ -185,34 +218,22 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
                 <span>{warning}</span>
               </div>
             )}
-            {!waLink && (
+            {!valid && (
               <div className="alert alert-danger small">
                 Il numero {a.patientPhone} non sembra un numero WhatsApp valido: correggilo con Modifica.
               </div>
             )}
             <div className="appt-actions">
               {IS_MOBILE ? (
-                <button type="button" className="btn btn-whatsapp" onClick={() => openWhatsApp(waLink)} disabled={!waLink}>
+                <button type="button" className="btn btn-whatsapp" onClick={() => send('app')} disabled={!valid}>
                   <MessageCircle size={16} /> Apri in WhatsApp
                 </button>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    className="btn btn-whatsapp"
-                    onClick={() => openDesktop(chatLink)}
-                    disabled={!chatLink}
-                    title={`Apre la chat nell'app WhatsApp e copia il messaggio: poi basta incollarlo (${PASTE_KEYS})`}
-                  >
+                  <button type="button" className="btn btn-whatsapp" onClick={() => send('app')} disabled={!valid} title="Apre la chat nell'app WhatsApp">
                     <MessageCircle size={16} /> App WhatsApp
                   </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => openDesktop(webLink)}
-                    disabled={!webLink}
-                    title={`Apre la chat in WhatsApp Web e copia il messaggio: poi basta incollarlo (${PASTE_KEYS})`}
-                  >
+                  <button type="button" className="btn" onClick={() => send('web')} disabled={!valid} title="Apre la chat in WhatsApp Web">
                     WhatsApp Web
                   </button>
                 </>

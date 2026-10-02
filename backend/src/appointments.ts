@@ -14,7 +14,9 @@ const MAX_RANGE_DAYS = 62
 const COLUMNS = `a.id, a.day, to_char(a.start_time, 'HH24:MI') AS time, a.duration_min AS duration,
   a.patient_name AS "patientName", a.patient_phone AS "patientPhone", a.service_id AS "serviceId",
   coalesce(s.name, a.service_name) AS "serviceName", a.notes, a.token,
-  a.sent_at AS "sentAt", a.confirmed_at AS "confirmedAt", a.confirmed_via AS "confirmedVia",
+  a.sent_at AS "sentAt", a.send_count AS "sendCount", a.last_sent_at AS "lastSentAt",
+  a.call_count AS "callCount", a.last_call_at AS "lastCallAt",
+  a.confirmed_at AS "confirmedAt", a.confirmed_via AS "confirmedVia",
   a.created_by AS "createdBy", a.created_at AS "createdAt", a.updated_at AS "updatedAt"`
 const FROM = 'appointments a LEFT JOIN services s ON s.id = a.service_id'
 
@@ -39,6 +41,12 @@ export async function migrateAppointments(): Promise<void> {
       updated_at    timestamptz NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS appointments_day ON appointments (day, start_time);
+    -- Solleciti: quante volte è stato preparato il messaggio e quante chiamate senza risposta.
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS send_count integer NOT NULL DEFAULT 0;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS last_sent_at timestamptz;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS call_count integer NOT NULL DEFAULT 0;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS last_call_at timestamptz;
+    UPDATE appointments SET send_count = 1, last_sent_at = sent_at WHERE sent_at IS NOT NULL AND send_count = 0;
   `)
 }
 
@@ -145,6 +153,10 @@ export async function updateAppointment(id: number, input: AppointmentInput): Pr
   const { rowCount } = await pool.query(
     `UPDATE appointments SET
        sent_at = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN NULL ELSE sent_at END,
+       send_count = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN 0 ELSE send_count END,
+       last_sent_at = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN NULL ELSE last_sent_at END,
+       call_count = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN 0 ELSE call_count END,
+       last_call_at = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN NULL ELSE last_call_at END,
        confirmed_at = CASE WHEN day <> $2 OR start_time <> $3::time THEN NULL ELSE confirmed_at END,
        confirmed_via = CASE WHEN day <> $2 OR start_time <> $3::time THEN NULL ELSE confirmed_via END,
        day = $2, start_time = $3, duration_min = $4, patient_name = $5, patient_phone = $6,
@@ -163,7 +175,17 @@ export async function deleteAppointment(id: number): Promise<void> {
 
 /** Messaggio WhatsApp preparato (aperto o copiato). */
 export async function markSent(id: number): Promise<Appointment> {
-  const r = await pool.query('UPDATE appointments SET sent_at = coalesce(sent_at, now()) WHERE id=$1', [id])
+  const r = await pool.query(
+    'UPDATE appointments SET sent_at = coalesce(sent_at, now()), send_count = send_count + 1, last_sent_at = now() WHERE id=$1',
+    [id],
+  )
+  if (!r.rowCount) throw new AppointmentError('Appuntamento non trovato')
+  return getById(id)
+}
+
+/** Chiamata al paziente senza risposta (per sapere chi è già stato cercato). */
+export async function markCalled(id: number): Promise<Appointment> {
+  const r = await pool.query('UPDATE appointments SET call_count = call_count + 1, last_call_at = now() WHERE id=$1', [id])
   if (!r.rowCount) throw new AppointmentError('Appuntamento non trovato')
   return getById(id)
 }

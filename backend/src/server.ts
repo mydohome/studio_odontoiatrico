@@ -14,6 +14,7 @@ import {
   findByToken,
   listAppointments,
   listPatients,
+  markCalled,
   markSent,
   migrateAppointments,
   parseAppointment,
@@ -518,6 +519,8 @@ app.post('/api/appointments', async (req) => {
 app.put('/api/appointments/:id', async (req) => appointmentCall(() => updateAppointment(appointmentId(req), parseAppointment(req.body))))
 
 app.post('/api/appointments/:id/sent', async (req) => appointmentCall(() => markSent(appointmentId(req))))
+
+app.post('/api/appointments/:id/call', async (req) => appointmentCall(() => markCalled(appointmentId(req))))
 
 app.post('/api/appointments/:id/confirmation', async (req) => {
   const confirmed = (req.body as { confirmed?: unknown } | null)?.confirmed

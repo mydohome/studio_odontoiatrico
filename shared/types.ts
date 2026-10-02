@@ -117,6 +117,12 @@ export interface Appointment {
   token: string
   status: AppointmentStatus
   sentAt: string | null
+  /** Quante volte è stato preparato il messaggio (primo invio e solleciti) e quando l'ultima. */
+  sendCount: number
+  lastSentAt: string | null
+  /** Chiamate senza risposta. */
+  callCount: number
+  lastCallAt: string | null
   confirmedAt: string | null
   createdBy: string | null
   createdAt: string

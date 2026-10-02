@@ -1892,6 +1892,25 @@ tbody tr:last-child td {
   line-height: 1.4;
 }
 
+.appt-message-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.appt-message-head .field-label {
+  margin: 0;
+}
+
+.appt-icons-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
 .appt-paste-hint kbd {
   font-family: inherit;
   font-weight: 700;
@@ -2034,5 +2053,142 @@ a.public-line {
 
   .period-label {
     min-width: 0;
+  }
+}
+
+/* Da confermare */
+.to-confirm {
+  margin-bottom: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.to-confirm.has-items {
+  border-color: color-mix(in srgb, var(--st-sent) 45%, var(--border));
+  box-shadow: inset 4px 0 0 var(--st-sent), var(--shadow);
+}
+
+.to-confirm-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+}
+
+.to-confirm-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.to-confirm.has-items .to-confirm-head h2 svg {
+  color: var(--st-sent);
+}
+
+.to-confirm:not(.has-items) .to-confirm-head h2 svg {
+  color: var(--st-link);
+}
+
+.to-confirm-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--st-sent);
+  color: #fff;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.to-confirm-day {
+  display: grid;
+  gap: 6px;
+}
+
+.to-confirm-day-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-2);
+}
+
+.to-confirm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.to-confirm-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.to-confirm-time {
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.to-confirm-who {
+  display: grid;
+  min-width: 0;
+}
+
+.to-confirm-who > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.to-confirm-info {
+  display: flex;
+  align-items: center;
+  gap: 4px 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.to-confirm-called {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.to-confirm-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.to-confirm-actions .btn {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 960px) {
+  .to-confirm-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .to-confirm-actions {
+    justify-content: flex-start;
   }
 }

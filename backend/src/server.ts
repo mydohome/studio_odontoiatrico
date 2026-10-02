@@ -39,6 +39,7 @@ import { DataKeyError, initDataCrypto } from './dataCrypto.ts'
 import { getSetting, listRecords, listServices, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
+import { LoginLimiter } from './loginLimiter.ts'
 import { authenticate, countUsers, getUserById, migrateUsers, type User } from './users.ts'
 
 const PORT = Number(process.env.PORT ?? 3000)
@@ -89,7 +90,12 @@ function readCookie(req: FastifyRequest, name: string): string | null {
   const header = req.headers.cookie ?? ''
   for (const part of header.split(';')) {
     const [k, ...v] = part.trim().split('=')
-    if (k === name) return decodeURIComponent(v.join('='))
+    if (k !== name) continue
+    try {
+      return decodeURIComponent(v.join('='))
+    } catch {
+      return null // cookie malformato: come se non ci fosse
+    }
   }
   return null
 }
@@ -120,21 +126,25 @@ function setSession(reply: FastifyReply, req: FastifyRequest, user: User) {
 
 const publicUser = (u: User) => ({ username: u.username, email: u.email })
 
-// Tentativi falliti per nome utente: ogni errore aumenta l'attesa (max 5 s).
-const failures = new Map<string, { n: number; at: number }>()
+// Tentativi di accesso ogni 15 minuti: 10 per nome utente dallo stesso IP, 30 errori per IP e
+// 50 per nome utente da IP nuovi (gli IP da cui l'utente è già entrato non hanno questo tetto).
+const limiter = new LoginLimiter({ windowMs: 15 * 60000, perUserIp: 10, perIp: 30, perUser: 50 })
+
+/** IP del client: X-Real-IP lo imposta il Nginx dell'app (l'unico che raggiunge le API). */
+const clientIp = (req: FastifyRequest) => String(req.headers['x-real-ip'] ?? req.ip)
 
 app.post('/api/login', async (req, reply) => {
   const { username, password } = (req.body ?? {}) as { username?: string; password?: string }
-  const key = String(username ?? '').trim().toLowerCase()
-  const f = failures.get(key)
-  if (f && Date.now() - f.at < 15 * 60000) await new Promise((r) => setTimeout(r, Math.min(5000, 400 * f.n)))
-  const user = await authenticate(String(username ?? ''), String(password ?? ''))
-  if (!user) {
-    failures.set(key, { n: (f?.n ?? 0) + 1, at: Date.now() })
-    if (failures.size > 1000) failures.clear()
-    throw new HttpError(401, 'Nome utente o password errati')
+  const name = String(username ?? '')
+  const ip = clientIp(req)
+  const wait = limiter.attempt(name, ip)
+  if (wait) {
+    reply.header('retry-after', String(wait))
+    throw new HttpError(429, `Troppi tentativi di accesso: riprova tra ${Math.ceil(wait / 60)} minuti.`)
   }
-  failures.delete(key)
+  const user = await authenticate(name, String(password ?? ''))
+  if (!user) throw new HttpError(401, 'Nome utente o password errati')
+  limiter.success(name, ip)
   setSession(reply, req, user)
   return { ok: true, user: publicUser(user) }
 })
@@ -665,7 +675,10 @@ app.post('/api/excel/import', async (req): Promise<ImportResult> => {
 
 // ---------- Dati dimostrativi ----------
 
+// Solo su un'installazione ancora vuota: in produzione un clic sbagliato sostituirebbe dati veri.
 app.post('/api/demo', async () => {
+  const { rows } = await pool.query('SELECT EXISTS (SELECT 1 FROM records) AS has')
+  if (rows[0].has) throw new HttpError(409, 'I dati dimostrativi si possono generare solo quando non ci sono registrazioni.')
   const services = (await listServices()).filter((s) => s.active)
   const to = addDays(today(), -1)
   const from = `${Number(to.slice(0, 4)) - 2}-${to.slice(5, 7)}-01`

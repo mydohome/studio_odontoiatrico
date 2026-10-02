@@ -135,6 +135,23 @@ Le installazioni create prima dell'introduzione delle istanze continuano a usare
 | `<istanza>-api` | solo `backend` | `no-new-privileges`, `cap_drop: ALL`, utente non root |
 | `<istanza>-db` | solo `backend` | `no-new-privileges` |
 
+### Limiti ai tentativi di accesso e IP reale (NPM, Cloudflare)
+
+- **Accesso:** ogni 15 minuti al massimo 10 tentativi per nome utente dallo stesso IP, 30 errori per IP (con
+  qualsiasi nome utente) e 50 tentativi per nome utente da IP nuovi, contro chi prova da tanti indirizzi. Dagli IP da cui
+  un utente è già entrato (ultimi 30 giorni) si accede anche durante un attacco. In più Nginx accetta al massimo 20
+  richieste di accesso al minuto per IP. Oltre i limiti la risposta è *Troppi tentativi di accesso: riprova tra N
+  minuti*. Le richieste in parallelo contano tutte.
+- **Pagina delle conferme:** al massimo 60 richieste al minuto per IP (con 30 di scorta), ampiamente sufficienti
+  per un paziente.
+- **IP reale:** l'app riconosce l'indirizzo del client anche dietro NPM e Cloudflare (`X-Forwarded-For`, solo dai
+  proxy fidati: reti private, quindi NPM sullo stesso host o in rete locale, e le reti di Cloudflare). L'elenco di
+  Cloudflare viene aggiornato a ogni build dell'immagine (`./studio update`), con una copia di riserva nel repository.
+  Un `X-Forwarded-For` falsificato dal client non conta.
+- Con NPM su un altro server raggiunto tramite un **IP pubblico**, quell'IP non è tra i proxy fidati: tutti i client
+  risultano con l'IP di NPM e i limiti per IP diventano comuni. Aggiungilo a `frontend/nginx/real-ip.conf`
+  (`set_real_ip_from <ip-di-npm>;`) e ricostruisci con `./studio update --rebuild`.
+
 ## Amministrazione: il comando `./studio`
 
 Tutte le operazioni di amministrazione passano da un unico comando, da lanciare nella cartella dell'istanza:

@@ -510,19 +510,22 @@ function DataCard({ data }: { data: AppDataState }) {
         <a className="btn" href={EXPORT_URL} download>
           <Download size={16} /> Esporta tutto in Excel
         </a>
-        <button
-          className="btn"
-          disabled={busy}
-          onClick={() => {
-            if (!window.confirm('Generare 2 anni di dati dimostrativi? Le giornate esistenti nel periodo verranno sostituite.')) return
-            run(async () => {
-              const r = await api.demo()
-              return `Generate ${r.days} giornate dimostrative`
-            })
-          }}
-        >
-          <Sparkles size={16} /> Genera dati demo
-        </button>
+        {/* Solo finché non ci sono registrazioni: non deve poter sostituire dati veri. */}
+        {!days && (
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() => {
+              if (!window.confirm('Generare 2 anni di dati dimostrativi per provare l\'app?')) return
+              run(async () => {
+                const r = await api.demo()
+                return `Generate ${r.days} giornate dimostrative`
+              })
+            }}
+          >
+            <Sparkles size={16} /> Genera dati demo
+          </button>
+        )}
         <button
           className="btn btn-danger"
           disabled={busy || !days}

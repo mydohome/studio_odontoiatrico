@@ -1,4 +1,4 @@
-import type { Appointment, AppointmentStatus } from '../../../shared/types.ts'
+import type { Appointment, AppointmentStatus, ScheduledAppointment } from '../../../shared/types.ts'
 import { whatsAppMessage } from '../../../shared/appointments.ts'
 import { today } from '../../../shared/dates.ts'
 import type { AppSettings } from './api.ts'
@@ -8,9 +8,10 @@ export const STATUS: Record<AppointmentStatus, { label: string; short: string; c
   'confermato-manuale': { label: 'Confermato dallo studio', short: 'Confermato · studio', cls: 'st-manual' },
   inviato: { label: 'Messaggio inviato, in attesa di conferma', short: 'In attesa', cls: 'st-sent' },
   'da-inviare': { label: 'Messaggio non ancora inviato', short: 'Da inviare', cls: 'st-new' },
+  'da-riprogrammare': { label: 'Da riprogrammare: il paziente deve spostare l\'appuntamento', short: 'Da riprogrammare', cls: 'st-resched' },
 }
 
-export const STATUS_ORDER: AppointmentStatus[] = ['confermato-link', 'confermato-manuale', 'inviato', 'da-inviare']
+export const STATUS_ORDER: AppointmentStatus[] = ['confermato-link', 'confermato-manuale', 'inviato', 'da-inviare', 'da-riprogrammare']
 
 /** Indirizzo da usare nei link: quello impostato, altrimenti quello con cui si usa l'app. */
 export function publicBase(settings: AppSettings): string {
@@ -31,12 +32,12 @@ export function linkWarning(settings: AppSettings): string | null {
   return null
 }
 
-export const confirmUrl = (settings: AppSettings, a: Appointment) => `${publicBase(settings)}/c/${a.token}`
+export const confirmUrl = (settings: AppSettings, a: Pick<Appointment, 'token'>) => `${publicBase(settings)}/c/${a.token}`
 
 /** In attesa: il messaggio è già stato preparato almeno una volta ma la conferma non è arrivata. */
 export const needsReminder = (a: Appointment) => a.status === 'inviato' && a.sendCount > 0
 
-export function messageFor(settings: AppSettings, a: Appointment, opt: { icons?: boolean; reminder?: boolean } = {}): string {
+export function messageFor(settings: AppSettings, a: ScheduledAppointment, opt: { icons?: boolean; reminder?: boolean } = {}): string {
   return whatsAppMessage(
     {
       studioName: settings.studioName,
@@ -60,7 +61,7 @@ export const toMinutes = (time: string) => {
 export const fromMinutes = (t: number) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`
 
 /** Appuntamenti dello stesso giorno che si sovrappongono all'intervallo indicato. */
-export function overlapping(list: Appointment[], day: string, time: string, duration: number, exceptId?: number) {
+export function overlapping(list: ScheduledAppointment[], day: string, time: string, duration: number, exceptId?: number) {
   const s = toMinutes(time)
   const e = s + duration
   return list.filter((a) => a.id !== exceptId && a.day === day && toMinutes(a.time) < e && toMinutes(a.time) + a.duration > s)
@@ -70,10 +71,10 @@ export function overlapping(list: Appointment[], day: string, time: string, dura
  * Colonne per gli appuntamenti sovrapposti: ogni gruppo di appuntamenti che si accavallano
  * viene diviso in corsie affiancate.
  */
-export function layoutLanes(list: Appointment[]): Map<number, { lane: number; lanes: number }> {
+export function layoutLanes(list: ScheduledAppointment[]): Map<number, { lane: number; lanes: number }> {
   const out = new Map<number, { lane: number; lanes: number }>()
   const sorted = [...list].sort((a, b) => toMinutes(a.time) - toMinutes(b.time) || b.duration - a.duration)
-  let group: { a: Appointment; lane: number }[] = []
+  let group: { a: ScheduledAppointment; lane: number }[] = []
   let groupEnd = -1
   const flush = () => {
     const lanes = Math.max(1, ...group.map((g) => g.lane + 1))
@@ -95,3 +96,6 @@ export function layoutLanes(list: Appointment[]): Map<number, { lane: number; la
   flush()
   return out
 }
+
+/** Ha data e ora (non è da riprogrammare). */
+export const isScheduled = (a: Appointment): a is ScheduledAppointment => a.day !== null && a.time !== null

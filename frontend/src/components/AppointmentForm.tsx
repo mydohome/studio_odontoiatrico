@@ -1,8 +1,9 @@
-import { AlertTriangle, Save, X } from 'lucide-react'
+import { AlertTriangle, CalendarX2, Save, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { CATEGORIES } from '../../../shared/catalog.ts'
 import { endTime } from '../../../shared/appointments.ts'
-import type { Appointment, AppointmentInput, Service } from '../../../shared/types.ts'
+import { formatDay } from '../../../shared/dates.ts'
+import type { AppointmentInput, ScheduledAppointment, Service } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { overlapping } from '../lib/appointments.ts'
 
@@ -16,17 +17,22 @@ interface Props {
   /** Se cambiano data o ora di un appuntamento già confermato, la conferma va richiesta di nuovo. */
   wasConfirmed?: boolean
   services: Service[]
+  /** Da riprogrammare: data e ora che aveva (si sceglie la nuova). */
+  previous?: { day: string; time: string } | null
   onSubmit: (value: AppointmentInput, prepareMessage: boolean) => Promise<void>
+  /** Mette l'appuntamento "da riprogrammare" (senza data e ora); solo per quelli in agenda. */
+  onReschedule?: () => Promise<void>
   onClose: () => void
 }
 
-export default function AppointmentForm({ title, initial, editingId, wasConfirmed, services, onSubmit, onClose }: Props) {
+export default function AppointmentForm({ title, initial, editingId, wasConfirmed, services, previous, onSubmit, onReschedule, onClose }: Props) {
   const [v, setV] = useState<AppointmentInput>(initial)
-  const [prepare, setPrepare] = useState(editingId === undefined)
+  // Nuovo appuntamento o nuova data dopo una riprogrammazione: il messaggio va inviato.
+  const [prepare, setPrepare] = useState(editingId === undefined || !!previous)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [patients, setPatients] = useState<{ name: string; phone: string }[]>([])
-  const [sameDay, setSameDay] = useState<Appointment[]>([])
+  const [sameDay, setSameDay] = useState<ScheduledAppointment[]>([])
   const set = <K extends keyof AppointmentInput>(k: K, val: AppointmentInput[K]) => setV((x) => ({ ...x, [k]: val }))
 
   useEffect(() => {
@@ -71,6 +77,18 @@ export default function AppointmentForm({ title, initial, editingId, wasConfirme
     [services, initial.serviceId],
   )
 
+  const reschedule = async () => {
+    if (!onReschedule) return
+    if (!window.confirm(`Mettere l'appuntamento di ${initial.patientName} da riprogrammare? Data e ora vengono tolte dall'agenda.`)) return
+    setBusy(true)
+    try {
+      await onReschedule()
+    } catch (err) {
+      setError((err as Error).message)
+      setBusy(false)
+    }
+  }
+
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -95,6 +113,14 @@ export default function AppointmentForm({ title, initial, editingId, wasConfirme
         </div>
 
         <div className="modal-body form-grid">
+          {previous && (
+            <div className="alert alert-resched small span-2">
+              <CalendarX2 size={18} style={{ flex: 'none' }} />
+              <span>
+                Da riprogrammare: era {formatDay(previous.day)} alle {previous.time}. Scegli la nuova data e ora.
+              </span>
+            </div>
+          )}
           <label>
             Data
             <input className="input" type="date" required value={v.day} onChange={(e) => set('day', e.target.value)} />
@@ -190,6 +216,11 @@ export default function AppointmentForm({ title, initial, editingId, wasConfirme
         </div>
 
         <div className="modal-foot appt-form-foot">
+          {onReschedule && (
+            <button type="button" className="btn btn-resched" onClick={reschedule} disabled={busy} title="Il paziente deve spostare l'appuntamento: si toglie dall'agenda e va in «Da riprogrammare»">
+              <CalendarX2 size={16} /> Da riprogrammare
+            </button>
+          )}
           <label className="small muted appt-prepare">
             <input type="checkbox" checked={prepare} onChange={(e) => setPrepare(e.target.checked)} />
             Poi prepara il messaggio WhatsApp

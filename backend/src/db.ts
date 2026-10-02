@@ -33,21 +33,28 @@ export async function migrate(): Promise<void> {
       value text NOT NULL
     );
   `)
+  // Colore dei badge negli appuntamenti (prima di inserire le prestazioni predefinite, che lo usano).
+  await pool.query('ALTER TABLE services ADD COLUMN IF NOT EXISTS color text')
   const { rows } = await pool.query('SELECT count(*)::int AS n FROM services')
   if (rows[0].n === 0) await insertServices(DEFAULT_SERVICES)
+  // Igiene orale verde scuro anche nelle installazioni esistenti (una volta sola: poi decide lo studio).
+  if (!(await getSetting('badgeColorsInit'))) {
+    await pool.query(`UPDATE services SET color = '#166534' WHERE id = 'igiene' AND color IS NULL`)
+    await setSetting('badgeColorsInit', '1')
+  }
 }
 
 async function insertServices(list: Service[]) {
   for (const s of list) {
     await pool.query(
-      'INSERT INTO services (id, name, category, price, active, sort) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING',
-      [s.id, s.name, s.category, s.price, s.active, s.sort],
+      'INSERT INTO services (id, name, category, price, active, sort, color) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING',
+      [s.id, s.name, s.category, s.price, s.active, s.sort, s.color ?? null],
     )
   }
 }
 
 export async function listServices(): Promise<Service[]> {
-  const { rows } = await pool.query('SELECT id, name, category, price, active, sort FROM services ORDER BY sort, name')
+  const { rows } = await pool.query('SELECT id, name, category, price, active, sort, color FROM services ORDER BY sort, name')
   return rows
 }
 

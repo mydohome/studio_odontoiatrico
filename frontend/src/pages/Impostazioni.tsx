@@ -1,6 +1,6 @@
-import { Check, Database, Download, FileSpreadsheet, ImageUp, LogOut, Plus, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
-import { useRef, useState, type DragEvent } from 'react'
-import { CATEGORIES } from '../../../shared/catalog.ts'
+import { Check, Database, Download, FileSpreadsheet, ImageUp, LogOut, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { badgeColor, CATEGORIES } from '../../../shared/catalog.ts'
 import type { CategoryId, ImportResult, Service } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
 import { api, EXPORT_URL, TEMPLATE_URL, type SessionUser } from '../lib/api.ts'
@@ -690,19 +690,22 @@ function ServiceRow({
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           aria-label="Nome prestazione"
         />
-        <select
-          className="input small"
-          style={{ width: '100%', padding: '3px 6px', marginTop: 4, color: 'var(--text-2)' }}
-          value={s.category}
-          onChange={(e) => onUpdate(s, { category: e.target.value as CategoryId })}
-          aria-label="Categoria"
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+        <div className="service-meta">
+          <select
+            className="input small"
+            style={{ flex: 1, minWidth: 0, padding: '3px 6px', color: 'var(--text-2)' }}
+            value={s.category}
+            onChange={(e) => onUpdate(s, { category: e.target.value as CategoryId })}
+            aria-label="Categoria"
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <BadgeColor s={s} onChange={(color) => onUpdate(s, { color })} />
+        </div>
       </td>
       {showPrice && (
         <td className="r">
@@ -731,5 +734,32 @@ function ServiceRow({
         </button>
       </td>
     </tr>
+  )
+}
+
+/** Colore del badge della prestazione negli appuntamenti: anteprima, scelta e ritorno al colore della categoria. */
+function BadgeColor({ s, onChange }: { s: Service; onChange: (color: string | null) => void }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  const color = draft ?? badgeColor(s.category, s.color)
+  // Il selettore cambia colore di continuo mentre si trascina: si salva quando si ferma.
+  const pick = (value: string) => {
+    setDraft(value)
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => onChange(value), 500)
+  }
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+  return (
+    <span className="badge-color">
+      <label className="svc-badge svc-badge-sm badge-color-preview" style={{ background: color }} title="Colore del badge negli appuntamenti: clicca per cambiarlo">
+        Badge
+        <input type="color" value={color} onChange={(e) => pick(e.target.value)} aria-label={`Colore del badge di ${s.name}`} />
+      </label>
+      {s.color && (
+        <button type="button" className="btn btn-ghost btn-icon badge-color-reset" onClick={() => onChange(null)} title="Usa il colore della categoria">
+          <RotateCcw size={13} />
+        </button>
+      )}
+    </span>
   )
 }

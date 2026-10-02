@@ -19,10 +19,30 @@ export const CATEGORIES: CategoryInfo[] = [
   { id: 'pedodonzia', label: 'Pedodonzia', color: 'var(--series-8)' },
 ]
 
+/**
+ * Colori dei badge delle prestazioni (appuntamenti): tinte piene con scritta bianca leggibile.
+ * Una singola prestazione può avere un colore proprio (es. Igiene orale verde scuro).
+ */
+export const CATEGORY_BADGE: Record<CategoryId, string> = {
+  prevenzione: '#0e7490',
+  diagnostica: '#4b5563',
+  conservativa: '#1d4ed8',
+  estetica: '#a16207',
+  ortodonzia: '#c0168c',
+  chirurgia: '#b91c1c',
+  protesi: '#4d7c0f',
+  pedodonzia: '#c2410c',
+}
+
+/** Colore del badge: quello della prestazione, altrimenti quello della sua categoria. */
+export function badgeColor(category: string | null | undefined, color?: string | null): string {
+  return color || (category && CATEGORY_BADGE[category as CategoryId]) || '#6b7280'
+}
+
 export const CATEGORY_BY_ID = Object.fromEntries(CATEGORIES.map((c) => [c.id, c])) as Record<CategoryId, CategoryInfo>
 
 export const DEFAULT_SERVICES: Service[] = [
-  { id: 'igiene', name: 'Igiene orale', category: 'prevenzione', price: 80, active: true, sort: 1 },
+  { id: 'igiene', name: 'Igiene orale', category: 'prevenzione', price: 80, active: true, sort: 1, color: '#166534' },
   { id: 'visita-controllo', name: 'Visita di controllo', category: 'prevenzione', price: 50, active: true, sort: 2 },
   { id: 'prima-visita', name: 'Prima visita', category: 'prevenzione', price: 60, active: true, sort: 3 },
   { id: 'ortopanoramica', name: 'Ortopanoramica', category: 'diagnostica', price: 50, active: true, sort: 4 },

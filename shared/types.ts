@@ -16,6 +16,8 @@ export interface Service {
   price: number | null
   active: boolean
   sort: number
+  /** Colore del badge negli appuntamenti (#rrggbb); vuoto = colore della categoria. */
+  color?: string | null
 }
 
 /** Riga compatta: data, id prestazione, quantità. */
@@ -98,13 +100,13 @@ export type CustomCampaignInput = Pick<
 >
 
 /** Stato della conferma di un appuntamento. */
-export type AppointmentStatus = 'da-inviare' | 'inviato' | 'confermato-link' | 'confermato-manuale'
+export type AppointmentStatus = 'da-inviare' | 'inviato' | 'confermato-link' | 'confermato-manuale' | 'da-riprogrammare'
 
 export interface Appointment {
   id: number
-  /** Giorno (YYYY-MM-DD) e ora di inizio (HH:MM), ora locale dello studio. */
-  day: string
-  time: string
+  /** Giorno (YYYY-MM-DD) e ora di inizio (HH:MM), ora locale dello studio. Vuoti se da riprogrammare. */
+  day: string | null
+  time: string | null
   /** Durata in minuti. */
   duration: number
   patientName: string
@@ -112,6 +114,13 @@ export interface Appointment {
   serviceId: string | null
   /** Nome della prestazione (resta anche se la prestazione viene eliminata dall'elenco). */
   serviceName: string
+  /** Categoria e colore del badge della prestazione (null se non specificata o eliminata). */
+  serviceCategory: string | null
+  serviceColor: string | null
+  /** Da riprogrammare: data e ora che aveva e da quando aspetta una nuova data. */
+  prevDay: string | null
+  prevTime: string | null
+  rescheduleAt: string | null
   notes: string
   /** Codice segreto del link di conferma. */
   token: string
@@ -129,7 +138,10 @@ export interface Appointment {
   updatedAt: string
 }
 
-export type AppointmentInput = Pick<Appointment, 'day' | 'time' | 'duration' | 'patientName' | 'patientPhone' | 'serviceId' | 'notes'>
+export type AppointmentInput = Pick<Appointment, 'duration' | 'patientName' | 'patientPhone' | 'serviceId' | 'notes'> & { day: string; time: string }
+
+/** Appuntamento con data e ora (tutti tranne quelli da riprogrammare). */
+export type ScheduledAppointment = Appointment & { day: string; time: string }
 
 /** Dati visibili al paziente nella pagina di conferma (link senza accesso). */
 export interface PublicAppointment {

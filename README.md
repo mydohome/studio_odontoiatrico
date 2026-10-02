@@ -143,7 +143,11 @@ La scheda **Appuntamenti** (icona del calendario) contiene l'agenda dello studio
   scrivi il nome, con il loro telefono. Se l'orario si sovrappone a un altro appuntamento compare un avviso.
 - **Vista giorno o settimana**, con frecce, *Oggi* e scelta della data. Sul telefono la settimana diventa un elenco per
   giorno. Un clic sull'intestazione di un giorno apre la vista del giorno.
-- Ogni appuntamento ha un'**etichetta colorata**:
+- Ogni appuntamento mostra il **badge della prestazione**, a tinta piena con scritta bianca: di base il colore della
+  categoria (es. Ortodonzia fucsia) oppure quello della singola prestazione (Igiene orale verde scuro). Si cambia in
+  **Impostazioni → Prestazioni** cliccando sul badge accanto alla categoria (la freccia circolare torna al colore della
+  categoria). Negli appuntamenti più corti di mezz'ora il badge diventa un pallino colorato.
+- Ogni appuntamento ha anche un'**etichetta di stato**:
 
   | Etichetta | Significato |
   |---|---|
@@ -151,6 +155,15 @@ La scheda **Appuntamenti** (icona del calendario) contiene l'agenda dello studio
   | 🔵 *Confermato · studio* | confermato a mano dallo studio (es. al telefono), con *Segna confermato* |
   | 🟠 *In attesa* | messaggio preparato, il paziente non ha ancora confermato |
   | ⚪ *Da inviare* | messaggio non ancora preparato |
+  | 🟣 *Da riprogrammare* | il paziente deve spostare l'appuntamento: è senza data né ora |
+
+### Da riprogrammare
+
+Quando un paziente, confermato o no, deve spostare l'appuntamento: **Modifica → Da riprogrammare**. L'appuntamento
+perde data e ora (il posto in agenda si libera e il link di conferma smette di funzionare), ricorda quelle di prima e
+compare nel riquadro viola **Da riprogrammare**, in cima alla pagina, con il telefono, la data che aveva e da quando
+aspetta. **Riprogramma** apre il modulo con data e ora da scegliere: salvando torna in agenda come *Da inviare* e si
+apre il nuovo messaggio di conferma (il link resta lo stesso).
 
 ### Da confermare
 

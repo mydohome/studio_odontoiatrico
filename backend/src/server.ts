@@ -4,7 +4,7 @@ import { appointmentEventText } from '../../shared/appointments.ts'
 import { buildIcs, zonedToUtc } from '../../shared/calendar.ts'
 import { CATEGORIES } from '../../shared/catalog.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
-import type { Appointment, CategoryId, ImportResult, PublicAppointment } from '../../shared/types.ts'
+import type { CategoryId, ImportResult, PublicAppointment, ScheduledAppointment } from '../../shared/types.ts'
 import { deleteLogo, getLogo, LOGO_TYPES, LogoError, logoVersion, migrateBranding, saveLogo, type LogoType } from './branding.ts'
 import {
   AppointmentError,
@@ -14,11 +14,13 @@ import {
   findByToken,
   listAppointments,
   listPatients,
+  listToReschedule,
   markCalled,
   markSent,
   migrateAppointments,
   parseAppointment,
   setManualConfirmation,
+  setToReschedule,
   updateAppointment,
 } from './appointments.ts'
 import { buildCampaigns } from './campaigns.ts'
@@ -349,6 +351,7 @@ interface ServiceBody {
   price?: number | string | null
   active?: boolean
   sort?: number
+  color?: string | null
 }
 
 function parseServiceBody(b: ServiceBody) {
@@ -357,7 +360,9 @@ function parseServiceBody(b: ServiceBody) {
   if (!b.category || !CAT_IDS.has(b.category)) throw new HttpError(400, 'Categoria non valida')
   const price = b.price === null || b.price === undefined || b.price === '' ? null : Number(b.price)
   if (price !== null && (!Number.isFinite(price) || price < 0)) throw new HttpError(400, 'Prezzo non valido')
-  return { name, category: b.category as CategoryId, price, active: b.active !== false }
+  const color = b.color === null || b.color === undefined || b.color === '' ? null : String(b.color).toLowerCase()
+  if (color !== null && !/^#[0-9a-f]{6}$/.test(color)) throw new HttpError(400, 'Colore non valido (formato #rrggbb)')
+  return { name, category: b.category as CategoryId, price, active: b.active !== false, color }
 }
 
 app.post('/api/services', async (req) => {
@@ -367,9 +372,9 @@ app.post('/api/services', async (req) => {
   for (let i = 2; existing.has(id); i++) id = `${slugify(s.name)}-${i}`
   try {
     await pool.query(
-      `INSERT INTO services (id, name, category, price, active, sort)
-       VALUES ($1,$2,$3,$4,$5,(SELECT coalesce(max(sort),0)+1 FROM services))`,
-      [id, s.name, s.category, s.price, s.active],
+      `INSERT INTO services (id, name, category, price, active, color, sort)
+       VALUES ($1,$2,$3,$4,$5,$6,(SELECT coalesce(max(sort),0)+1 FROM services))`,
+      [id, s.name, s.category, s.price, s.active, s.color],
     )
   } catch (e) {
     if ((e as { code?: string }).code === '23505') throw new HttpError(409, 'Esiste già una prestazione con questo nome')
@@ -382,8 +387,8 @@ app.put('/api/services/:id', async (req) => {
   const { id } = req.params as { id: string }
   const s = parseServiceBody((req.body ?? {}) as ServiceBody)
   try {
-    const r = await pool.query('UPDATE services SET name=$2, category=$3, price=$4, active=$5 WHERE id=$1', [
-      id, s.name, s.category, s.price, s.active,
+    const r = await pool.query('UPDATE services SET name=$2, category=$3, price=$4, active=$5, color=$6 WHERE id=$1', [
+      id, s.name, s.category, s.price, s.active, s.color,
     ])
     if (!r.rowCount) throw new HttpError(404, 'Prestazione non trovata')
   } catch (e) {
@@ -511,6 +516,10 @@ app.get('/api/appointments', async (req) => {
 
 app.get('/api/appointments/patients', async () => listPatients())
 
+app.get('/api/appointments/to-reschedule', async () => listToReschedule())
+
+app.post('/api/appointments/:id/reschedule', async (req) => appointmentCall(() => setToReschedule(appointmentId(req))))
+
 app.post('/api/appointments', async (req) => {
   const user = await sessionUser(req)
   return appointmentCall(() => createAppointment(parseAppointment(req.body), user?.username ?? null))
@@ -534,7 +543,7 @@ app.delete('/api/appointments/:id', async (req) => {
 })
 
 /** Solo ciò che serve al paziente: niente telefono, cognome o note interne. */
-async function publicView(a: Appointment): Promise<PublicAppointment> {
+async function publicView(a: ScheduledAppointment): Promise<PublicAppointment> {
   const st = await readSettings()
   return {
     studio: { name: st.studioName, phone: st.phone, address: st.address, logoType: st.logoType, logoVersion: st.logoVersion, flyerStyle: st.flyerStyle },

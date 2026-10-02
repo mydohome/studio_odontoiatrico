@@ -4,6 +4,7 @@ import type {
   CampaignResponse,
   CustomCampaign,
   CustomCampaignInput,
+  ScheduledAppointment,
   ImportResult,
   PublicAppointment,
   RecordRow,
@@ -120,7 +121,9 @@ export const api = {
     request<CustomCampaign>('PUT', `/api/custom-campaigns/${id}/flyer`, { flyer }),
   deleteCustomCampaign: (id: number) => request<{ ok: boolean }>('DELETE', `/api/custom-campaigns/${id}`),
 
-  appointments: (from: string, to: string) => request<Appointment[]>('GET', `/api/appointments?from=${from}&to=${to}`),
+  appointments: (from: string, to: string) => request<ScheduledAppointment[]>('GET', `/api/appointments?from=${from}&to=${to}`),
+  toReschedule: () => request<Appointment[]>('GET', '/api/appointments/to-reschedule'),
+  rescheduleAppointment: (id: number) => request<Appointment>('POST', `/api/appointments/${id}/reschedule`, {}),
   patients: () => request<{ name: string; phone: string }[]>('GET', '/api/appointments/patients'),
   createAppointment: (a: AppointmentInput) => request<Appointment>('POST', '/api/appointments', a),
   updateAppointment: (id: number, a: AppointmentInput) => request<Appointment>('PUT', `/api/appointments/${id}`, a),

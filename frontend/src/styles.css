@@ -42,6 +42,8 @@
   --st-new: #6b6e72;
   --st-new-soft: #eeefec;
   --whatsapp: #1fa855;
+  --st-resched: #6d28d9;
+  --st-resched-soft: #efe7fd;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -88,6 +90,8 @@
     --st-new: #a3a6a2;
     --st-new-soft: #262928;
     --whatsapp: #25c463;
+    --st-resched: #b69bf7;
+    --st-resched-soft: #2a1f45;
   }
 }
 
@@ -2191,4 +2195,148 @@ a.public-line {
   .to-confirm-actions {
     justify-content: flex-start;
   }
+}
+
+/* Badge della prestazione */
+.svc-badge {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 6px;
+  vertical-align: middle;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.svc-badge-md {
+  font-size: 0.78rem;
+  padding: 2px 8px;
+}
+
+.svc-badge-sm {
+  font-size: 0.7rem;
+  line-height: 1.35;
+  padding: 0 6px;
+}
+
+.svc-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+/* Da riprogrammare */
+.st-resched {
+  --c: var(--st-resched);
+  --c-soft: var(--st-resched-soft);
+}
+
+.alert-resched {
+  background: var(--st-resched-soft);
+  color: var(--st-resched);
+  border: 1px solid color-mix(in srgb, var(--st-resched) 30%, transparent);
+}
+
+.btn-resched {
+  color: var(--st-resched);
+  border-color: color-mix(in srgb, var(--st-resched) 45%, var(--border));
+}
+
+.btn-resched:hover {
+  background: var(--st-resched-soft);
+}
+
+.to-confirm-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.to-resched {
+  margin-bottom: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.to-resched.has-items {
+  border-color: color-mix(in srgb, var(--st-resched) 45%, var(--border));
+  box-shadow: inset 4px 0 0 var(--st-resched), var(--shadow);
+}
+
+.to-resched .to-confirm-head h2 svg {
+  color: var(--st-resched);
+}
+
+/* Senza appuntamenti il riquadro resta una riga sola. */
+.to-resched:not(.has-items) {
+  padding-block: 12px;
+}
+
+.to-resched:not(.has-items) h2 {
+  font-size: 0.95rem;
+}
+
+/* Tinta fissa (anche nel tema scuro): la scritta bianca deve restare leggibile. */
+.to-resched-count {
+  background: #6d28d9;
+}
+
+.btn-resched-solid {
+  background: #6d28d9;
+  border-color: #6d28d9;
+  color: #fff;
+}
+
+.btn-resched-solid:hover {
+  background: #5b21b6;
+}
+
+.cal-ev-badge {
+  display: flex;
+  min-width: 0;
+}
+
+.agenda-main .svc-badge {
+  justify-self: start;
+}
+
+/* Prestazioni: categoria e colore del badge */
+.service-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.badge-color {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.badge-color-preview {
+  position: relative;
+  cursor: pointer;
+}
+
+/* Il selettore di colore nativo, invisibile sopra l'anteprima. */
+.badge-color-preview input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+.badge-color-reset {
+  padding: 4px;
 }

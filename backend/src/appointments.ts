@@ -3,7 +3,7 @@
 import { randomBytes } from 'node:crypto'
 import { LINK_DAYS_AFTER } from '../../shared/appointments.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
-import type { Appointment, AppointmentInput, AppointmentStatus } from '../../shared/types.ts'
+import type { Appointment, AppointmentInput, AppointmentStatus, ScheduledAppointment } from '../../shared/types.ts'
 import { pool } from './db.ts'
 
 export class AppointmentError extends Error {}
@@ -13,7 +13,9 @@ const MAX_RANGE_DAYS = 62
 
 const COLUMNS = `a.id, a.day, to_char(a.start_time, 'HH24:MI') AS time, a.duration_min AS duration,
   a.patient_name AS "patientName", a.patient_phone AS "patientPhone", a.service_id AS "serviceId",
-  coalesce(s.name, a.service_name) AS "serviceName", a.notes, a.token,
+  coalesce(s.name, a.service_name) AS "serviceName", s.category AS "serviceCategory", s.color AS "serviceColor",
+  a.prev_day AS "prevDay", to_char(a.prev_time, 'HH24:MI') AS "prevTime", a.reschedule_at AS "rescheduleAt",
+  a.notes, a.token,
   a.sent_at AS "sentAt", a.send_count AS "sendCount", a.last_sent_at AS "lastSentAt",
   a.call_count AS "callCount", a.last_call_at AS "lastCallAt",
   a.confirmed_at AS "confirmedAt", a.confirmed_via AS "confirmedVia",
@@ -47,12 +49,20 @@ export async function migrateAppointments(): Promise<void> {
     ALTER TABLE appointments ADD COLUMN IF NOT EXISTS call_count integer NOT NULL DEFAULT 0;
     ALTER TABLE appointments ADD COLUMN IF NOT EXISTS last_call_at timestamptz;
     UPDATE appointments SET send_count = 1, last_sent_at = sent_at WHERE sent_at IS NOT NULL AND send_count = 0;
+    -- Da riprogrammare: niente data né ora, si ricorda quelle precedenti.
+    ALTER TABLE appointments ALTER COLUMN day DROP NOT NULL;
+    ALTER TABLE appointments ALTER COLUMN start_time DROP NOT NULL;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS prev_day date;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS prev_time time;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reschedule_at timestamptz;
+    CREATE INDEX IF NOT EXISTS appointments_reschedule ON appointments (reschedule_at) WHERE day IS NULL;
   `)
 }
 
 type Row = Omit<Appointment, 'status'> & { confirmedVia: 'link' | 'manuale' | null }
 
 function statusOf(r: Row): AppointmentStatus {
+  if (r.day === null) return 'da-riprogrammare'
   if (r.confirmedAt) return r.confirmedVia === 'manuale' ? 'confermato-manuale' : 'confermato-link'
   return r.sentAt ? 'inviato' : 'da-inviare'
 }
@@ -148,19 +158,24 @@ export async function createAppointment(input: AppointmentInput, user: string | 
  * Se cambiano giorno, ora o telefono la conferma e l'invio non valgono più: il paziente deve
  * ricevere il nuovo riepilogo e confermare di nuovo (il link resta lo stesso).
  */
+// Cambio di data o ora (anche da "da riprogrammare", dove sono vuote) e cambio di telefono.
+const MOVED = 'day IS DISTINCT FROM $2::date OR start_time IS DISTINCT FROM $3::time'
+const CHANGED = `${MOVED} OR patient_phone <> $6`
+
 export async function updateAppointment(id: number, input: AppointmentInput): Promise<Appointment> {
   const name = await serviceName(input.serviceId)
   const { rowCount } = await pool.query(
     `UPDATE appointments SET
-       sent_at = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN NULL ELSE sent_at END,
-       send_count = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN 0 ELSE send_count END,
-       last_sent_at = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN NULL ELSE last_sent_at END,
-       call_count = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN 0 ELSE call_count END,
-       last_call_at = CASE WHEN day <> $2 OR start_time <> $3::time OR patient_phone <> $6 THEN NULL ELSE last_call_at END,
-       confirmed_at = CASE WHEN day <> $2 OR start_time <> $3::time THEN NULL ELSE confirmed_at END,
-       confirmed_via = CASE WHEN day <> $2 OR start_time <> $3::time THEN NULL ELSE confirmed_via END,
+       sent_at = CASE WHEN ${CHANGED} THEN NULL ELSE sent_at END,
+       send_count = CASE WHEN ${CHANGED} THEN 0 ELSE send_count END,
+       last_sent_at = CASE WHEN ${CHANGED} THEN NULL ELSE last_sent_at END,
+       call_count = CASE WHEN ${CHANGED} THEN 0 ELSE call_count END,
+       last_call_at = CASE WHEN ${CHANGED} THEN NULL ELSE last_call_at END,
+       confirmed_at = CASE WHEN ${MOVED} THEN NULL ELSE confirmed_at END,
+       confirmed_via = CASE WHEN ${MOVED} THEN NULL ELSE confirmed_via END,
        day = $2, start_time = $3, duration_min = $4, patient_name = $5, patient_phone = $6,
-       service_id = $7, service_name = $8, notes = $9, updated_at = now()
+       service_id = $7, service_name = $8, notes = $9, updated_at = now(),
+       prev_day = NULL, prev_time = NULL, reschedule_at = NULL
      WHERE id = $1`,
     [id, input.day, input.time, input.duration, input.patientName, input.patientPhone, input.serviceId, name, input.notes],
   )
@@ -181,6 +196,30 @@ export async function markSent(id: number): Promise<Appointment> {
   )
   if (!r.rowCount) throw new AppointmentError('Appuntamento non trovato')
   return getById(id)
+}
+
+/**
+ * Da riprogrammare: il paziente deve spostare l'appuntamento. Toglie data e ora (lo slot si libera
+ * nel calendario e il link di conferma smette di funzionare) e ricorda quelle precedenti.
+ */
+export async function setToReschedule(id: number): Promise<Appointment> {
+  const r = await pool.query(
+    `UPDATE appointments SET prev_day = day, prev_time = start_time, day = NULL, start_time = NULL,
+       reschedule_at = now(), sent_at = NULL, send_count = 0, last_sent_at = NULL, call_count = 0, last_call_at = NULL,
+       confirmed_at = NULL, confirmed_via = NULL, updated_at = now()
+     WHERE id = $1 AND day IS NOT NULL`,
+    [id],
+  )
+  if (!r.rowCount) {
+    await getById(id) // "non trovato" se non esiste; altrimenti è già da riprogrammare
+  }
+  return getById(id)
+}
+
+/** Appuntamenti da riprogrammare, dal più vecchio. */
+export async function listToReschedule(): Promise<Appointment[]> {
+  const { rows } = await pool.query(`SELECT ${COLUMNS} FROM ${FROM} WHERE a.day IS NULL ORDER BY a.reschedule_at, a.id`)
+  return rows.map(toAppointment)
 }
 
 /** Chiamata al paziente senza risposta (per sapere chi è già stato cercato). */
@@ -204,18 +243,21 @@ export async function setManualConfirmation(id: number, confirmed: boolean): Pro
 
 // ---------- Pagina pubblica di conferma ----------
 
-/** Appuntamento del link, se il link è ancora valido (fino a 3 giorni dopo l'appuntamento). */
-export async function findByToken(token: string): Promise<Appointment | null> {
+/**
+ * Appuntamento del link, se il link è ancora valido (fino a 3 giorni dopo l'appuntamento).
+ * Quelli da riprogrammare (senza data) non hanno un link valido finché non ricevono la nuova data.
+ */
+export async function findByToken(token: string): Promise<ScheduledAppointment | null> {
   if (!TOKEN_RE.test(token)) return null
   const { rows } = await pool.query(`SELECT ${COLUMNS} FROM ${FROM} WHERE a.token=$1 AND a.day >= $2`, [
     token,
     addDays(today(), -LINK_DAYS_AFTER),
   ])
-  return rows[0] ? toAppointment(rows[0]) : null
+  return rows[0] ? (toAppointment(rows[0]) as ScheduledAppointment) : null
 }
 
 /** Conferma dal link: vale una volta sola e solo fino al giorno dell'appuntamento. */
-export async function confirmByToken(token: string): Promise<Appointment | null> {
+export async function confirmByToken(token: string): Promise<ScheduledAppointment | null> {
   if (!TOKEN_RE.test(token)) return null
   await pool.query(
     `UPDATE appointments SET confirmed_at = now(), confirmed_via = 'link'

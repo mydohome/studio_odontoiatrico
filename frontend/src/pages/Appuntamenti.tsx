@@ -1,18 +1,20 @@
-import { AlertTriangle, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Loader2, MessageCircle, Phone, PhoneMissed, Plus, Send } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CalendarDays, CalendarX2, Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Loader2, MessageCircle, Phone, PhoneMissed, Plus, Send } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { endTime, nextWorkday } from '../../../shared/appointments.ts'
 import { addDays, formatDay, formatLongDay, formatWeek, fromISO, isValidISO, startOfWeek, today, WEEKDAYS_SHORT } from '../../../shared/dates.ts'
-import type { Appointment, AppointmentInput, AppointmentStatus } from '../../../shared/types.ts'
+import type { Appointment, AppointmentInput, AppointmentStatus, ScheduledAppointment } from '../../../shared/types.ts'
 import AppointmentDetail from '../components/AppointmentDetail.tsx'
 import AppointmentForm from '../components/AppointmentForm.tsx'
+import { ServiceBadge, ServiceDot } from '../components/ServiceBadge.tsx'
 import { useToast } from '../components/Toast.tsx'
 import { api } from '../lib/api.ts'
-import { fromMinutes, layoutLanes, STATUS, STATUS_ORDER, toMinutes } from '../lib/appointments.ts'
+import { fromMinutes, isScheduled, layoutLanes, STATUS, STATUS_ORDER, toMinutes } from '../lib/appointments.ts'
 import type { AppDataState } from '../lib/useData.ts'
 
 type View = 'giorno' | 'settimana'
 const VIEW_KEY = 'appuntamentiVista'
-const PX_PER_MIN = 1.1
+// 30 minuti = 42 px: c'è posto per orario, nome e badge della prestazione.
+const PX_PER_MIN = 1.4
 const POLL_MS = 60_000
 
 const STATUS_ICON: Record<AppointmentStatus, typeof Check> = {
@@ -20,6 +22,7 @@ const STATUS_ICON: Record<AppointmentStatus, typeof Check> = {
   'confermato-manuale': Check,
   inviato: Clock,
   'da-inviare': Send,
+  'da-riprogrammare': CalendarX2,
 }
 
 function loadView(): View {
@@ -51,7 +54,7 @@ function useNow() {
   return now
 }
 
-type FormState = { id?: number; initial: AppointmentInput; wasConfirmed?: boolean } | null
+type FormState = { id?: number; initial: AppointmentInput; wasConfirmed?: boolean; previous?: { day: string; time: string } | null } | null
 
 export default function Appuntamenti({ data }: { data: AppDataState }) {
   const notify = useToast()
@@ -59,9 +62,11 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
   const now = useNow()
   const [view, setView] = useState<View>(loadView)
   const [anchor, setAnchor] = useState(today())
-  const [list, setList] = useState<Appointment[]>([])
+  const [list, setList] = useState<ScheduledAppointment[]>([])
   // Da confermare: da oggi al prossimo giorno lavorativo (il venerdì comprende sabato e lunedì).
-  const [pending, setPending] = useState<Appointment[]>([])
+  const [pending, setPending] = useState<ScheduledAppointment[]>([])
+  // Da riprogrammare: senza data e ora.
+  const [toResched, setToResched] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [openId, setOpenId] = useState<number | null>(null)
   const [form, setForm] = useState<FormState>(null)
@@ -84,7 +89,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
       if (!quiet) setLoading(true)
       try {
         const t = today()
-        const [l, p] = await Promise.all([api.appointments(from, to), api.appointments(t, nextWorkday(t))])
+        const [l, p, r] = await Promise.all([api.appointments(from, to), api.appointments(t, nextWorkday(t)), api.toReschedule()])
         const all = [...new Map([...l, ...p].map((a) => [a.id, a])).values()]
         // Avvisa delle conferme arrivate dal link mentre la pagina era aperta.
         if (quiet) {
@@ -98,6 +103,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
         known.current = new Map(all.map((a) => [a.id, a.status]))
         setList(l)
         setPending(p)
+        setToResched(r)
       } catch (e) {
         if (!quiet) notify((e as Error).message, 'error')
       } finally {
@@ -122,22 +128,41 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
     }
   }, [load])
 
+  const byTime = (x: ScheduledAppointment, y: ScheduledAppointment) => x.day.localeCompare(y.day) || x.time.localeCompare(y.time)
+
+  /** Aggiorna un appuntamento in tutte le liste (calendario, da confermare, da riprogrammare). */
   const replace = (a: Appointment) => {
     known.current.set(a.id, a.status)
-    setPending((l) => {
-      const t = today()
-      const inRange = a.day >= t && a.day <= nextWorkday(t)
+    const upsert = (l: ScheduledAppointment[], inRange: (d: string) => boolean) => {
       const others = l.filter((x) => x.id !== a.id)
-      return inRange ? [...others, a].sort((x, y) => x.day.localeCompare(y.day) || x.time.localeCompare(y.time)) : others
-    })
-    setList((l) => {
-      const inRange = a.day >= from && a.day <= to
-      const others = l.filter((x) => x.id !== a.id)
-      return inRange ? [...others, a].sort((x, y) => x.day.localeCompare(y.day) || x.time.localeCompare(y.time)) : others
-    })
+      return isScheduled(a) && inRange(a.day) ? [...others, a].sort(byTime) : others
+    }
+    const t = today()
+    setPending((l) => upsert(l, (d) => d >= t && d <= nextWorkday(t)))
+    setList((l) => upsert(l, (d) => d >= from && d <= to))
+    setToResched((l) => (isScheduled(a) ? l.filter((x) => x.id !== a.id) : l.some((x) => x.id === a.id) ? l.map((x) => (x.id === a.id ? a : x)) : [...l, a]))
   }
 
-  const opened = openId !== null ? list.find((a) => a.id === openId) ?? pending.find((a) => a.id === openId) ?? null : null
+  const opened: Appointment | null =
+    openId !== null ? list.find((a) => a.id === openId) ?? pending.find((a) => a.id === openId) ?? toResched.find((a) => a.id === openId) ?? null : null
+
+  /** Modulo di modifica; per un appuntamento da riprogrammare, la scelta della nuova data. */
+  const editForm = (a: Appointment) =>
+    setForm({
+      id: a.id,
+      wasConfirmed: a.confirmedAt !== null,
+      // Da riprogrammare: data e ora vuote, da scegliere; si ricordano quelle di prima.
+      previous: !isScheduled(a) && a.prevDay && a.prevTime ? { day: a.prevDay, time: a.prevTime } : null,
+      initial: {
+        day: a.day ?? '',
+        time: a.time ?? '',
+        duration: a.duration,
+        patientName: a.patientName,
+        patientPhone: a.patientPhone,
+        serviceId: a.serviceId,
+        notes: a.notes,
+      },
+    })
 
   const quick = async (fn: () => Promise<Appointment>, ok: string) => {
     try {
@@ -164,10 +189,10 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
     if (!form) return
     const saved = form.id ? await api.updateAppointment(form.id, value) : await api.createAppointment(value)
     setForm(null)
-    notify(form.id ? 'Appuntamento aggiornato' : 'Appuntamento creato')
+    notify(form.previous ? 'Appuntamento riprogrammato' : form.id ? 'Appuntamento aggiornato' : 'Appuntamento creato')
+    replace(saved)
     // Fuori dal periodo mostrato: la vista si sposta sul giorno dell'appuntamento (e lo ricarica).
-    if (saved.day < from || saved.day > to) setAnchor(saved.day)
-    else replace(saved)
+    if (isScheduled(saved) && (saved.day < from || saved.day > to)) setAnchor(saved.day)
     // Dopo una modifica si torna al dettaglio; dopo una creazione, se richiesto, si apre il messaggio.
     setOpenId(prepare || form.id ? saved.id : null)
   }
@@ -180,10 +205,11 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
   }, [view, anchor, from, list])
 
   const counts = useMemo(() => {
-    const c: Record<AppointmentStatus, number> = { 'confermato-link': 0, 'confermato-manuale': 0, inviato: 0, 'da-inviare': 0 }
+    const c: Record<AppointmentStatus, number> = { 'confermato-link': 0, 'confermato-manuale': 0, inviato: 0, 'da-inviare': 0, 'da-riprogrammare': 0 }
     for (const a of list) c[a.status]++
+    c['da-riprogrammare'] = toResched.length
     return c
-  }, [list])
+  }, [list, toResched])
 
   const label = view === 'giorno' ? formatLongDay(anchor) : formatWeek(from)
   const step = view === 'giorno' ? 1 : 7
@@ -199,6 +225,8 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
           <Plus size={16} /> Nuovo appuntamento
         </button>
       </div>
+
+      <ToReschedule list={toResched} onOpen={setOpenId} onPlan={editForm} />
 
       <ToConfirm
         list={pending}
@@ -275,26 +303,13 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
           settings={data.settings}
           onChange={replace}
           onClose={() => setOpenId(null)}
-          onEdit={() =>
-            setForm({
-              id: opened.id,
-              wasConfirmed: opened.confirmedAt !== null,
-              initial: {
-                day: opened.day,
-                time: opened.time,
-                duration: opened.duration,
-                patientName: opened.patientName,
-                patientPhone: opened.patientPhone,
-                serviceId: opened.serviceId,
-                notes: opened.notes,
-              },
-            })
-          }
+          onEdit={() => editForm(opened)}
           onDelete={async () => {
             try {
               await api.deleteAppointment(opened.id)
               setList((l) => l.filter((x) => x.id !== opened.id))
               setPending((l) => l.filter((x) => x.id !== opened.id))
+              setToResched((l) => l.filter((x) => x.id !== opened.id))
               setOpenId(null)
               notify('Appuntamento eliminato')
             } catch (e) {
@@ -306,12 +321,25 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
 
       {form && (
         <AppointmentForm
-          title={form.id ? 'Modifica appuntamento' : 'Nuovo appuntamento'}
+          title={form.previous !== undefined && form.previous !== null ? 'Riprogramma appuntamento' : form.id ? 'Modifica appuntamento' : 'Nuovo appuntamento'}
           initial={form.initial}
           editingId={form.id}
           wasConfirmed={form.wasConfirmed}
           services={data.services}
+          previous={form.previous}
           onSubmit={submitForm}
+          onReschedule={
+            form.id && !form.previous && form.initial.day
+              ? async () => {
+                  const id = form.id!
+                  const a = await api.rescheduleAppointment(id)
+                  replace(a)
+                  setForm(null)
+                  setOpenId(null)
+                  notify(`${a.patientName}: da riprogrammare`)
+                }
+              : undefined
+          }
           onClose={() => setForm(null)}
         />
       )}
@@ -331,7 +359,7 @@ function TimeGrid({
   onPickDay,
 }: {
   days: string[]
-  list: Appointment[]
+  list: ScheduledAppointment[]
   detailed: boolean
   now: Date
   onOpen: (id: number) => void
@@ -413,7 +441,7 @@ function TimeGrid({
                   return (
                     <button
                       key={a.id}
-                      className={`cal-ev ${STATUS[a.status].cls} ${h < 44 ? 'is-short' : ''} ${!detailed && pos.lanes > 1 ? 'is-narrow' : ''}`}
+                      className={`cal-ev ${STATUS[a.status].cls} ${h < 40 ? 'is-short' : ''} ${!detailed && pos.lanes > 1 ? 'is-narrow' : ''}`}
                       style={{
                         top,
                         height: h,
@@ -426,9 +454,14 @@ function TimeGrid({
                       <span className="cal-ev-line">
                         <Icon size={13} className="cal-ev-icon" />
                         <span className="cal-ev-time">{a.time}</span>
+                        {h < 40 && <ServiceDot appointment={a} />}
                         <span className="cal-ev-name">{a.patientName}</span>
                       </span>
-                      {!(h < 44) && a.serviceName && <span className="cal-ev-sub">{a.serviceName}</span>}
+                      {h >= 40 && a.serviceName && (
+                        <span className="cal-ev-badge">
+                          <ServiceBadge appointment={a} size="sm" />
+                        </span>
+                      )}
                       {detailed && h >= 60 && <span className="cal-ev-sub">{STATUS[a.status].label}</span>}
                     </button>
                   )
@@ -451,7 +484,7 @@ function Agenda({
   onNew,
 }: {
   days: string[]
-  list: Appointment[]
+  list: ScheduledAppointment[]
   onOpen: (id: number) => void
   onNew: (day: string) => void
 }) {
@@ -481,7 +514,7 @@ function Agenda({
                     </span>
                     <span className="agenda-main">
                       <strong>{a.patientName}</strong>
-                      {a.serviceName && <span className="small muted">{a.serviceName}</span>}
+                      <ServiceBadge appointment={a} size="sm" />
                       <span className={`appt-tag ${STATUS[a.status].cls}`}>
                         <Icon size={13} /> {STATUS[a.status].short}
                       </span>
@@ -515,11 +548,11 @@ function ToConfirm({
   onCalled,
   onConfirmed,
 }: {
-  list: Appointment[]
+  list: ScheduledAppointment[]
   now: Date
   onOpen: (id: number) => void
-  onCalled: (a: Appointment) => void
-  onConfirmed: (a: Appointment) => void
+  onCalled: (a: ScheduledAppointment) => void
+  onConfirmed: (a: ScheduledAppointment) => void
 }) {
   const t = today()
   const until = nextWorkday(t)
@@ -558,9 +591,9 @@ function ToConfirm({
                       <span className="to-confirm-time">{a.time}</span>
                       <span className="to-confirm-who">
                         <strong>{a.patientName}</strong>
-                        <span className="small muted">
-                          {a.patientPhone}
-                          {a.serviceName ? ` · ${a.serviceName}` : ''}
+                        <span className="to-confirm-sub">
+                          <ServiceBadge appointment={a} size="sm" />
+                          <span className="small muted">{a.patientPhone}</span>
                         </span>
                       </span>
                     </button>
@@ -596,6 +629,53 @@ function ToConfirm({
           </div>
         ))
       )}
+    </section>
+  )
+}
+
+// ---------- Da riprogrammare ----------
+
+function ToReschedule({ list, onOpen, onPlan }: { list: Appointment[]; onOpen: (id: number) => void; onPlan: (a: Appointment) => void }) {
+  return (
+    <section className={`card to-resched ${list.length ? 'has-items' : ''}`} aria-labelledby="tr-title">
+      <div className="to-confirm-head">
+        <h2 id="tr-title">
+          <CalendarX2 size={18} /> Da riprogrammare
+          {list.length > 0 && <span className="to-confirm-count to-resched-count">{list.length}</span>}
+        </h2>
+        <span className="small muted">
+          {list.length ? 'Pazienti che devono spostare l\'appuntamento: scegli con loro la nuova data' : 'Nessun appuntamento da riprogrammare'}
+        </span>
+      </div>
+      {list.map((a) => (
+        <div key={a.id} className="to-confirm-row st-resched">
+          <button className="to-confirm-main" onClick={() => onOpen(a.id)} title="Apri l'appuntamento">
+            <span className="to-confirm-who">
+              <strong>{a.patientName}</strong>
+              <span className="to-confirm-sub">
+                <ServiceBadge appointment={a} size="sm" />
+                <span className="small muted">{a.patientPhone}</span>
+              </span>
+            </span>
+          </button>
+          <span className="to-confirm-info small">
+            {a.prevDay && a.prevTime && (
+              <span>
+                era <strong>{formatDay(a.prevDay)}</strong> alle {a.prevTime}
+              </span>
+            )}
+            {a.rescheduleAt && <span className="muted">· da riprogrammare dal {ago(a.rescheduleAt)}</span>}
+          </span>
+          <span className="to-confirm-actions">
+            <button className="btn btn-resched-solid" onClick={() => onPlan(a)} title="Scegli la nuova data e ora">
+              <CalendarClock size={15} /> Riprogramma
+            </button>
+            <a className="btn" href={`tel:${a.patientPhone.replace(/[^\d+]/g, '')}`} title={`Chiama ${a.patientPhone}`}>
+              <Phone size={15} /> Chiama
+            </a>
+          </span>
+        </div>
+      ))}
     </section>
   )
 }

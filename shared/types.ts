@@ -25,6 +25,8 @@ export interface RecordRow {
   d: string
   s: string
   q: number
+  /** Di cui da appuntamenti confermati (solo nelle statistiche, non nelle registrazioni a mano). */
+  a?: number
 }
 
 export type CampaignType = 'calo' | 'richiamo' | 'conversione' | 'trend' | 'crosssell' | 'calendario' | 'personalizzata'

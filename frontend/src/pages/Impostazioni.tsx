@@ -485,7 +485,10 @@ function DataCard({ data }: { data: AppDataState }) {
   const notify = useToast()
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const days = new Set(data.records.map((r) => r.d)).size
+  // Solo le registrazioni a mano (quelle che si possono eliminare): gli appuntamenti hanno la loro scheda.
+  const manual = data.records.filter((r) => r.q - (r.a ?? 0) > 0)
+  const days = new Set(manual.map((r) => r.d)).size
+  const total = manual.reduce((n, r) => n + r.q - (r.a ?? 0), 0)
 
   const run = async (fn: () => Promise<string>) => {
     setBusy(true)
@@ -505,7 +508,7 @@ function DataCard({ data }: { data: AppDataState }) {
         <Database size={17} /> Dati
       </h2>
       <p className="sub">
-        {days} giornate registrate · {data.records.reduce((a, r) => a + r.q, 0)} prestazioni in totale.
+        {days} giornate registrate · {total} prestazioni inserite a mano (più quelle degli appuntamenti confermati).
       </p>
       <div className="settings-row">
         <a className="btn" href={EXPORT_URL} download>
@@ -534,7 +537,7 @@ function DataCard({ data }: { data: AppDataState }) {
       {confirmDelete && (
         <DeleteAllDialog
           days={days}
-          total={data.records.reduce((a, r) => a + r.q, 0)}
+          total={total}
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => {
             setConfirmDelete(false)

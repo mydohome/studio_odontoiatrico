@@ -94,7 +94,11 @@ export async function buildTemplate(services: Service[], exampleDate: string, sh
   return toBuffer(wb)
 }
 
-export async function buildExport(services: Service[], records: RecordRow[], showPrices = true): Promise<Buffer> {
+/**
+ * Foglio "Dati": registrazioni a mano (reimportabili). Foglio "Da appuntamenti": prestazioni degli
+ * appuntamenti confermati, che nelle statistiche si sommano alle prime (non vengono reimportate).
+ */
+export async function buildExport(services: Service[], records: RecordRow[], showPrices = true, fromAppointments: RecordRow[] = []): Promise<Buffer> {
   const wb = new ExcelJS.Workbook()
   const names = new Map(services.map((s) => [s.id, s.name]))
   const ws = wb.addWorksheet('Dati')
@@ -105,6 +109,16 @@ export async function buildExport(services: Service[], records: RecordRow[], sho
   ]
   for (const r of records) ws.addRow({ d: isoToExcelDate(r.d), s: names.get(r.s) ?? r.s, q: r.q })
   styleHeader(ws)
+  if (fromAppointments.length) {
+    const wa = wb.addWorksheet('Da appuntamenti')
+    wa.columns = [
+      { header: 'Data', key: 'd', width: 14, style: { numFmt: 'dd/mm/yyyy' } },
+      { header: 'Prestazione', key: 's', width: 34 },
+      { header: 'Appuntamenti confermati', key: 'q', width: 24 },
+    ]
+    for (const r of fromAppointments) wa.addRow({ d: isoToExcelDate(r.d), s: names.get(r.s) ?? r.s, q: r.q })
+    styleHeader(wa)
+  }
   addServicesSheet(wb, services, showPrices)
   return toBuffer(wb)
 }

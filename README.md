@@ -229,6 +229,18 @@ lettura.
 - Non protegge da chi ottiene il pieno controllo del server (potrebbe leggere anche il `.env`): per quello servono
   server aggiornato, accesso SSH con chiavi e l'Access List sul gestionale in NPM.
 
+### Appuntamenti nelle statistiche
+
+Un appuntamento **confermato** (dal link o dallo studio) e con una **prestazione** conta nelle statistiche come una
+prestazione registrata a mano, dal suo giorno in poi: dashboard, campagne ed Excel lo includono. Il conteggio è calcolato
+dall'agenda, quindi spostando, riprogrammando o eliminando l'appuntamento, o togliendo la conferma, i numeri si aggiornano
+da soli. Non contano gli appuntamenti futuri, quelli non confermati e quelli senza prestazione.
+
+In **Registra** accanto a ogni prestazione compare *N da agenda*: lì si inseriscono solo le prestazioni in più (es.
+pazienti senza appuntamento o trattamenti aggiunti), altrimenti verrebbero contate due volte. *Esporta tutto in Excel*
+mette le registrazioni a mano nel foglio *Dati* (reimportabile) e quelle dagli appuntamenti nel foglio *Da appuntamenti*.
+*Elimina tutti i dati* cancella solo le registrazioni a mano.
+
 ### Da riprogrammare
 
 Quando un paziente, confermato o no, deve spostare l'appuntamento: **Modifica → Da riprogrammare**. L'appuntamento

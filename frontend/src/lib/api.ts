@@ -101,7 +101,8 @@ export const api = {
     if (to) q.set('to', to)
     return request<RecordRow[]>('GET', `/api/records?${q}`)
   },
-  day: (date: string) => request<{ date: string; items: Record<string, number> }>('GET', `/api/days/${date}`),
+  day: (date: string) =>
+    request<{ date: string; items: Record<string, number>; appointments?: Record<string, number> }>('GET', `/api/days/${date}`),
   saveDay: (date: string, items: Record<string, number>) =>
     request<{ date: string; items: Record<string, number> }>('PUT', `/api/days/${date}`, { items }),
   deleteAll: (phrase: string) => request<{ ok: boolean }>('DELETE', `/api/records?confirm=${encodeURIComponent(phrase)}`),

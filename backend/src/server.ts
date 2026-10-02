@@ -36,7 +36,7 @@ import {
   updateCustomCampaign,
 } from './customCampaigns.ts'
 import { DataKeyError, initDataCrypto } from './dataCrypto.ts'
-import { getSetting, listRecords, listServices, migrate, pool, setSetting, writeDays } from './db.ts'
+import { getSetting, listAppointmentRecords, listRecords, listServices, listStatRecords, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
 import { LoginLimiter } from './loginLimiter.ts'
@@ -452,13 +452,14 @@ app.delete('/api/services/:id', async (req) => {
 
 app.get('/api/records', async (req) => {
   const q = req.query as { from?: string; to?: string }
-  return listRecords(optDate(q.from, 'from'), optDate(q.to, 'to'))
+  return listStatRecords(optDate(q.from, 'from'), optDate(q.to, 'to'))
 })
 
 app.get('/api/days/:date', async (req) => {
   const date = assertDate((req.params as { date: string }).date)
-  const rows = await listRecords(date, date)
-  return { date, items: Object.fromEntries(rows.map((r) => [r.s, r.q])) }
+  const [rows, appts] = await Promise.all([listRecords(date, date), listAppointmentRecords(date, date)])
+  // items: registrate a mano (modificabili); appointments: dagli appuntamenti confermati (automatiche).
+  return { date, items: Object.fromEntries(rows.map((r) => [r.s, r.q])), appointments: Object.fromEntries(appts.map((r) => [r.s, r.q])) }
 })
 
 app.put('/api/days/:date', async (req) => {
@@ -487,7 +488,7 @@ app.delete('/api/records', async (req) => {
 app.get('/api/campaigns', async (req) => {
   const { months } = req.query as { months?: string }
   const horizon = Math.min(24, Math.max(1, Number(months) || 12))
-  const [services, records] = await Promise.all([listServices(), listRecords()])
+  const [services, records] = await Promise.all([listServices(), listStatRecords()])
   return buildCampaigns(services, records, today(), horizon)
 })
 
@@ -655,9 +656,9 @@ app.get('/api/excel/template', async (_req, reply) => {
 })
 
 app.get('/api/excel/export', async (_req, reply) => {
-  const [services, records] = await Promise.all([listServices(), listRecords()])
+  const [services, records, appts] = await Promise.all([listServices(), listRecords(), listAppointmentRecords()])
   const { showPrices } = await readSettings()
-  return sendXlsx(reply, `prestazioni-${today()}.xlsx`, await buildExport(services, records, showPrices))
+  return sendXlsx(reply, `prestazioni-${today()}.xlsx`, await buildExport(services, records, showPrices, appts))
 })
 
 app.post('/api/excel/import', async (req): Promise<ImportResult> => {

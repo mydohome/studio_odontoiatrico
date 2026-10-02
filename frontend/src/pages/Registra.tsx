@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, Save } from 'lucide-react'
+import { CalendarCheck2, CalendarDays, ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, Save } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { CATEGORIES } from '../../../shared/catalog.ts'
 import { addDays, formatDay, isValidISO, today } from '../../../shared/dates.ts'
@@ -17,6 +17,8 @@ export default function Registra({ data }: { data: AppDataState }) {
   const [date, setDate] = useState(today())
   const [items, setItems] = useState<Items>({})
   const [saved, setSaved] = useState<Items>({})
+  // Prestazioni degli appuntamenti confermati del giorno: contate in automatico, non modificabili qui.
+  const [fromAppt, setFromAppt] = useState<Items>({})
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -31,6 +33,7 @@ export default function Registra({ data }: { data: AppDataState }) {
         if (!alive) return
         setItems(d.items)
         setSaved(d.items)
+        setFromAppt(d.appointments ?? {})
       })
       .catch((e) => notify((e as Error).message, 'error'))
       .finally(() => alive && setLoading(false))
@@ -82,7 +85,8 @@ export default function Registra({ data }: { data: AppDataState }) {
 
   const setQty = (id: string, q: number) => setItems((it) => ({ ...it, [id]: Math.max(0, Math.min(999, Math.round(q) || 0)) }))
 
-  const active = data.services.filter((s) => s.active || (items[s.id] ?? 0) > 0)
+  const active = data.services.filter((s) => s.active || (items[s.id] ?? 0) > 0 || (fromAppt[s.id] ?? 0) > 0)
+  const apptTotal = sum(fromAppt)
   const groups = CATEGORIES.map((c) => ({ cat: c, services: active.filter((s) => s.category === c.id) })).filter(
     (g) => g.services.length,
   )
@@ -131,9 +135,22 @@ export default function Registra({ data }: { data: AppDataState }) {
           <div className="card-head">
             <div>
               <h2>{formatDay(date)}</h2>
-              <p className="sub">{loading ? 'Caricamento…' : `${sum(items)} prestazioni inserite`}</p>
+              <p className="sub">
+                {loading
+                  ? 'Caricamento…'
+                  : `${sum(items) + apptTotal} prestazioni${apptTotal ? ` · ${apptTotal} dagli appuntamenti confermati, ${sum(items)} inserite a mano` : ' inserite'}`}
+              </p>
             </div>
           </div>
+          {apptTotal > 0 && (
+            <div className="alert alert-good small" style={{ marginBottom: 12 }}>
+              <CalendarCheck2 size={16} style={{ flex: 'none' }} />
+              <span>
+                Gli appuntamenti confermati in agenda sono già contati (<strong>da agenda</strong>): inserisci qui solo le prestazioni
+                in più, così non vengono contate due volte.
+              </span>
+            </div>
+          )}
 
           {groups.length === 0 && <div className="empty">Nessuna prestazione attiva: aggiungile in Impostazioni.</div>}
 
@@ -146,10 +163,16 @@ export default function Registra({ data }: { data: AppDataState }) {
               <div className="entry-list">
                 {services.map((s) => {
                   const q = items[s.id] ?? 0
+                  const a = fromAppt[s.id] ?? 0
                   return (
-                    <div key={s.id} className={`entry-row ${q > 0 ? 'has-value' : ''}`}>
+                    <div key={s.id} className={`entry-row ${q > 0 || a > 0 ? 'has-value' : ''}`}>
                       <label className="entry-name" htmlFor={`q-${s.id}`} title={s.name}>
                         {s.name}
+                        {a > 0 && (
+                          <span className="entry-appt" title="Appuntamenti confermati in agenda per questo giorno">
+                            <CalendarCheck2 size={12} /> {a} da agenda
+                          </span>
+                        )}
                       </label>
                       <div className="stepper">
                         <button onClick={() => setQty(s.id, q - 1)} aria-label={`Diminuisci ${s.name}`} disabled={q === 0}>
@@ -178,7 +201,7 @@ export default function Registra({ data }: { data: AppDataState }) {
 
           <div className="save-bar">
             <span className="muted small">
-              {dirty ? 'Modifiche non salvate' : 'Tutto salvato'} · Totale <strong className="num">{sum(items)}</strong>
+              {dirty ? 'Modifiche non salvate' : 'Tutto salvato'} · Totale <strong className="num">{sum(items) + apptTotal}</strong>
             </span>
             <div className="toolbar">
               <button className="btn" onClick={() => setItems(saved)} disabled={!dirty || saving}>

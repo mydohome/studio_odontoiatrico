@@ -549,6 +549,17 @@ select.input {
   white-space: nowrap;
 }
 
+/* Prestazioni già contate dagli appuntamenti confermati in agenda. */
+.entry-appt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--good);
+}
+
 .stepper {
   display: flex;
   align-items: center;

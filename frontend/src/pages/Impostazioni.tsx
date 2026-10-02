@@ -484,6 +484,7 @@ function ImportCard({ data }: { data: AppDataState }) {
 function DataCard({ data }: { data: AppDataState }) {
   const notify = useToast()
   const [busy, setBusy] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const days = new Set(data.records.map((r) => r.d)).size
 
   const run = async (fn: () => Promise<string>) => {
@@ -526,20 +527,116 @@ function DataCard({ data }: { data: AppDataState }) {
             <Sparkles size={16} /> Genera dati demo
           </button>
         )}
-        <button
-          className="btn btn-danger"
-          disabled={busy || !days}
-          onClick={() => {
-            const ok = window.prompt('Operazione irreversibile. Scrivi ELIMINA per cancellare tutte le registrazioni.')
-            if (ok !== 'ELIMINA') return
+        <button className="btn btn-danger" disabled={busy || !days} onClick={() => setConfirmDelete(true)}>
+          <Trash2 size={16} /> Elimina tutti i dati
+        </button>
+      </div>
+      {confirmDelete && (
+        <DeleteAllDialog
+          days={days}
+          total={data.records.reduce((a, r) => a + r.q, 0)}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => {
+            setConfirmDelete(false)
             run(async () => {
-              await api.deleteAll()
+              await api.deleteAll(DELETE_PHRASE)
               return 'Tutte le registrazioni sono state eliminate'
             })
           }}
-        >
-          <Trash2 size={16} /> Elimina tutti i dati
-        </button>
+        />
+      )}
+    </div>
+  )
+}
+
+const DELETE_PHRASE = 'ELIMINA DATI'
+const FINAL_WAIT_S = 5
+
+/**
+ * Eliminazione di tutte le registrazioni in tre passaggi: avviso, frase da scrivere esattamente,
+ * conferma finale attivabile solo dopo qualche secondo. Nessun passaggio si supera con Invio per sbaglio.
+ */
+function DeleteAllDialog({ days, total, onCancel, onConfirm }: { days: number; total: number; onCancel: () => void; onConfirm: () => void }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [phrase, setPhrase] = useState('')
+  const [wait, setWait] = useState(FINAL_WAIT_S)
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && onCancel()
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onCancel])
+
+  useEffect(() => {
+    if (step !== 3 || wait <= 0) return
+    const t = setTimeout(() => setWait((w) => w - 1), 1000)
+    return () => clearTimeout(t)
+  }, [step, wait])
+
+  return (
+    <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="del-title">
+      <div className="modal-dialog">
+        <div className="modal-head">
+          <h2 id="del-title">Elimina tutti i dati · passaggio {step} di 3</h2>
+        </div>
+        <div className="modal-body">
+          {step === 1 && (
+            <>
+              <div className="alert alert-danger">
+                <span>
+                  Stai per eliminare <strong>tutte le registrazioni delle prestazioni</strong>: {days} giornate, {total}{' '}
+                  prestazioni in totale. L'operazione non si può annullare dall'app.
+                </span>
+              </div>
+              <p className="small muted">
+                Appuntamenti, campagne, utenti e impostazioni restano. Prima di continuare conviene usare «Esporta tutto in
+                Excel»: il file si può reimportare.
+              </p>
+            </>
+          )}
+          {step === 2 && (
+            <label>
+              Per continuare scrivi esattamente <strong>{DELETE_PHRASE}</strong>
+              <input
+                className="input"
+                autoFocus
+                autoComplete="off"
+                spellCheck={false}
+                value={phrase}
+                onChange={(e) => setPhrase(e.target.value)}
+                onPaste={(e) => e.preventDefault()}
+                onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+              />
+            </label>
+          )}
+          {step === 3 && (
+            <div className="alert alert-danger">
+              <span>
+                <strong>Ultima conferma.</strong> Eliminare definitivamente {days} giornate di registrazioni?
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="modal-foot">
+          <button type="button" className="btn" autoFocus={step !== 2} onClick={onCancel}>
+            Annulla
+          </button>
+          {step === 1 && (
+            <button type="button" className="btn btn-danger" onClick={() => setStep(2)}>
+              Continua
+            </button>
+          )}
+          {step === 2 && (
+            <button type="button" className="btn btn-danger" disabled={phrase !== DELETE_PHRASE} onClick={() => setStep(3)}>
+              Continua
+            </button>
+          )}
+          {step === 3 && (
+            <button type="button" className="btn btn-danger" disabled={wait > 0} onClick={onConfirm}>
+              <Trash2 size={16} /> {wait > 0 ? `Elimina definitivamente (${wait})` : 'Elimina definitivamente'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

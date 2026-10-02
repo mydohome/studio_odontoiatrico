@@ -104,7 +104,7 @@ export const api = {
   day: (date: string) => request<{ date: string; items: Record<string, number> }>('GET', `/api/days/${date}`),
   saveDay: (date: string, items: Record<string, number>) =>
     request<{ date: string; items: Record<string, number> }>('PUT', `/api/days/${date}`, { items }),
-  deleteAll: () => request<{ ok: boolean }>('DELETE', '/api/records?confirm=ELIMINA'),
+  deleteAll: (phrase: string) => request<{ ok: boolean }>('DELETE', `/api/records?confirm=${encodeURIComponent(phrase)}`),
 
   campaigns: (months = 12) => request<CampaignResponse>('GET', `/api/campaigns?months=${months}`),
 

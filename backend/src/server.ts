@@ -477,7 +477,7 @@ app.put('/api/days/:date', async (req) => {
 
 app.delete('/api/records', async (req) => {
   const { confirm } = req.query as { confirm?: string }
-  if (confirm !== 'ELIMINA') throw new HttpError(400, 'Conferma mancante')
+  if (confirm !== 'ELIMINA DATI') throw new HttpError(400, 'Conferma mancante: scrivi ELIMINA DATI')
   await pool.query('DELETE FROM records')
   return { ok: true }
 })

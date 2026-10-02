@@ -74,3 +74,9 @@ test('ora di fine', () => {
   assert.equal(endTime('10:30', 45), '11:15')
   assert.equal(endTime('23:50', 30), '23:59')
 })
+
+test('link di conferma: valido fino a 3 giorni dopo l\'appuntamento', async () => {
+  const { linkExpiry, LINK_DAYS_AFTER } = await import('../../shared/appointments.ts')
+  assert.equal(LINK_DAYS_AFTER, 3)
+  assert.equal(linkExpiry('2026-10-30'), '2026-11-02')
+})

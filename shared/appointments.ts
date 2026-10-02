@@ -1,6 +1,12 @@
 // Funzioni condivise per gli appuntamenti: numero WhatsApp e testo del messaggio.
 
-import { formatLongDay } from './dates.ts'
+import { addDays, formatLongDay } from './dates.ts'
+
+/** Giorni dopo l'appuntamento in cui il link di conferma funziona ancora; poi non mostra più nulla. */
+export const LINK_DAYS_AFTER = 3
+
+/** Ultimo giorno di validità del link di un appuntamento (YYYY-MM-DD). */
+export const linkExpiry = (day: string) => addDays(day, LINK_DAYS_AFTER)
 
 /**
  * Numero nel formato richiesto da wa.me (solo cifre, con prefisso internazionale).

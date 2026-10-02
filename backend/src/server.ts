@@ -544,10 +544,10 @@ async function publicView(a: Appointment): Promise<PublicAppointment> {
   }
 }
 
-const NOT_FOUND = 'Link non valido, oppure l\'appuntamento è stato annullato.'
+const NOT_FOUND = 'Link non valido o scaduto, oppure l\'appuntamento è stato annullato.'
 
 app.get('/api/public/appointments/:token', async (req, reply) => {
-  reply.header('cache-control', 'no-store')
+  reply.header('cache-control', 'no-store').header('x-robots-tag', 'noindex, nofollow')
   const a = await findByToken((req.params as { token: string }).token)
   if (!a) throw new HttpError(404, NOT_FOUND)
   return publicView(a)
@@ -555,7 +555,7 @@ app.get('/api/public/appointments/:token', async (req, reply) => {
 
 // Conferma solo con POST (pulsante nella pagina): le anteprime dei link di WhatsApp fanno GET.
 app.post('/api/public/appointments/:token/confirm', async (req, reply) => {
-  reply.header('cache-control', 'no-store')
+  reply.header('cache-control', 'no-store').header('x-robots-tag', 'noindex, nofollow')
   const a = await confirmByToken((req.params as { token: string }).token)
   if (!a) throw new HttpError(404, NOT_FOUND)
   if (!a.confirmedAt) throw new HttpError(410, "L'appuntamento è già passato: non è più possibile confermarlo.")

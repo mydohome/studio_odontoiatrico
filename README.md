@@ -178,7 +178,9 @@ A presto!
   apre una pagina con logo e nome dello studio, data, ora e prestazione, e preme **Confermo l'appuntamento**; da lì può
   anche chiamare lo studio o scrivergli su WhatsApp. La pagina mostra solo il nome di battesimo: niente telefono,
   cognome o note. La conferma richiede il pulsante, quindi l'anteprima automatica del link in WhatsApp non conferma
-  nulla. Dopo il giorno dell'appuntamento il link non permette più di confermare.
+  nulla. Dopo il giorno dell'appuntamento il link non permette più di confermare e **3 giorni dopo scade**: la pagina
+  non mostra più nulla (l'appuntamento resta nell'agenda). La pagina e le risposte pubbliche chiedono ai motori di
+  ricerca di non indicizzarle (`noindex`).
 - L'agenda si aggiorna da sola ogni minuto: quando un paziente conferma compare un avviso.
 - Se si cambiano **data o ora** di un appuntamento, conferma e invio si azzerano: va mandato il nuovo messaggio (il link
   resta lo stesso e mostra il nuovo orario). Eliminando l'appuntamento il link smette di funzionare.

@@ -1,6 +1,7 @@
 // Appuntamenti dei pazienti, con link di conferma personale da inviare su WhatsApp.
 
 import { randomBytes } from 'node:crypto'
+import { LINK_DAYS_AFTER } from '../../shared/appointments.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
 import type { Appointment, AppointmentInput, AppointmentStatus } from '../../shared/types.ts'
 import { pool } from './db.ts'
@@ -181,9 +182,13 @@ export async function setManualConfirmation(id: number, confirmed: boolean): Pro
 
 // ---------- Pagina pubblica di conferma ----------
 
+/** Appuntamento del link, se il link è ancora valido (fino a 3 giorni dopo l'appuntamento). */
 export async function findByToken(token: string): Promise<Appointment | null> {
   if (!TOKEN_RE.test(token)) return null
-  const { rows } = await pool.query(`SELECT ${COLUMNS} FROM ${FROM} WHERE a.token=$1`, [token])
+  const { rows } = await pool.query(`SELECT ${COLUMNS} FROM ${FROM} WHERE a.token=$1 AND a.day >= $2`, [
+    token,
+    addDays(today(), -LINK_DAYS_AFTER),
+  ])
   return rows[0] ? toAppointment(rows[0]) : null
 }
 

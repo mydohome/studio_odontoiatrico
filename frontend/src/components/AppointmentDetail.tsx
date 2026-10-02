@@ -1,7 +1,7 @@
 import { CalendarClock, Check, Copy, Link2, MessageCircle, Pencil, Phone, RotateCcw, Stethoscope, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { endTime, whatsAppLink } from '../../../shared/appointments.ts'
-import { formatLongDay } from '../../../shared/dates.ts'
+import { endTime, LINK_DAYS_AFTER, linkExpiry, whatsAppLink } from '../../../shared/appointments.ts'
+import { formatDay, formatLongDay, today } from '../../../shared/dates.ts'
 import type { Appointment } from '../../../shared/types.ts'
 import { api, type AppSettings } from '../lib/api.ts'
 import { confirmUrl, linkWarning, messageFor, STATUS } from '../lib/appointments.ts'
@@ -45,6 +45,8 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
   const confirmed = a.status === 'confermato-link' || a.status === 'confermato-manuale'
   const waLink = whatsAppLink(a.patientPhone, message)
   const warning = linkWarning(settings)
+  const linkUntil = linkExpiry(a.day)
+  const expired = linkUntil < today()
 
   // Se l'appuntamento cambia (es. modificato), il messaggio si rigenera.
   useEffect(() => {
@@ -151,7 +153,13 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
           <div className="appt-message">
             <div className="field-label">Messaggio WhatsApp</div>
             <textarea className="input" rows={13} value={message} onChange={(e) => setMessage(e.target.value)} />
-            {warning && (
+            {expired && (
+              <div className="alert alert-warn small">
+                <TriangleAlert size={16} style={{ flex: 'none' }} />
+                <span>Il link di conferma è scaduto il {formatDay(linkUntil)}: il paziente non può più aprirlo.</span>
+              </div>
+            )}
+            {warning && !expired && (
               <div className="alert alert-warn small">
                 <TriangleAlert size={16} style={{ flex: 'none' }} />
                 <span>{warning}</span>
@@ -175,6 +183,7 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
             </div>
             <p className="small muted" style={{ margin: 0 }}>
               Il link è personale: chi lo apre vede solo nome di battesimo, data, ora e prestazione, e può confermare.
+              Smette di funzionare {LINK_DAYS_AFTER} giorni dopo l'appuntamento.
             </p>
           </div>
         </div>

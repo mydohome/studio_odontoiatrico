@@ -157,26 +157,39 @@ La scheda **Appuntamenti** (icona del calendario) contiene l'agenda dello studio
 Aprendo un appuntamento si vede il messaggio già pronto (modificabile prima dell'invio), per esempio:
 
 ```
+*Family Smile*
+Promemoria appuntamento
+
 Gentile Mario Rossi,
-le ricordiamo il suo appuntamento presso *DentalCapri srl*:
+le ricordiamo il suo prossimo appuntamento:
 
-📅 *Lunedì 5 ottobre 2026*
-🕘 *Ore 10:30*
-🦷 Igiene orale
-📍 Via Roma 12, 80073 Capri (NA)
+📅 Mercoledì 7 ottobre 2026
+⏰ Ore 12:30
+📋 Visita di controllo
+📍 Via Augusto Pierantoni 16
 
-✅ Per confermare la sua presenza apra questo link:
+👉 *Confermi la sua presenza* da questo link:
 https://studio.esempio.it/c/Xy3…
+Dalla stessa pagina può aggiungere l'appuntamento al calendario del telefono.
 
-Per spostare o annullare l'appuntamento risponda a questo messaggio o chiami lo 081 837 1234.
+📞 Per spostarlo o annullarlo risponda a questo messaggio o chiami lo 328 1234567.
+
 A presto!
 ```
 
-- **Apri in WhatsApp** apre la chat con il paziente (WhatsApp Web o l'app) con il messaggio già scritto: basta premere
-  invio. Il numero senza prefisso viene considerato italiano (+39). **Copia messaggio** lo copia negli appunti.
+Le icone sono solo emoji del 2010 (Unicode 6.0), visibili su qualsiasi telefono.
+
+- **Dal computer**: **Apri in WhatsApp Web** apre la chat del paziente in WhatsApp Web con il messaggio già scritto;
+  basta premere invio. **App WhatsApp** usa invece l'app per computer, che però può mostrare le icone come «�»: per
+  questo, aprendo la chat dal computer, il messaggio viene copiato anche negli appunti e basta incollarlo
+  (Cmd/Ctrl + V) al posto di quello alterato.
+- **Dal telefono**: **Apri in WhatsApp** apre l'app con il messaggio già scritto.
+- Il numero senza prefisso viene considerato italiano (+39). **Copia messaggio** lo copia negli appunti.
 - Il **link è univoco** per ogni appuntamento (codice casuale di 24 caratteri, impossibile da indovinare). Il paziente
   apre una pagina con logo e nome dello studio, data, ora e prestazione, e preme **Confermo l'appuntamento**; da lì può
-  anche chiamare lo studio o scrivergli su WhatsApp. La pagina mostra solo il nome di battesimo: niente telefono,
+  anche chiamare lo studio o scrivergli su WhatsApp, e **aggiungere l'appuntamento al calendario** del telefono, con
+  promemoria il giorno prima e due ore prima: su iPhone (e sugli altri calendari) con un file `.ics`, su Android con
+  Google Calendar. La pagina mostra solo il nome di battesimo: niente telefono,
   cognome o note. La conferma richiede il pulsante, quindi l'anteprima automatica del link in WhatsApp non conferma
   nulla. Dopo il giorno dell'appuntamento il link non permette più di confermare e **3 giorni dopo scade**: la pagina
   non mostra più nulla (l'appuntamento resta nell'agenda). La pagina e le risposte pubbliche chiedono ai motori di

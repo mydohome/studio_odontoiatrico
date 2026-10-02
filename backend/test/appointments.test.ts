@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { endTime, whatsAppLink, whatsAppMessage, whatsAppNumber } from '../../shared/appointments.ts'
+import { endTime, whatsAppLink, whatsAppMessage, whatsAppNumber, whatsAppWebLink } from '../../shared/appointments.ts'
+import { buildIcs, googleCalendarUrl, icsStamp, zonedToUtc } from '../../shared/calendar.ts'
 import { AppointmentError, newToken, parseAppointment, TOKEN_RE } from '../src/appointments.ts'
 
 const base = { day: '2026-10-05', time: '10:30', duration: 30, patientName: '  Mario   Rossi ', patientPhone: '333 123 4567' }
@@ -58,16 +59,20 @@ test('messaggio WhatsApp: riepilogo con data, ora, prestazione e link', () => {
     serviceName: 'Igiene professionale',
     confirmUrl: 'https://studio.example.it/c/abc',
   })
-  assert.match(msg, /^Gentile Mario Rossi,/)
-  assert.match(msg, /\*DentalCapri srl\*/)
-  assert.match(msg, /\*Lunedì 5 ottobre 2026\*/)
-  assert.match(msg, /\*Ore 10:30\*/)
-  assert.match(msg, /Igiene professionale/)
+  assert.match(msg, /^\*DentalCapri srl\*\nPromemoria appuntamento\n/)
+  assert.match(msg, /Gentile Mario Rossi,/)
+  assert.match(msg, /📅 Lunedì 5 ottobre 2026\n⏰ Ore 10:30\n📋 Igiene professionale\n📍 Via Roma 12, Capri/)
   assert.match(msg, /\nhttps:\/\/studio\.example\.it\/c\/abc\n/)
+  assert.match(msg, /calendario del telefono/)
   assert.match(msg, /chiami lo 081 837 1234/)
+  // Solo emoji di Unicode 6.0 (2010): nessuna icona recente che un telefono vecchio non mostrerebbe.
+  const emoji = [...msg].filter((c) => /\p{Extended_Pictographic}/u.test(c))
+  assert.deepEqual([...new Set(emoji)], ['📅', '⏰', '📋', '📍', '👉', '📞'])
+  assert.ok(!msg.includes('🦷'))
   const link = whatsAppLink('333 1234567', msg)!
   assert.ok(link.startsWith('https://wa.me/393331234567?text='))
   assert.equal(decodeURIComponent(link.split('text=')[1]), msg)
+  assert.ok(whatsAppWebLink('333 1234567', msg)!.startsWith('https://web.whatsapp.com/send?phone=393331234567&text='))
 })
 
 test('ora di fine', () => {
@@ -79,4 +84,45 @@ test('link di conferma: valido fino a 3 giorni dopo l\'appuntamento', async () =
   const { linkExpiry, LINK_DAYS_AFTER } = await import('../../shared/appointments.ts')
   assert.equal(LINK_DAYS_AFTER, 3)
   assert.equal(linkExpiry('2026-10-30'), '2026-11-02')
+})
+
+test('calendario: ora di Roma convertita in UTC, con ora legale e solare', () => {
+  assert.equal(icsStamp(zonedToUtc('2026-10-02', '10:30', 'Europe/Rome')), '20261002T083000Z') // legale, +2
+  assert.equal(icsStamp(zonedToUtc('2026-12-15', '10:30', 'Europe/Rome')), '20261215T093000Z') // solare, +1
+  // Giorno del cambio d'ora (25 ottobre 2026, alle 3 si torna alle 2).
+  assert.equal(icsStamp(zonedToUtc('2026-10-25', '09:00', 'Europe/Rome')), '20261025T080000Z')
+  assert.equal(icsStamp(zonedToUtc('2026-03-29', '09:00', 'Europe/Rome')), '20260329T070000Z')
+})
+
+test('calendario: file .ics valido, con testi protetti e righe divise', () => {
+  const start = zonedToUtc('2026-10-02', '10:30', 'Europe/Rome')
+  const ics = buildIcs(
+    {
+      uid: 'abc@studio',
+      start,
+      end: start + 30 * 60_000,
+      title: 'Appuntamento - Studio Rossi, Bianchi; & C.',
+      description: 'Igiene orale\nPer spostare o annullare: 081 837 1234',
+      location: 'Via Roma 12, 80073 Capri (NA) — scala B, secondo piano, citofono "Studio dentistico Rossi"',
+    },
+    Date.UTC(2026, 9, 1, 12),
+  )
+  assert.ok(ics.startsWith('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n'))
+  assert.ok(ics.endsWith('END:VCALENDAR\r\n'))
+  assert.match(ics, /\r\nDTSTART:20261002T083000Z\r\nDTEND:20261002T090000Z\r\n/)
+  assert.match(ics, /SUMMARY:Appuntamento - Studio Rossi\\, Bianchi\\; & C\./)
+  assert.match(ics, /DESCRIPTION:Igiene orale\\nPer spostare/)
+  assert.match(ics, /TRIGGER:-P1D/)
+  for (const line of ics.split('\r\n')) assert.ok(new TextEncoder().encode(line).length <= 75, line)
+  // Le righe divise si ricompongono nel testo originale.
+  const unfolded = ics.replace(/\r\n /g, '')
+  assert.match(unfolded, /LOCATION:Via Roma 12\\, 80073 Capri \(NA\) — scala B\\, secondo piano\\, citofono "Studio dentistico Rossi"\r\n/)
+})
+
+test('calendario: link di Google Calendar', () => {
+  const start = zonedToUtc('2026-10-02', '10:30', 'Europe/Rome')
+  const url = new URL(googleCalendarUrl({ start, end: start + 1800_000, title: 'Appuntamento', description: 'x', location: 'Capri' }))
+  assert.equal(url.hostname, 'calendar.google.com')
+  assert.equal(url.searchParams.get('dates'), '20261002T083000Z/20261002T090000Z')
+  assert.equal(url.searchParams.get('action'), 'TEMPLATE')
 })

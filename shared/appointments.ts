@@ -40,32 +40,60 @@ export interface MessageInput {
 }
 
 /**
- * Riepilogo dell'appuntamento per WhatsApp: *grassetto* per data e ora, link di conferma
- * personale, istruzioni per spostarlo.
+ * Riepilogo dell'appuntamento per WhatsApp. Le icone sono solo emoji del 2010 (Unicode 6.0),
+ * presenti su qualsiasi telefono; *grassetto* solo per il nome dello studio e per la richiesta
+ * di conferma, così il messaggio resta pulito anche dove WhatsApp sottolinea date e numeri.
  */
 export function whatsAppMessage(m: MessageInput): string {
-  const day = formatLongDay(m.day)
   const lines = [
-    `Gentile ${m.patientName.trim()},`,
-    `le ricordiamo il suo appuntamento presso *${m.studioName.trim()}*:`,
+    `*${m.studioName.trim()}*`,
+    'Promemoria appuntamento',
     '',
-    `📅 *${day}*`,
-    `🕘 *Ore ${m.time}*`,
+    `Gentile ${m.patientName.trim()},`,
+    'le ricordiamo il suo prossimo appuntamento:',
+    '',
+    `📅 ${formatLongDay(m.day)}`,
+    `⏰ Ore ${m.time}`,
   ]
-  if (m.serviceName.trim()) lines.push(`🦷 ${m.serviceName.trim()}`)
+  if (m.serviceName.trim()) lines.push(`📋 ${m.serviceName.trim()}`)
   if (m.address.trim()) lines.push(`📍 ${m.address.trim()}`)
-  lines.push('', '✅ Per confermare la sua presenza apra questo link:', m.confirmUrl, '')
   lines.push(
+    '',
+    '👉 *Confermi la sua presenza* da questo link:',
+    m.confirmUrl,
+    "Dalla stessa pagina può aggiungere l'appuntamento al calendario del telefono.",
+    '',
     m.studioPhone.trim()
-      ? `Per spostare o annullare l'appuntamento risponda a questo messaggio o chiami lo ${m.studioPhone.trim()}.`
-      : `Per spostare o annullare l'appuntamento risponda a questo messaggio.`,
+      ? `📞 Per spostarlo o annullarlo risponda a questo messaggio o chiami lo ${m.studioPhone.trim()}.`
+      : '📞 Per spostarlo o annullarlo risponda a questo messaggio.',
+    '',
+    'A presto!',
   )
-  lines.push('A presto!')
   return lines.join('\n')
 }
 
-/** Link wa.me che apre la chat con il paziente e il messaggio già scritto. */
+/** Link wa.me che apre la chat con il paziente e il messaggio già scritto (telefoni e app). */
 export function whatsAppLink(phone: string, text: string): string | null {
   const n = whatsAppNumber(phone)
   return n ? `https://wa.me/${n}?text=${encodeURIComponent(text)}` : null
+}
+
+/**
+ * Stessa chat in WhatsApp Web. Dal computer è più affidabile: passando da wa.me l'app WhatsApp
+ * per computer può sostituire le emoji del messaggio già scritto con "�".
+ */
+export function whatsAppWebLink(phone: string, text: string): string | null {
+  const n = whatsAppNumber(phone)
+  return n ? `https://web.whatsapp.com/send?phone=${n}&text=${encodeURIComponent(text)}` : null
+}
+
+/** Titolo, descrizione e luogo dell'evento di calendario dell'appuntamento. */
+export function appointmentEventText(m: { studioName: string; studioPhone: string; address: string; serviceName: string }) {
+  const description = [
+    m.serviceName.trim(),
+    m.studioPhone.trim() ? `Per spostare o annullare: ${m.studioPhone.trim()}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+  return { title: `Appuntamento - ${m.studioName.trim()}`, description, location: m.address.trim() }
 }

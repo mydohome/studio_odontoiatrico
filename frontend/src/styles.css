@@ -1988,6 +1988,15 @@ a.public-line {
   align-items: center;
 }
 
+.public-calendar {
+  display: grid;
+  gap: 8px;
+}
+
+.public-calendar p {
+  margin: 0;
+}
+
 .public-contact {
   display: grid;
   gap: 8px;

@@ -1,5 +1,7 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
+import { appointmentEventText } from '../../shared/appointments.ts'
+import { buildIcs, zonedToUtc } from '../../shared/calendar.ts'
 import { CATEGORIES } from '../../shared/catalog.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
 import type { Appointment, CategoryId, ImportResult, PublicAppointment } from '../../shared/types.ts'
@@ -541,8 +543,12 @@ async function publicView(a: Appointment): Promise<PublicAppointment> {
     confirmed: a.confirmedAt !== null,
     confirmedAt: a.confirmedAt,
     past: a.day < today(),
+    timeZone: STUDIO_TZ,
   }
 }
+
+// Fuso dello studio (variabile TZ del container): gli orari degli appuntamenti sono in quest'ora.
+const STUDIO_TZ = process.env.TZ || 'Europe/Rome'
 
 const NOT_FOUND = 'Link non valido o scaduto, oppure l\'appuntamento è stato annullato.'
 
@@ -551,6 +557,28 @@ app.get('/api/public/appointments/:token', async (req, reply) => {
   const a = await findByToken((req.params as { token: string }).token)
   if (!a) throw new HttpError(404, NOT_FOUND)
   return publicView(a)
+})
+
+// Evento da aggiungere al calendario del telefono (iPhone apre direttamente "Aggiungi evento").
+app.get('/api/public/appointments/:token/calendar.ics', async (req, reply) => {
+  const token = (req.params as { token: string }).token
+  const a = await findByToken(token)
+  if (!a) throw new HttpError(404, NOT_FOUND)
+  const st = await readSettings()
+  const start = zonedToUtc(a.day, a.time, STUDIO_TZ)
+  const ics = buildIcs({
+    // Stesso UID per lo stesso appuntamento: riaggiungendolo il calendario lo aggiorna invece di duplicarlo.
+    uid: `${createHash('sha256').update(token).digest('hex').slice(0, 24)}@studio-odontoiatrico`,
+    start,
+    end: start + a.duration * 60_000,
+    ...appointmentEventText({ studioName: st.studioName, studioPhone: st.phone, address: st.address, serviceName: a.serviceName }),
+  })
+  return reply
+    .header('content-type', 'text/calendar; charset=utf-8')
+    .header('content-disposition', `attachment; filename="appuntamento-${a.day}.ics"`)
+    .header('cache-control', 'no-store')
+    .header('x-robots-tag', 'noindex, nofollow')
+    .send(ics)
 })
 
 // Conferma solo con POST (pulsante nella pagina): le anteprime dei link di WhatsApp fanno GET.

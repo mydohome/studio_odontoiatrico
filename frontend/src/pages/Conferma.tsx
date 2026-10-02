@@ -1,9 +1,10 @@
 // Pagina pubblica aperta dal paziente con il link ricevuto su WhatsApp: niente accesso, solo il
 // riepilogo dell'appuntamento e il pulsante di conferma.
 
-import { CalendarCheck2, CheckCircle2, Clock, Loader2, MapPin, MessageCircle, Phone, Stethoscope } from 'lucide-react'
+import { CalendarCheck2, CalendarPlus, CheckCircle2, Clock, Loader2, MapPin, MessageCircle, Phone, Stethoscope } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { endTime, whatsAppNumber } from '../../../shared/appointments.ts'
+import { appointmentEventText, endTime, whatsAppNumber } from '../../../shared/appointments.ts'
+import { googleCalendarUrl, zonedToUtc } from '../../../shared/calendar.ts'
 import { formatLongDay } from '../../../shared/dates.ts'
 import type { PublicAppointment } from '../../../shared/types.ts'
 import { LOGO_PREVIEWS } from '../flyer/logoPreview.ts'
@@ -21,6 +22,8 @@ function Logo({ studio }: { studio: PublicAppointment['studio'] }) {
     </span>
   )
 }
+
+const IS_ANDROID = /Android/i.test(navigator.userAgent)
 
 export default function Conferma({ token }: { token: string }) {
   const [data, setData] = useState<PublicAppointment | null>(null)
@@ -74,6 +77,22 @@ export default function Conferma({ token }: { token: string }) {
 
   const { studio } = data
   const wa = studio.phone ? whatsAppNumber(studio.phone) : null
+  const start = zonedToUtc(data.day, data.time, data.timeZone || 'Europe/Rome')
+  const event = {
+    start,
+    end: start + data.duration * 60_000,
+    ...appointmentEventText({ studioName: studio.name, studioPhone: studio.phone, address: studio.address, serviceName: data.serviceName }),
+  }
+  const icsButton = (
+    <a key="ics" className={`btn ${IS_ANDROID ? '' : 'btn-primary'}`} href={`/api/public/appointments/${encodeURIComponent(token)}/calendar.ics`}>
+      <CalendarPlus size={16} /> {IS_ANDROID ? 'Altro calendario (.ics)' : 'Calendario del telefono'}
+    </a>
+  )
+  const googleButton = (
+    <a key="google" className={`btn ${IS_ANDROID ? 'btn-primary' : ''}`} href={googleCalendarUrl(event)} target="_blank" rel="noopener noreferrer">
+      <CalendarPlus size={16} /> Google Calendar
+    </a>
+  )
   const maps = studio.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(studio.address)}` : null
 
   return (
@@ -122,6 +141,13 @@ export default function Conferma({ token }: { token: string }) {
           </button>
         )}
         {error && <div className="alert alert-danger">{error}</div>}
+
+        {!data.past && (
+          <div className="public-calendar">
+            <p className="small muted">Aggiunga l'appuntamento al calendario, con un promemoria il giorno prima:</p>
+            <div className="public-contact-actions">{IS_ANDROID ? [googleButton, icsButton] : [icsButton, googleButton]}</div>
+          </div>
+        )}
 
         {(studio.phone || wa) && (
           <div className="public-contact">

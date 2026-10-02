@@ -1,6 +1,6 @@
 import { CalendarClock, Check, Copy, Link2, MessageCircle, Pencil, Phone, RotateCcw, Stethoscope, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { endTime, LINK_DAYS_AFTER, linkExpiry, whatsAppLink } from '../../../shared/appointments.ts'
+import { endTime, LINK_DAYS_AFTER, linkExpiry, whatsAppLink, whatsAppWebLink } from '../../../shared/appointments.ts'
 import { formatDay, formatLongDay, today } from '../../../shared/dates.ts'
 import type { Appointment } from '../../../shared/types.ts'
 import { api, type AppSettings } from '../lib/api.ts'
@@ -28,6 +28,10 @@ async function copy(text: string) {
   }
 }
 
+/** Telefono o tablet: lì il link wa.me apre l'app WhatsApp con le emoji intatte. */
+const IS_MOBILE =
+  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent))
+
 interface Props {
   appointment: Appointment
   settings: AppSettings
@@ -44,6 +48,7 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
   const status = STATUS[a.status]
   const confirmed = a.status === 'confermato-link' || a.status === 'confermato-manuale'
   const waLink = whatsAppLink(a.patientPhone, message)
+  const webLink = whatsAppWebLink(a.patientPhone, message)
   const warning = linkWarning(settings)
   const linkUntil = linkExpiry(a.day)
   const expired = linkUntil < today()
@@ -68,11 +73,13 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
     }
   }
 
-  const openWhatsApp = () => {
-    if (!waLink) return
+  const openWhatsApp = (link: string | null) => {
+    if (!link) return
     // Va aperto subito, nello stesso clic: altrimenti il browser lo blocca come popup.
-    window.open(waLink, '_blank', 'noopener')
+    window.open(link, '_blank', 'noopener')
     markSent()
+    // Dal computer il messaggio va anche negli appunti: se WhatsApp lo altera, basta incollarlo.
+    if (!IS_MOBILE) copy(message).then((ok) => ok && notify('Chat aperta. Il messaggio è anche negli appunti, se serve incollarlo.'))
   }
 
   const copyMessage = async () => {
@@ -152,7 +159,7 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
 
           <div className="appt-message">
             <div className="field-label">Messaggio WhatsApp</div>
-            <textarea className="input" rows={13} value={message} onChange={(e) => setMessage(e.target.value)} />
+            <textarea className="input" rows={17} value={message} onChange={(e) => setMessage(e.target.value)} />
             {expired && (
               <div className="alert alert-warn small">
                 <TriangleAlert size={16} style={{ flex: 'none' }} />
@@ -171,9 +178,26 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
               </div>
             )}
             <div className="appt-actions">
-              <button type="button" className="btn btn-whatsapp" onClick={openWhatsApp} disabled={!waLink}>
-                <MessageCircle size={16} /> Apri in WhatsApp
-              </button>
+              {IS_MOBILE ? (
+                <button type="button" className="btn btn-whatsapp" onClick={() => openWhatsApp(waLink)} disabled={!waLink}>
+                  <MessageCircle size={16} /> Apri in WhatsApp
+                </button>
+              ) : (
+                <>
+                  <button type="button" className="btn btn-whatsapp" onClick={() => openWhatsApp(webLink)} disabled={!webLink}>
+                    <MessageCircle size={16} /> Apri in WhatsApp Web
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => openWhatsApp(waLink)}
+                    disabled={!waLink}
+                    title="Apre l'app WhatsApp per computer: può mostrare le icone come «�», in quel caso incolla il messaggio (è già negli appunti)"
+                  >
+                    App WhatsApp
+                  </button>
+                </>
+              )}
               <button type="button" className="btn" onClick={copyMessage}>
                 <Copy size={16} /> Copia messaggio
               </button>

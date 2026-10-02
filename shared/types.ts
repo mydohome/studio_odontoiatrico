@@ -138,4 +138,6 @@ export interface PublicAppointment {
   confirmedAt: string | null
   /** Appuntamento già passato: non si può più confermare. */
   past: boolean
+  /** Fuso orario dello studio (es. Europe/Rome), per l'evento di calendario. */
+  timeZone: string
 }

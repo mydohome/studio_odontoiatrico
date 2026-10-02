@@ -63,6 +63,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-studio}:${POSTGRES_PASSWORD:?Imposta POSTGRES_PASSWORD nel file .env}@db:5432/${POSTGRES_DB:-studio}
       SESSION_SECRET: ${SESSION_SECRET:-}
+      DATA_KEY: ${DATA_KEY:-}
       TZ: ${TZ:-Europe/Rome}
       # Indirizzo dei link di conferma (es. https://conferma.dominio.it), se diverso dal gestionale.
       CONFIRM_URL: ${CONFIRM_URL:-}

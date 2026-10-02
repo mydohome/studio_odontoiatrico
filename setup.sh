@@ -87,6 +87,15 @@ die() {
 }
 title() { printf '\n%s\n' "${B}$*${N}"; }
 
+# Chiave da 32 byte in esadecimale (DATA_KEY).
+gen_data_key() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+  else
+    head -c 32 /dev/urandom | od -An -v -tx1 | tr -d ' \n'
+  fi
+}
+
 # Stringa casuale alfanumerica (sicura dentro URL e file .env).
 gen_secret() {
   local len=${1:-32} out=''
@@ -273,6 +282,8 @@ KEEP_DB_PASSWORD=''
 KEEP_DB_USER=''
 KEEP_DB_NAME=''
 KEEP_SESSION=''
+KEEP_DATA_KEY=''
+NEW_DATA_KEY=0
 OLD_PORT=''
 OLD_TZ=''
 OLD_CONFIRM_URL=''
@@ -292,6 +303,7 @@ if [ -f "$ENV_FILE" ]; then
   KEEP_DB_USER=$(env_get POSTGRES_USER "$ENV_FILE")
   KEEP_DB_NAME=$(env_get POSTGRES_DB "$ENV_FILE")
   KEEP_SESSION=$(env_get SESSION_SECRET "$ENV_FILE")
+  KEEP_DATA_KEY=$(env_get DATA_KEY "$ENV_FILE")
   OLD_PORT=$(env_get HTTP_PORT "$ENV_FILE")
   OLD_TZ=$(env_get TZ "$ENV_FILE")
   OLD_CONFIRM_URL=$(env_get CONFIRM_URL "$ENV_FILE")
@@ -312,6 +324,17 @@ elif [ -d db/data ]; then
     echo
     [ -n "$KEEP_DB_PASSWORD" ] || die "Annullato. Per ripartire da zero elimina la cartella db/data (cancella tutti i dati)."
   fi
+  # Anche la chiave dei dati dei pazienti: con una nuova non sarebbero più leggibili.
+  if [ -n "${DATA_KEY:-}" ]; then
+    KEEP_DATA_KEY=$DATA_KEY
+  elif [ "$ASSUME_YES" -eq 0 ]; then
+    read -r -s -p "Chiave dei dati dei pazienti DATA_KEY (invio = nessuna, se non era impostata): " KEEP_DATA_KEY </dev/tty
+    echo
+  fi
+  KEEP_DATA_KEY=$(printf '%s' "$KEEP_DATA_KEY" | tr -d '[:space:]')
+  case $KEEP_DATA_KEY in
+    '' | *[!A-Za-z0-9+/=_-]*) [ -z "$KEEP_DATA_KEY" ] || die "DATA_KEY non valida (deve essere quella del vecchio .env, 64 caratteri esadecimali)." ;;
+  esac
 fi
 
 PORT=${OLD_PORT:-80}
@@ -416,6 +439,8 @@ if [ "$REWRITE_ENV" -eq 1 ]; then
   DB_NAME=${KEEP_DB_NAME:-studio}
   DB_PASSWORD=${KEEP_DB_PASSWORD:-$(gen_secret 32)}
   SESSION=${KEEP_SESSION:-$(gen_secret 48)}
+  DATAKEY=${KEEP_DATA_KEY:-$(gen_data_key)}
+  [ -n "$KEEP_DATA_KEY" ] || NEW_DATA_KEY=1
   no_quotes "$DB_PASSWORD" || die "La password del database non può contenere apici singoli."
 
   [ -f "$ENV_FILE" ] && backup "$ENV_FILE"
@@ -436,6 +461,10 @@ POSTGRES_PASSWORD='$DB_PASSWORD'
 # Chiave per firmare i cookie di sessione (cambiandola si chiudono tutte le sessioni)
 SESSION_SECRET='$SESSION'
 
+# Chiave che cifra nome, telefono e note dei pazienti nel database. NON cambiarla e conservane una
+# copia fuori dal server (es. gestore di password): senza questa chiave i dati non sono più leggibili.
+DATA_KEY=$DATAKEY
+
 # Porta HTTP pubblicata sull'host (usata solo con $TPL_NETWORK)
 HTTP_PORT=$PORT
 
@@ -452,6 +481,12 @@ EOF
   chmod 600 "$ENV_FILE"
   umask 022
   ok "File $ENV_FILE creato (leggibile solo dal tuo utente)."
+elif [ -z "$KEEP_DATA_KEY" ]; then
+  # .env mantenuto ma senza la chiave dei dati dei pazienti (installazione precedente): si aggiunge.
+  DATAKEY=$(gen_data_key)
+  NEW_DATA_KEY=1
+  printf '\n# Chiave che cifra nome, telefono e note dei pazienti nel database. NON cambiarla e conservane una\n# copia fuori dal server: senza questa chiave i dati non sono più leggibili.\nDATA_KEY=%s\n' "$DATAKEY" >>"$ENV_FILE"
+  ok "Aggiunta al $ENV_FILE la chiave DATA_KEY per cifrare i dati dei pazienti."
 fi
 
 # ---------- 3. docker-compose.yml ----------
@@ -630,6 +665,13 @@ fi
 echo "  Fuso orario:    $TIMEZONE"
 echo "  Link conferma:  ${CONFIRM_LINK:-stesso indirizzo del gestionale (Impostazioni → Studio)}"
 echo "  Backup:         $BACKUP_STATUS"
+if [ "$NEW_DATA_KEY" -eq 1 ]; then
+  echo
+  echo "  ${Y}Chiave dei dati dei pazienti (DATA_KEY nel $ENV_FILE):${N} nome, telefono e note sono cifrati"
+  echo "  nel database con questa chiave. Salvane una copia fuori dal server (es. gestore di password),"
+  echo "  non insieme ai backup: senza la chiave i dati e i backup non sono più leggibili."
+  echo "    ${B}$DATAKEY${N}"
+fi
 echo
 CONFIRM_HOST=${CONFIRM_LINK#*://}
 CONFIRM_HOST=${CONFIRM_HOST%%/*}

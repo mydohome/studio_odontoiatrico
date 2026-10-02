@@ -171,6 +171,23 @@ La scheda **Appuntamenti** (icona del calendario) contiene l'agenda dello studio
   | ⚪ *Da inviare* | messaggio non ancora preparato |
   | 🟣 *Da riprogrammare* | il paziente deve spostare l'appuntamento: è senza data né ora |
 
+### Dati dei pazienti cifrati
+
+Nome, telefono e note degli appuntamenti sono **cifrati nel database** (AES-256-GCM) con la chiave `DATA_KEY` del
+`.env`, che non sta nel database né nei backup: chi ottenesse un dump, un backup, la cartella `db/data` o l'accesso a
+PostgreSQL vedrebbe solo codici `v1:…`. Nell'app non cambia nulla: il backend cifra prima di salvare e decifra in
+lettura.
+
+- La chiave la genera `setup.sh` (nuove installazioni) o `update.sh` (installazioni esistenti); al primo avvio gli
+  appuntamenti già inseriti vengono cifrati.
+- ⚠️ **Conserva una copia di `DATA_KEY` fuori dal server** (es. in un gestore di password), non insieme ai backup:
+  senza la chiave i dati dei pazienti e i backup non sono più leggibili. Per spostare lo studio su un altro server,
+  copia anche la chiave nel nuovo `.env`.
+- Non cambiarla: se nel `.env` c'è una chiave diversa da quella usata per cifrare (o manca), le API non partono e il
+  log (`docker compose logs api`) lo spiega, così non si rischiano dati illeggibili o cifrati con due chiavi.
+- Non protegge da chi ottiene il pieno controllo del server (potrebbe leggere anche il `.env`): per quello servono
+  server aggiornato, accesso SSH con chiavi e l'Access List sul gestionale in NPM.
+
 ### Da riprogrammare
 
 Quando un paziente, confermato o no, deve spostare l'appuntamento: **Modifica → Da riprogrammare**. L'appuntamento
@@ -330,6 +347,7 @@ Le password vengono chieste due volte senza mostrarle; da uno script si possono 
 | `INSTANCE` | Nome dell'istanza, prefisso di container e immagini (predefinito `studio-odontoiatrico`). |
 | `POSTGRES_PASSWORD` | Password del database (generata da `setup.sh`). |
 | `SESSION_SECRET` | Chiave per firmare i cookie di sessione (generata; cambiandola si chiudono tutte le sessioni). |
+| `DATA_KEY` | Chiave che cifra nome, telefono e note dei pazienti (generata; **non cambiarla e conservane una copia fuori dal server**). |
 | `HTTP_PORT` | Porta pubblicata sull'host, solo con `_deploy_network_example.yml` (predefinita 80). |
 | `CONFIRM_URL` | Indirizzo dei link di conferma su un dominio separato, es. `https://conferma.dominio.it` (facoltativo; vale se non è impostato in Impostazioni). |
 | `CONFIRM_PORT` | Porta pubblicata per le conferme, solo con `_deploy_network_example.yml` (predefinita 8180; `update.sh` ne assegna una libera se manca). |
@@ -479,6 +497,9 @@ ripristino". Dopo la scelta chiede di scrivere `RIPRISTINA` per conferma, poi:
 
 Altre opzioni: `--list` (solo elenco), `--latest` (il più recente), `--file PERCORSO` (una cartella di backup o un file
 `.sql.gz`, anche copiati da un altro server), `--yes` (senza domande, con `--latest` o `--file`).
+
+Nei backup nome, telefono e note dei pazienti sono cifrati: per ripristinarli su un altro server serve la stessa
+`DATA_KEY` nel `.env`. Un backup fatto prima della cifratura viene cifrato al riavvio.
 
 In alternativa, *Esporta tutto in Excel* produce un file reimportabile con tutte le registrazioni.
 

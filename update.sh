@@ -254,6 +254,23 @@ if grep -q 'CONFIRM_PORT' docker-compose.yml && [ -z "$(env_get CONFIRM_PORT)" ]
   done
 fi
 
+# Chiave che cifra i dati dei pazienti: si genera una volta sola e poi non va più cambiata.
+if [ -z "$(env_get DATA_KEY)" ]; then
+  if grep -q 'DATA_KEY' docker-compose.yml; then
+    if command -v openssl >/dev/null 2>&1; then
+      key=$(openssl rand -hex 32)
+    else
+      key=$(head -c 32 /dev/urandom | od -An -v -tx1 | tr -d ' \n')
+    fi
+    printf '\n# Chiave che cifra nome, telefono e note dei pazienti nel database (aggiunta da update.sh).\n# NON cambiarla e conservane una copia fuori dal server: senza questa chiave i dati non sono più leggibili.\nDATA_KEY=%s\n' "$key" >>.env
+    ok "Generata la chiave DATA_KEY: al riavvio nome, telefono e note dei pazienti vengono cifrati nel database."
+    warn "Salva una copia della chiave fuori dal server (es. gestore di password), non insieme ai backup:"
+    echo "    $key"
+  else
+    warn "docker-compose.yml personalizzato senza DATA_KEY: i dati dei pazienti restano in chiaro. Aggiungi DATA_KEY: \${DATA_KEY:-} all'ambiente del servizio api."
+  fi
+fi
+
 # Nuove variabili introdotte in .env.example e assenti nel .env.
 missing=$(comm -23 <(grep -oE '^[A-Z_]+=' .env.example | sort -u) <(grep -oE '^[A-Z_]+=' .env | sort -u) | tr -d '=' | tr '\n' ' ')
 [ -z "$missing" ] || warn "Nuove variabili disponibili in .env.example non presenti nel tuo .env: $missing"
@@ -303,6 +320,7 @@ if confirm "Tornare alla versione precedente ($(version "$OLD"))?"; then
   fi
   if deploy; then
     warn "Ripristinata la versione precedente $(version "$OLD"). Il backup del database è in backups/."
+    warn "Se nome e telefono dei pazienti appaiono come codici «v1:…», ripristina quel backup con ./recovery.sh."
   else
     die "Anche la versione precedente non parte: controlla con 'docker compose logs'. Backup del database in backups/."
   fi

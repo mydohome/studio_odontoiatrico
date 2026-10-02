@@ -35,6 +35,7 @@ import {
   saveCustomFlyer,
   updateCustomCampaign,
 } from './customCampaigns.ts'
+import { DataKeyError, initDataCrypto } from './dataCrypto.ts'
 import { getSetting, listRecords, listServices, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
@@ -691,6 +692,7 @@ async function start() {
     }
   }
   await loadSecret()
+  await initDataCrypto()
   await app.listen({ port: PORT, host: '0.0.0.0' })
   const n = await countUsers()
   console.log(`Backend in ascolto sulla porta ${PORT} · utenti configurati: ${n}`)
@@ -706,6 +708,6 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 }
 
 start().catch((e) => {
-  console.error(e)
+  console.error(e instanceof DataKeyError ? `ERRORE: ${e.message}` : e)
   process.exit(1)
 })

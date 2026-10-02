@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { LINK_DAYS_AFTER } from '../../shared/appointments.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
 import type { Appointment, AppointmentInput, AppointmentStatus, ScheduledAppointment } from '../../shared/types.ts'
+import { decrypt, encrypt } from './dataCrypto.ts'
 import { pool } from './db.ts'
 
 export class AppointmentError extends Error {}
@@ -69,8 +70,21 @@ function statusOf(r: Row): AppointmentStatus {
 
 function toAppointment(r: Row): Appointment {
   const { confirmedVia: _via, ...rest } = r
-  return { ...rest, status: statusOf(r) }
+  return {
+    ...rest,
+    patientName: decrypt(r.patientName, 'patient_name'),
+    patientPhone: decrypt(r.patientPhone, 'patient_phone'),
+    notes: decrypt(r.notes, 'notes'),
+    status: statusOf(r),
+  }
 }
+
+/** Nome, telefono e note come vanno salvati (cifrati se DATA_KEY è impostata). */
+const sealed = (input: AppointmentInput) => [
+  encrypt(input.patientName, 'patient_name'),
+  encrypt(input.patientPhone, 'patient_phone'),
+  encrypt(input.notes, 'notes'),
+]
 
 const text = (v: unknown, field: string, max: number, required = false): string => {
   const s = String(v ?? '').replace(/\s+/g, ' ').trim()
@@ -134,22 +148,31 @@ export async function listAppointments(from: string, to: string): Promise<Appoin
 }
 
 /** Pazienti degli ultimi due anni (nome e telefono più recente), per il completamento automatico. */
+// I nomi sono cifrati: si raggruppano qui, dopo averli decifrati, e non nel database.
 export async function listPatients(): Promise<{ name: string; phone: string }[]> {
   const { rows } = await pool.query(
-    `SELECT DISTINCT ON (lower(patient_name)) patient_name AS name, patient_phone AS phone
-     FROM appointments WHERE day >= $1
-     ORDER BY lower(patient_name), day DESC, start_time DESC LIMIT 2000`,
+    `SELECT patient_name, patient_phone FROM appointments WHERE day >= $1 ORDER BY day DESC, start_time DESC`,
     [addDays(today(), -730)],
   )
-  return rows
+  const byName = new Map<string, { name: string; phone: string }>()
+  for (const r of rows) {
+    const name = decrypt(r.patient_name, 'patient_name')
+    const k = name.toLowerCase()
+    if (!byName.has(k)) byName.set(k, { name, phone: decrypt(r.patient_phone, 'patient_phone') })
+  }
+  return [...byName.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .slice(0, 2000)
+    .map(([, p]) => p)
 }
 
 export async function createAppointment(input: AppointmentInput, user: string | null): Promise<Appointment> {
   const name = await serviceName(input.serviceId)
+  const [pn, pp, notes] = sealed(input)
   const { rows } = await pool.query(
     `INSERT INTO appointments (day, start_time, duration_min, patient_name, patient_phone, service_id, service_name, notes, token, created_by)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [input.day, input.time, input.duration, input.patientName, input.patientPhone, input.serviceId, name, input.notes, newToken(), user],
+    [input.day, input.time, input.duration, pn, pp, input.serviceId, name, notes, newToken(), user],
   )
   return getById(rows[0].id)
 }
@@ -158,12 +181,15 @@ export async function createAppointment(input: AppointmentInput, user: string | 
  * Se cambiano giorno, ora o telefono la conferma e l'invio non valgono più: il paziente deve
  * ricevere il nuovo riepilogo e confermare di nuovo (il link resta lo stesso).
  */
-// Cambio di data o ora (anche da "da riprogrammare", dove sono vuote) e cambio di telefono.
+// Cambio di data o ora (anche da "da riprogrammare", dove sono vuote) e cambio di telefono
+// ($10: il telefono salvato è cifrato, quindi il confronto si fa qui e non nel database).
 const MOVED = 'day IS DISTINCT FROM $2::date OR start_time IS DISTINCT FROM $3::time'
-const CHANGED = `${MOVED} OR patient_phone <> $6`
+const CHANGED = `${MOVED} OR $10::boolean`
 
 export async function updateAppointment(id: number, input: AppointmentInput): Promise<Appointment> {
   const name = await serviceName(input.serviceId)
+  const phoneChanged = (await getById(id)).patientPhone !== input.patientPhone
+  const [pn, pp, notes] = sealed(input)
   const { rowCount } = await pool.query(
     `UPDATE appointments SET
        sent_at = CASE WHEN ${CHANGED} THEN NULL ELSE sent_at END,
@@ -177,7 +203,7 @@ export async function updateAppointment(id: number, input: AppointmentInput): Pr
        service_id = $7, service_name = $8, notes = $9, updated_at = now(),
        prev_day = NULL, prev_time = NULL, reschedule_at = NULL
      WHERE id = $1`,
-    [id, input.day, input.time, input.duration, input.patientName, input.patientPhone, input.serviceId, name, input.notes],
+    [id, input.day, input.time, input.duration, pn, pp, input.serviceId, name, notes, phoneChanged],
   )
   if (!rowCount) throw new AppointmentError('Appuntamento non trovato')
   return getById(id)

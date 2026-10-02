@@ -32,6 +32,16 @@
   --div-neg: #2a78d6;
   --div-mid: #f0efec;
   --div-pos: #e34948;
+
+  --st-link: #1f7a3a;
+  --st-link-soft: #e3f3e7;
+  --st-manual: #2563c4;
+  --st-manual-soft: #e6eefb;
+  --st-sent: #9a6500;
+  --st-sent-soft: #fcf1dc;
+  --st-new: #6b6e72;
+  --st-new-soft: #eeefec;
+  --whatsapp: #1fa855;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -68,6 +78,16 @@
     --div-neg: #3987e5;
     --div-mid: #383835;
     --div-pos: #e66767;
+
+    --st-link: #5cc27a;
+    --st-link-soft: #17301f;
+    --st-manual: #7aa8f5;
+    --st-manual-soft: #1a2740;
+    --st-sent: #e2a93a;
+    --st-sent-soft: #3a2d12;
+    --st-new: #a3a6a2;
+    --st-new-soft: #262928;
+    --whatsapp: #25c463;
   }
 }
 
@@ -1469,4 +1489,532 @@ tbody tr:last-child td {
   max-width: 120px;
   object-fit: contain;
   flex: none;
+}
+
+/* ---------- Appuntamenti ---------- */
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.st-link {
+  --c: var(--st-link);
+  --c-soft: var(--st-link-soft);
+}
+
+.st-manual {
+  --c: var(--st-manual);
+  --c-soft: var(--st-manual-soft);
+}
+
+.st-sent {
+  --c: var(--st-sent);
+  --c-soft: var(--st-sent-soft);
+}
+
+.st-new {
+  --c: var(--st-new);
+  --c-soft: var(--st-new-soft);
+}
+
+.appt-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+  color: var(--c);
+  background: var(--c-soft);
+  border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  justify-self: start;
+}
+
+.btn-whatsapp {
+  background: var(--whatsapp);
+  border-color: var(--whatsapp);
+  color: #fff;
+}
+
+.btn-whatsapp:hover {
+  background: color-mix(in srgb, var(--whatsapp) 85%, #000);
+}
+
+.cal-card {
+  padding: 14px;
+}
+
+.cal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cal-date-pick {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Il selettore di data nativo, invisibile sopra l'icona. */
+.cal-date-pick input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cal-date-pick input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  cursor: pointer;
+}
+
+.cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.cal-legend > .small {
+  margin-right: 4px;
+}
+
+.cal {
+  --hours-w: 50px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cal-head,
+.cal-body {
+  display: grid;
+  grid-template-columns: var(--hours-w) repeat(var(--cols), minmax(0, 1fr));
+}
+
+.cal-head {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.cal-day-head {
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  padding: 8px 6px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  color: var(--text-2);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.cal-day-head:disabled {
+  cursor: default;
+}
+
+.cal-day-head:not(:disabled):hover {
+  background: var(--surface);
+}
+
+.cal-day-head strong {
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.cal-day-head.is-today strong {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+
+.cal-day-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.cal-scroll {
+  max-height: max(420px, calc(100vh - 290px));
+  overflow-y: auto;
+}
+
+.cal-body {
+  position: relative;
+}
+
+.cal-hours {
+  position: relative;
+}
+
+.cal-hours span {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-hours span:first-child {
+  transform: none;
+}
+
+/* Righe delle ore come sfondo della colonna. */
+.cal-col {
+  position: relative;
+  border-left: 1px solid var(--border);
+  background-image: linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  cursor: copy;
+}
+
+.cal-col.is-today {
+  background-color: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.cal-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--danger);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.cal-now::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.cal-ev {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
+  border-left: 4px solid var(--c);
+  border-radius: 7px;
+  background: var(--c-soft);
+  color: var(--text);
+  text-align: left;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cal-ev:hover {
+  z-index: 3;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+}
+
+.cal-ev.is-short {
+  justify-content: center;
+  padding-block: 0;
+}
+
+.cal-ev-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.cal-ev-icon {
+  flex: none;
+  color: var(--c);
+}
+
+.cal-ev-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Affiancati nella settimana: c'è posto solo per il nome (l'ora si legge dalla posizione). */
+.cal-ev.is-narrow .cal-ev-time,
+.cal-ev.is-narrow .cal-ev-icon {
+  display: none;
+}
+
+.cal-ev-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-ev-sub {
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Elenco della settimana su schermi stretti. */
+.agenda {
+  display: grid;
+  gap: 12px;
+}
+
+.agenda-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+
+.agenda-day.is-today .agenda-day-head strong {
+  color: var(--accent);
+}
+
+.agenda-empty {
+  margin: 4px 0;
+}
+
+.agenda-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.agenda-time {
+  display: grid;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.agenda-time small {
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.agenda-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agenda-main .appt-tag {
+  margin-top: 3px;
+}
+
+.agenda-main > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dettaglio dell'appuntamento */
+.appt-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.appt-facts {
+  display: grid;
+  gap: 8px;
+}
+
+.appt-facts > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.appt-facts > div svg {
+  flex: none;
+  color: var(--text-3);
+}
+
+.appt-notes {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  white-space: pre-line;
+}
+
+.appt-history {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.appt-message {
+  display: grid;
+  gap: 10px;
+}
+
+.appt-message textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.appt-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.appt-detail-foot {
+  flex-wrap: wrap;
+}
+
+.appt-form-foot {
+  flex-wrap: wrap;
+}
+
+.appt-prepare {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  cursor: pointer;
+}
+
+/* Pagina pubblica di conferma */
+.public-page .public-card {
+  max-width: 420px;
+  gap: 14px;
+}
+
+.public-state {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 6px;
+  text-align: center;
+  color: var(--text-2);
+}
+
+.public-state p {
+  margin: 0;
+}
+
+.public-hello {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.public-when {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+
+.public-day {
+  font-size: 1.3rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.public-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+
+.public-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.public-line svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--accent);
+}
+
+a.public-line {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.public-confirm {
+  padding: 13px 16px;
+  font-size: 1.05rem;
+}
+
+.public-done {
+  align-items: center;
+}
+
+.public-contact {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.public-contact p {
+  margin: 0;
+}
+
+.public-contact-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .cal {
+    --hours-w: 42px;
+  }
+
+  .cal-toolbar {
+    justify-content: center;
+  }
+
+  .period-label {
+    min-width: 0;
+  }
 }

@@ -96,3 +96,46 @@ export type CustomCampaignInput = Pick<
   CustomCampaign,
   'category' | 'title' | 'offer' | 'target' | 'channels' | 'dateFrom' | 'dateTo' | 'notes'
 >
+
+/** Stato della conferma di un appuntamento. */
+export type AppointmentStatus = 'da-inviare' | 'inviato' | 'confermato-link' | 'confermato-manuale'
+
+export interface Appointment {
+  id: number
+  /** Giorno (YYYY-MM-DD) e ora di inizio (HH:MM), ora locale dello studio. */
+  day: string
+  time: string
+  /** Durata in minuti. */
+  duration: number
+  patientName: string
+  patientPhone: string
+  serviceId: string | null
+  /** Nome della prestazione (resta anche se la prestazione viene eliminata dall'elenco). */
+  serviceName: string
+  notes: string
+  /** Codice segreto del link di conferma. */
+  token: string
+  status: AppointmentStatus
+  sentAt: string | null
+  confirmedAt: string | null
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type AppointmentInput = Pick<Appointment, 'day' | 'time' | 'duration' | 'patientName' | 'patientPhone' | 'serviceId' | 'notes'>
+
+/** Dati visibili al paziente nella pagina di conferma (link senza accesso). */
+export interface PublicAppointment {
+  studio: { name: string; phone: string; address: string; logoType: string; logoVersion: number; flyerStyle: 'smile' | 'mint' }
+  /** Solo il nome di battesimo del paziente. */
+  firstName: string
+  day: string
+  time: string
+  duration: number
+  serviceName: string
+  confirmed: boolean
+  confirmedAt: string | null
+  /** Appuntamento già passato: non si può più confermare. */
+  past: boolean
+}

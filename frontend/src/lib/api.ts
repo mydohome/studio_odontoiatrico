@@ -1,8 +1,11 @@
 import type {
+  Appointment,
+  AppointmentInput,
   CampaignResponse,
   CustomCampaign,
   CustomCampaignInput,
   ImportResult,
+  PublicAppointment,
   RecordRow,
   Service,
 } from '../../../shared/types.ts'
@@ -23,6 +26,8 @@ export interface AppSettings {
   logoVersion: number
   /** Modello grafico dei volantini: "Smile" (colorato) o "Mint" (pulito, tecnologico). */
   flyerStyle: 'smile' | 'mint'
+  /** Indirizzo pubblico dell'app per i link di conferma (vuoto = quello del browser). */
+  publicUrl: string
 }
 
 /** Nome e logo dello studio: pubblici, mostrati anche nella pagina di accesso. */
@@ -114,6 +119,18 @@ export const api = {
   saveCustomFlyer: (id: number, flyer: object | null) =>
     request<CustomCampaign>('PUT', `/api/custom-campaigns/${id}/flyer`, { flyer }),
   deleteCustomCampaign: (id: number) => request<{ ok: boolean }>('DELETE', `/api/custom-campaigns/${id}`),
+
+  appointments: (from: string, to: string) => request<Appointment[]>('GET', `/api/appointments?from=${from}&to=${to}`),
+  patients: () => request<{ name: string; phone: string }[]>('GET', '/api/appointments/patients'),
+  createAppointment: (a: AppointmentInput) => request<Appointment>('POST', '/api/appointments', a),
+  updateAppointment: (id: number, a: AppointmentInput) => request<Appointment>('PUT', `/api/appointments/${id}`, a),
+  deleteAppointment: (id: number) => request<{ ok: boolean }>('DELETE', `/api/appointments/${id}`),
+  appointmentSent: (id: number) => request<Appointment>('POST', `/api/appointments/${id}/sent`, {}),
+  appointmentConfirmation: (id: number, confirmed: boolean) =>
+    request<Appointment>('POST', `/api/appointments/${id}/confirmation`, { confirmed }),
+  publicAppointment: (token: string) => request<PublicAppointment>('GET', `/api/public/appointments/${encodeURIComponent(token)}`),
+  confirmAppointment: (token: string) =>
+    request<PublicAppointment>('POST', `/api/public/appointments/${encodeURIComponent(token)}/confirm`),
 
   importExcel: (file: File, mode: 'replace' | 'sum') =>
     request<ImportResult>('POST', `/api/excel/import?mode=${mode}`, undefined, file),

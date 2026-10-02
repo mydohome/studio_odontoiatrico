@@ -2,8 +2,22 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
 import { CATEGORIES } from '../../shared/catalog.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
-import type { CategoryId, ImportResult } from '../../shared/types.ts'
+import type { Appointment, CategoryId, ImportResult, PublicAppointment } from '../../shared/types.ts'
 import { deleteLogo, getLogo, LOGO_TYPES, LogoError, logoVersion, migrateBranding, saveLogo, type LogoType } from './branding.ts'
+import {
+  AppointmentError,
+  confirmByToken,
+  createAppointment,
+  deleteAppointment,
+  findByToken,
+  listAppointments,
+  listPatients,
+  markSent,
+  migrateAppointments,
+  parseAppointment,
+  setManualConfirmation,
+  updateAppointment,
+} from './appointments.ts'
 import { buildCampaigns } from './campaigns.ts'
 import {
   CampaignError,
@@ -146,6 +160,8 @@ app.addHook('onRequest', async (req) => {
   const open = ['/api/login', '/api/logout', '/api/health', '/api/me']
   const path = req.url.split('?')[0]
   if (open.includes(path)) return
+  // Pagina di conferma degli appuntamenti: il paziente non ha un account, il codice nel link basta.
+  if (path.startsWith('/api/public/')) return
   // Il logo si può leggere senza accesso (pagina di login); caricarlo o eliminarlo no.
   if (path === '/api/logo' && (req.method === 'GET' || req.method === 'HEAD')) return
   if (!(await sessionUser(req))) throw new HttpError(401, 'Accesso richiesto')
@@ -198,6 +214,8 @@ interface Settings {
   logoVersion: number
   /** Modello grafico dei volantini. */
   flyerStyle: FlyerStyle
+  /** Indirizzo pubblico dell'app (es. https://studio.example.it), usato nei link di conferma. */
+  publicUrl: string
 }
 
 const FLYER_STYLES = ['smile', 'mint'] as const
@@ -221,6 +239,7 @@ async function readSettings(): Promise<Settings> {
     ...(await logoSettings()),
     // "tech" è il vecchio nome del modello Mint.
     flyerStyle: ['mint', 'tech'].includes((await getSetting('flyerStyle')) ?? '') ? 'mint' : 'smile',
+    publicUrl: (await getSetting('publicUrl')) ?? '',
   }
 }
 
@@ -228,7 +247,7 @@ app.get('/api/settings', async () => readSettings())
 
 // Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown; logoType?: unknown; flyerStyle?: unknown }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown; logoType?: unknown; flyerStyle?: unknown; publicUrl?: unknown }
   if (body.studioName !== undefined) {
     const name = String(body.studioName).trim().slice(0, 80)
     if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
@@ -263,6 +282,24 @@ app.put('/api/settings', async (req) => {
     const style = body.flyerStyle === 'tech' ? 'mint' : body.flyerStyle
     if (!FLYER_STYLES.includes(style as FlyerStyle)) throw new HttpError(400, 'Modello di volantino non valido')
     await setSetting('flyerStyle', String(style))
+  }
+  if (body.publicUrl !== undefined) {
+    let url = String(body.publicUrl).trim().replace(/\/+$/, '')
+    if (url) {
+      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
+        throw new HttpError(400, "L'indirizzo pubblico deve iniziare con https:// (o http://)")
+      }
+      if (!/^https?:\/\//i.test(url)) url = `https://${url}`
+      let parsed: URL
+      try {
+        parsed = new URL(url)
+      } catch {
+        throw new HttpError(400, "Indirizzo pubblico non valido (es. https://studio.esempio.it)")
+      }
+      if (parsed.search || parsed.hash || parsed.username) throw new HttpError(400, "Indirizzo pubblico non valido (es. https://studio.esempio.it)")
+      url = `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, '')}`
+    }
+    await setSetting('publicUrl', url)
   }
   return readSettings()
 })
@@ -447,6 +484,84 @@ app.delete('/api/custom-campaigns/:id', async (req) => {
   return { ok: true }
 })
 
+// ---------- Appuntamenti ----------
+
+function appointmentId(req: FastifyRequest): number {
+  const id = Number((req.params as { id: string }).id)
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Appuntamento non valido')
+  return id
+}
+
+async function appointmentCall<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (e instanceof AppointmentError) throw new HttpError(/non trovato/.test(e.message) ? 404 : 400, e.message)
+    throw e
+  }
+}
+
+app.get('/api/appointments', async (req) => {
+  const q = req.query as { from?: string; to?: string }
+  return appointmentCall(() => listAppointments(assertDate(q.from, 'from'), assertDate(q.to, 'to')))
+})
+
+app.get('/api/appointments/patients', async () => listPatients())
+
+app.post('/api/appointments', async (req) => {
+  const user = await sessionUser(req)
+  return appointmentCall(() => createAppointment(parseAppointment(req.body), user?.username ?? null))
+})
+
+app.put('/api/appointments/:id', async (req) => appointmentCall(() => updateAppointment(appointmentId(req), parseAppointment(req.body))))
+
+app.post('/api/appointments/:id/sent', async (req) => appointmentCall(() => markSent(appointmentId(req))))
+
+app.post('/api/appointments/:id/confirmation', async (req) => {
+  const confirmed = (req.body as { confirmed?: unknown } | null)?.confirmed
+  if (typeof confirmed !== 'boolean') throw new HttpError(400, 'Valore di confirmed non valido')
+  return appointmentCall(() => setManualConfirmation(appointmentId(req), confirmed))
+})
+
+app.delete('/api/appointments/:id', async (req) => {
+  await appointmentCall(() => deleteAppointment(appointmentId(req)))
+  return { ok: true }
+})
+
+/** Solo ciò che serve al paziente: niente telefono, cognome o note interne. */
+async function publicView(a: Appointment): Promise<PublicAppointment> {
+  const st = await readSettings()
+  return {
+    studio: { name: st.studioName, phone: st.phone, address: st.address, logoType: st.logoType, logoVersion: st.logoVersion, flyerStyle: st.flyerStyle },
+    firstName: a.patientName.split(' ')[0],
+    day: a.day,
+    time: a.time,
+    duration: a.duration,
+    serviceName: a.serviceName,
+    confirmed: a.confirmedAt !== null,
+    confirmedAt: a.confirmedAt,
+    past: a.day < today(),
+  }
+}
+
+const NOT_FOUND = 'Link non valido, oppure l\'appuntamento è stato annullato.'
+
+app.get('/api/public/appointments/:token', async (req, reply) => {
+  reply.header('cache-control', 'no-store')
+  const a = await findByToken((req.params as { token: string }).token)
+  if (!a) throw new HttpError(404, NOT_FOUND)
+  return publicView(a)
+})
+
+// Conferma solo con POST (pulsante nella pagina): le anteprime dei link di WhatsApp fanno GET.
+app.post('/api/public/appointments/:token/confirm', async (req, reply) => {
+  reply.header('cache-control', 'no-store')
+  const a = await confirmByToken((req.params as { token: string }).token)
+  if (!a) throw new HttpError(404, NOT_FOUND)
+  if (!a.confirmedAt) throw new HttpError(410, "L'appuntamento è già passato: non è più possibile confermarlo.")
+  return publicView(a)
+})
+
 // ---------- Excel ----------
 
 function sendXlsx(reply: FastifyReply, filename: string, buf: Buffer) {
@@ -500,6 +615,7 @@ async function start() {
       await migrateUsers()
       await migrateCustomCampaigns()
       await migrateBranding()
+      await migrateAppointments()
       break
     } catch (e) {
       if (attempt >= 30) throw e

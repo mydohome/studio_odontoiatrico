@@ -173,7 +173,7 @@ info "Backup scelto: ${B}$SRC${N} ($KIND)"
 
 if [ "$ASSUME_YES" -eq 0 ]; then
   echo
-  warn "Tutti i dati attuali (registrazioni, campagne, utenti, impostazioni, logo) verranno sostituiti con quelli del backup."
+  warn "Tutti i dati attuali (registrazioni, appuntamenti, campagne, utenti, impostazioni, logo) verranno sostituiti con quelli del backup."
   [ "$SAFETY" -eq 1 ] && info "Prima del ripristino salvo una copia dello stato attuale: potrai tornarci con questo stesso script."
   read -r -p "Scrivi RIPRISTINA per confermare: " ans </dev/tty
   [ "$ans" = RIPRISTINA ] || {

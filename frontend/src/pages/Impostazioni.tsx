@@ -58,11 +58,13 @@ function StudioCard({ data }: { data: AppDataState }) {
   const [phone, setPhone] = useState(data.settings.phone)
   const [address, setAddress] = useState(data.settings.address)
   const [doctorName, setDoctorName] = useState(data.settings.doctorName)
+  const [publicUrl, setPublicUrl] = useState(data.settings.publicUrl)
   const changed =
     name.trim() !== data.settings.studioName ||
     doctorName.trim() !== data.settings.doctorName ||
     phone.trim() !== data.settings.phone ||
-    address.trim() !== data.settings.address
+    address.trim() !== data.settings.address ||
+    publicUrl.trim() !== data.settings.publicUrl
   const { showPrices } = data.settings
 
   const togglePrices = async (value: boolean) => {
@@ -80,7 +82,7 @@ function StudioCard({ data }: { data: AppDataState }) {
   return (
     <div className="card">
       <h2>Studio</h2>
-      <p className="sub">Dati mostrati nell'intestazione e nei volantini delle campagne.</p>
+      <p className="sub">Dati mostrati nell'intestazione, nei volantini e nei messaggi degli appuntamenti.</p>
       <form
         className="studio-form"
         onSubmit={async (e) => {
@@ -91,12 +93,14 @@ function StudioCard({ data }: { data: AppDataState }) {
               doctorName: doctorName.trim(),
               phone: phone.trim(),
               address: address.trim(),
+              publicUrl: publicUrl.trim(),
             })
             data.setSettings(r)
             setName(r.studioName)
             setDoctorName(r.doctorName)
             setPhone(r.phone)
             setAddress(r.address)
+            setPublicUrl(r.publicUrl)
             notify('Dati dello studio salvati')
           } catch (err) {
             notify((err as Error).message, 'error')
@@ -138,6 +142,21 @@ function StudioCard({ data }: { data: AppDataState }) {
             maxLength={120}
             onChange={(e) => setAddress(e.target.value)}
           />
+        </label>
+        <label>
+          Indirizzo web dell'app (per i link di conferma degli appuntamenti)
+          <input
+            className="input"
+            type="url"
+            inputMode="url"
+            placeholder={`es. https://studio.esempio.it (vuoto: ${window.location.origin})`}
+            value={publicUrl}
+            maxLength={200}
+            onChange={(e) => setPublicUrl(e.target.value)}
+          />
+          <span className="small muted" style={{ fontWeight: 400 }}>
+            L'indirizzo con cui i pazienti raggiungono l'app da Internet, di solito il dominio configurato in Nginx Proxy Manager.
+          </span>
         </label>
         <div>
           <button className="btn btn-primary" disabled={!name.trim() || !changed}>

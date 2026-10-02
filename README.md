@@ -6,6 +6,7 @@ proposte di **campagne marketing** mese per mese calcolate sui dati raccolti.
 | Scheda | Cosa fa |
 |---|---|
 | **Registra** | Inserimento giornaliero delle quantità per prestazione (igiene orale, visita di controllo, ortopanoramica…), con pulsanti +/−, elenco delle ultime giornate e salvataggio rapido (Ctrl/Cmd + S). |
+| **Appuntamenti** | Agenda del giorno o della settimana, promemoria WhatsApp già formattato con **link di conferma** personale per il paziente e stato di ogni appuntamento (da inviare, in attesa, confermato dal paziente, confermato dallo studio). |
 | **Dashboard** | Riepilogo per giorno, settimana o mese: totale prestazioni, fatturato stimato, media per giorno lavorato, andamento per categoria (grafico a colonne), dettaglio per prestazione con confronto sul periodo precedente. |
 | **Campagne** | Per i prossimi 12 mesi propone le campagne più convenienti con punteggio, offerta, target, canali e motivazioni. Mostra la previsione per categoria e la mappa della stagionalità. |
 | **Impostazioni** | Template Excel scaricabile, import da Excel, export completo, gestione delle prestazioni (nome, categoria, prezzo medio, attiva/disattiva), opzione **Mostra prezzi** (nasconde prezzi e fatturato stimato in tutte le viste e nei file Excel), dati dimostrativi, nome dello studio. |
@@ -133,6 +134,60 @@ In **Impostazioni → Studio → Logo** scegli il logo che compare sui volantini
 
 Nell'editor del volantino (*Altri testi → Logo*) puoi usare un logo diverso solo per quel volantino.
 
+## Appuntamenti
+
+La scheda **Appuntamenti** (icona del calendario) contiene l'agenda dello studio.
+
+- **Nuovo appuntamento** (oppure un clic su un orario libero della griglia): data, ora, durata, nome e telefono del
+  paziente, prestazione (dall'elenco delle prestazioni) e note interne. I pazienti già inseriti vengono proposti mentre
+  scrivi il nome, con il loro telefono. Se l'orario si sovrappone a un altro appuntamento compare un avviso.
+- **Vista giorno o settimana**, con frecce, *Oggi* e scelta della data. Sul telefono la settimana diventa un elenco per
+  giorno. Un clic sull'intestazione di un giorno apre la vista del giorno.
+- Ogni appuntamento ha un'**etichetta colorata**:
+
+  | Etichetta | Significato |
+  |---|---|
+  | 🟢 *Confermato · link* | il paziente ha confermato aprendo il link ricevuto |
+  | 🔵 *Confermato · studio* | confermato a mano dallo studio (es. al telefono), con *Segna confermato* |
+  | 🟠 *In attesa* | messaggio preparato, il paziente non ha ancora confermato |
+  | ⚪ *Da inviare* | messaggio non ancora preparato |
+
+### Promemoria su WhatsApp
+
+Aprendo un appuntamento si vede il messaggio già pronto (modificabile prima dell'invio), per esempio:
+
+```
+Gentile Mario Rossi,
+le ricordiamo il suo appuntamento presso *DentalCapri srl*:
+
+📅 *Lunedì 5 ottobre 2026*
+🕘 *Ore 10:30*
+🦷 Igiene orale
+📍 Via Roma 12, 80073 Capri (NA)
+
+✅ Per confermare la sua presenza apra questo link:
+https://studio.esempio.it/c/Xy3…
+
+Per spostare o annullare l'appuntamento risponda a questo messaggio o chiami lo 081 837 1234.
+A presto!
+```
+
+- **Apri in WhatsApp** apre la chat con il paziente (WhatsApp Web o l'app) con il messaggio già scritto: basta premere
+  invio. Il numero senza prefisso viene considerato italiano (+39). **Copia messaggio** lo copia negli appunti.
+- Il **link è univoco** per ogni appuntamento (codice casuale di 24 caratteri, impossibile da indovinare). Il paziente
+  apre una pagina con logo e nome dello studio, data, ora e prestazione, e preme **Confermo l'appuntamento**; da lì può
+  anche chiamare lo studio o scrivergli su WhatsApp. La pagina mostra solo il nome di battesimo: niente telefono,
+  cognome o note. La conferma richiede il pulsante, quindi l'anteprima automatica del link in WhatsApp non conferma
+  nulla. Dopo il giorno dell'appuntamento il link non permette più di confermare.
+- L'agenda si aggiorna da sola ogni minuto: quando un paziente conferma compare un avviso.
+- Se si cambiano **data o ora** di un appuntamento, conferma e invio si azzerano: va mandato il nuovo messaggio (il link
+  resta lo stesso e mostra il nuovo orario). Eliminando l'appuntamento il link smette di funzionare.
+
+**Indirizzo dei link**: i link usano l'indirizzo con cui stai usando l'app. Se dallo studio la apri con un indirizzo
+interno (es. `http://192.168.1.10:8080`), imposta in **Impostazioni → Studio → Indirizzo web dell'app** quello pubblico
+configurato in NPM (es. `https://studio.esempio.it`), altrimenti il paziente non riesce ad aprirlo. L'app lo segnala
+nel riquadro del messaggio.
+
 ## Campagne personalizzate
 
 Oltre alle proposte dell'algoritmo puoi creare le tue campagne dalla scheda **Campagne**:
@@ -195,7 +250,7 @@ tornare all'ultima versione; `update.sh` richiede di essere su un branch per sca
 
 Si accede con **nome utente e password**. La pagina di accesso mostra il **nome e il logo dello studio** (e il nome
 compare anche nella scheda del browser), così chi segue più studi vede subito in quale sta entrando: sono gli unici dati
-visibili prima dell'accesso. Le password sono salvate con hash scrypt; cambiando la password o eliminando
+visibili prima dell'accesso, insieme alla pagina di conferma degli appuntamenti aperta con il link personale. Le password sono salvate con hash scrypt; cambiando la password o eliminando
 un utente le sue sessioni aperte vengono chiuse subito. Dopo un tentativo errato, i successivi per lo stesso
 nome utente vengono rallentati sempre di più (fino a 5 secondi).
 
@@ -333,7 +388,7 @@ eseguire `git fetch` senza password (chiave SSH di deploy o token salvato).
   Dopo un ripristino o un aggiornamento che cambia le tabelle, il primo backup è di nuovo una copia completa.
 - Si conservano gli **ultimi 15 giorni**: ogni notte i backup più vecchi vengono cancellati (mai l'ultimo rimasto).
   Per cambiare la durata imposta `BACKUP_KEEP_DAYS=30` nel file `.env`.
-- Il database comprende tutto: registrazioni, campagne e volantini salvati, utenti, impostazioni e logo caricato.
+- Il database comprende tutto: registrazioni, appuntamenti, campagne e volantini salvati, utenti, impostazioni e logo caricato.
 - Il log si trova in `backup.log`. Con più studi sullo stesso server il backup va attivato in ogni cartella.
 
 I backup restano sullo stesso server: per proteggerti anche da un guasto del disco copiali altrove, per esempio con

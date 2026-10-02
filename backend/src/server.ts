@@ -162,8 +162,15 @@ app.get('/api/me', async (req) => {
 })
 
 app.addHook('onRequest', async (req) => {
-  const open = ['/api/login', '/api/logout', '/api/health', '/api/me']
   const path = req.url.split('?')[0]
+  // Richieste arrivate dal server delle conferme (porta 8081, dominio pubblico dei link): solo le
+  // rotte pubbliche e il logo. Nginx lo garantisce già; qui è la seconda protezione.
+  if (req.headers['x-public-gateway']) {
+    const allowed = path.startsWith('/api/public/') || (path === '/api/logo' && (req.method === 'GET' || req.method === 'HEAD'))
+    if (!allowed) throw new HttpError(404, 'Non trovato')
+    return
+  }
+  const open = ['/api/login', '/api/logout', '/api/health', '/api/me']
   if (open.includes(path)) return
   // Pagina di conferma degli appuntamenti: il paziente non ha un account, il codice nel link basta.
   if (path.startsWith('/api/public/')) return
@@ -234,6 +241,34 @@ async function logoSettings(): Promise<Pick<Settings, 'logoType' | 'logoVersion'
   return { logoType, logoVersion: version }
 }
 
+/** "conferma.dominio.it/" → "https://conferma.dominio.it"; vuoto resta vuoto. Errore se non valido. */
+function normalizePublicUrl(raw: string): string {
+  let url = raw.trim().replace(/\/+$/, '')
+  if (!url) return ''
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
+    throw new Error("L'indirizzo pubblico deve iniziare con https:// (o http://)")
+  }
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new Error('Indirizzo pubblico non valido (es. https://studio.esempio.it)')
+  }
+  if (parsed.search || parsed.hash || parsed.username) throw new Error('Indirizzo pubblico non valido (es. https://studio.esempio.it)')
+  return `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, '')}`
+}
+
+/** CONFIRM_URL del .env (scelto con setup.sh), normalizzato; ignorato se non valido. */
+const ENV_CONFIRM_URL = (() => {
+  try {
+    return normalizePublicUrl(process.env.CONFIRM_URL ?? '')
+  } catch {
+    console.warn(`CONFIRM_URL non valido, ignorato: ${process.env.CONFIRM_URL}`)
+    return ''
+  }
+})()
+
 async function readSettings(): Promise<Settings> {
   return {
     studioName: (await getSetting('studioName')) ?? 'Studio Odontoiatrico',
@@ -244,7 +279,8 @@ async function readSettings(): Promise<Settings> {
     ...(await logoSettings()),
     // "tech" è il vecchio nome del modello Mint.
     flyerStyle: ['mint', 'tech'].includes((await getSetting('flyerStyle')) ?? '') ? 'mint' : 'smile',
-    publicUrl: (await getSetting('publicUrl')) ?? '',
+    // Impostato nell'app, altrimenti quello scelto con setup.sh (CONFIRM_URL nel .env).
+    publicUrl: (await getSetting('publicUrl')) || ENV_CONFIRM_URL,
   }
 }
 
@@ -289,20 +325,11 @@ app.put('/api/settings', async (req) => {
     await setSetting('flyerStyle', String(style))
   }
   if (body.publicUrl !== undefined) {
-    let url = String(body.publicUrl).trim().replace(/\/+$/, '')
-    if (url) {
-      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
-        throw new HttpError(400, "L'indirizzo pubblico deve iniziare con https:// (o http://)")
-      }
-      if (!/^https?:\/\//i.test(url)) url = `https://${url}`
-      let parsed: URL
-      try {
-        parsed = new URL(url)
-      } catch {
-        throw new HttpError(400, "Indirizzo pubblico non valido (es. https://studio.esempio.it)")
-      }
-      if (parsed.search || parsed.hash || parsed.username) throw new HttpError(400, "Indirizzo pubblico non valido (es. https://studio.esempio.it)")
-      url = `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, '')}`
+    let url: string
+    try {
+      url = normalizePublicUrl(String(body.publicUrl))
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message)
     }
     await setSetting('publicUrl', url)
   }

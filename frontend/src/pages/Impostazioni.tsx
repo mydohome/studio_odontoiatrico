@@ -144,18 +144,19 @@ function StudioCard({ data }: { data: AppDataState }) {
           />
         </label>
         <label>
-          Indirizzo web dell'app (per i link di conferma degli appuntamenti)
+          Indirizzo dei link di conferma degli appuntamenti
           <input
             className="input"
             type="url"
             inputMode="url"
-            placeholder={`es. https://studio.esempio.it (vuoto: ${window.location.origin})`}
+            placeholder={`es. https://conferma.dominio.it (vuoto: ${window.location.origin})`}
             value={publicUrl}
             maxLength={200}
             onChange={(e) => setPublicUrl(e.target.value)}
           />
           <span className="small muted" style={{ fontWeight: 400 }}>
-            L'indirizzo con cui i pazienti raggiungono l'app da Internet, di solito il dominio configurato in Nginx Proxy Manager.
+            Meglio un dominio separato dal gestionale, inoltrato in Nginx Proxy Manager alla porta 8081 del container (o
+            CONFIRM_PORT): lì risponde solo la pagina di conferma, e il gestionale può restare chiuso al pubblico.
           </span>
         </label>
         <div>

@@ -69,17 +69,31 @@ Per provare subito l'app vai in **Impostazioni → Genera dati demo** (2 anni di
 
 ### Collegare Nginx Proxy Manager
 
-Crea un **Proxy Host** in NPM (`http://127.0.0.1:81` tramite tunnel SSH, se l'interfaccia non è esposta):
+Crea in NPM (`http://127.0.0.1:81` tramite tunnel SSH, se l'interfaccia non è esposta) un **Proxy Host** per il
+gestionale e, consigliato, uno per i **link di conferma** degli appuntamenti su un dominio separato:
 
-| Deploy | Scheme | Forward Hostname | Forward Port |
-|---|---|---|---|
-| NPM sullo stesso host (`proxy-net`) | `http` | `<istanza>-app` (es. `studio-odontoiatrico-app`) | `80` |
-| NPM su un altro host | `http` | IP di questo server | `HTTP_PORT` (predefinita 80) |
+| Proxy Host | Deploy | Scheme | Forward Hostname | Forward Port |
+|---|---|---|---|---|
+| gestionale (es. `studio.dominio.it`) | NPM sullo stesso host (`proxy-net`) | `http` | `<istanza>-app` (es. `studio-odontoiatrico-app`) | `80` |
+| | NPM su un altro host | `http` | IP di questo server | `HTTP_PORT` (predefinita 80) |
+| conferme (es. `conferma.dominio.it`) | NPM sullo stesso host (`proxy-net`) | `http` | `<istanza>-app` | `8081` |
+| | NPM su un altro host | `http` | IP di questo server | `CONFIRM_PORT` (predefinita 8180) |
+
+**Perché un dominio separato per le conferme.** Sulla porta delle conferme il container risponde **solo** alla pagina
+`/c/<codice>`, alle API pubbliche dell'appuntamento e al logo: niente gestionale, niente pagina di accesso, tutto il resto
+è "Pagina non trovata" (il controllo è sia in Nginx sia nel backend). Togliendo il codice dal link non si arriva da
+nessuna parte, e il gestionale **può restare chiuso al pubblico**: in NPM, sul Proxy Host del gestionale, aggiungi una
+**Access List** (scheda *Access*) che ammetta solo gli IP dello studio, oppure chieda nome utente e password prima del
+login dell'app. Il dominio delle conferme resta aperto. Nota: i sottodomini con certificato Let's Encrypt sono elencati in
+registri pubblici (es. crt.sh), quindi il nome del gestionale non è segreto: la protezione vera è l'Access List.
+
+`setup.sh` chiede l'indirizzo delle conferme (`CONFIRM_URL`, facoltativo) e, con NPM su un altro host, la porta
+(`CONFIRM_PORT`, la prima libera tra 8180 e 8199). L'indirizzo si può anche cambiare in **Impostazioni → Studio**.
 
 Nella scheda **SSL** richiedi il certificato Let's Encrypt e attiva *Force SSL*. Dietro HTTPS il cookie di sessione viene
 marcato `Secure` in automatico grazie all'header `X-Forwarded-Proto` inviato da NPM.
 
-Con NPM su un altro host, apri `HTTP_PORT` nel firewall **solo verso l'IP del server NPM**, ad esempio:
+Con NPM su un altro host, apri `HTTP_PORT` (e `CONFIRM_PORT`) nel firewall **solo verso l'IP del server NPM**, ad esempio:
 
 ```bash
 sudo iptables -I INPUT 6 -p tcp -s <IP-server-NPM> --dport 80 -j ACCEPT && sudo netfilter-persistent save
@@ -225,10 +239,11 @@ Le icone sono solo emoji del 2010 (Unicode 6.0), visibili su qualsiasi telefono.
 - Se si cambiano **data o ora** di un appuntamento, conferma e invio si azzerano: va mandato il nuovo messaggio (il link
   resta lo stesso e mostra il nuovo orario). Eliminando l'appuntamento il link smette di funzionare.
 
-**Indirizzo dei link**: i link usano l'indirizzo con cui stai usando l'app. Se dallo studio la apri con un indirizzo
-interno (es. `http://192.168.1.10:8080`), imposta in **Impostazioni → Studio → Indirizzo web dell'app** quello pubblico
-configurato in NPM (es. `https://studio.esempio.it`), altrimenti il paziente non riesce ad aprirlo. L'app lo segnala
-nel riquadro del messaggio.
+**Indirizzo dei link**: i link usano l'indirizzo impostato in **Impostazioni → Studio → Indirizzo dei link di conferma**
+(o scelto con `setup.sh`), altrimenti quello con cui stai usando l'app. Conviene un dominio separato, es.
+`https://conferma.dominio.it` (vedi [Collegare Nginx Proxy Manager](#collegare-nginx-proxy-manager)). Se dallo studio
+apri l'app con un indirizzo interno (es. `http://192.168.1.10:8080`) e non hai impostato l'indirizzo dei link, il
+paziente non riesce ad aprirli: l'app lo segnala nel riquadro del messaggio.
 
 ## Campagne personalizzate
 
@@ -316,6 +331,8 @@ Le password vengono chieste due volte senza mostrarle; da uno script si possono 
 | `POSTGRES_PASSWORD` | Password del database (generata da `setup.sh`). |
 | `SESSION_SECRET` | Chiave per firmare i cookie di sessione (generata; cambiandola si chiudono tutte le sessioni). |
 | `HTTP_PORT` | Porta pubblicata sull'host, solo con `_deploy_network_example.yml` (predefinita 80). |
+| `CONFIRM_URL` | Indirizzo dei link di conferma su un dominio separato, es. `https://conferma.dominio.it` (facoltativo; vale se non è impostato in Impostazioni). |
+| `CONFIRM_PORT` | Porta pubblicata per le conferme, solo con `_deploy_network_example.yml` (predefinita 8180; `update.sh` ne assegna una libera se manca). |
 | `TZ` | Fuso orario, determina il "giorno di oggi" (predefinito `Europe/Rome`). |
 
 ## Deploy su OCI Always Free

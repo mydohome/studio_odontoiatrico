@@ -231,6 +231,29 @@ elif [ -z "$TEMPLATE" ]; then
   warn "docker-compose.yml è stato personalizzato: non lo modifico. Confrontalo con i template _deploy_*_example.yml."
 fi
 
+# Porta delle conferme (solo con NPM su un altro server): ogni studio sullo stesso server ne usa una
+# diversa. Se manca nel .env se ne sceglie una libera, così l'avvio non fallisce per un conflitto.
+port_busy() {
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$1\$" && return 0
+  else
+    local hex
+    hex=$(printf '%04X' "$1")
+    cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | awk -v h=":$hex" '$4 == "0A" && substr($2, length($2) - 4) == h { f = 1 } END { exit !f }' && return 0
+  fi
+  docker ps --format '{{.Ports}}' 2>/dev/null | tr ',' '\n' | grep -qE ":$1->" && return 0
+  return 1
+}
+if grep -q 'CONFIRM_PORT' docker-compose.yml && [ -z "$(env_get CONFIRM_PORT)" ]; then
+  for p in $(seq 8180 8199); do
+    if ! port_busy "$p"; then
+      printf '\n# Porta pubblicata per le conferme degli appuntamenti (aggiunta da update.sh)\nCONFIRM_PORT=%s\n' "$p" >>.env
+      ok "Porta per le conferme degli appuntamenti: $p (CONFIRM_PORT nel .env)."
+      break
+    fi
+  done
+fi
+
 # Nuove variabili introdotte in .env.example e assenti nel .env.
 missing=$(comm -23 <(grep -oE '^[A-Z_]+=' .env.example | sort -u) <(grep -oE '^[A-Z_]+=' .env | sort -u) | tr -d '=' | tr '\n' ' ')
 [ -z "$missing" ] || warn "Nuove variabili disponibili in .env.example non presenti nel tuo .env: $missing"

@@ -1,9 +1,29 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
+import { appointmentEventText } from '../../shared/appointments.ts'
+import { buildIcs, zonedToUtc } from '../../shared/calendar.ts'
 import { CATEGORIES } from '../../shared/catalog.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
-import type { CategoryId, ImportResult } from '../../shared/types.ts'
+import type { CategoryId, ImportResult, PublicAppointment, ScheduledAppointment } from '../../shared/types.ts'
 import { deleteLogo, getLogo, LOGO_TYPES, LogoError, logoVersion, migrateBranding, saveLogo, type LogoType } from './branding.ts'
+import {
+  AppointmentError,
+  confirmByToken,
+  createAppointment,
+  deleteAppointment,
+  findByToken,
+  listAppointments,
+  listPatients,
+  listToReschedule,
+  markCalled,
+  markSent,
+  migrateAppointments,
+  parseAppointment,
+  setManualConfirmation,
+  setNoShow,
+  setToReschedule,
+  updateAppointment,
+} from './appointments.ts'
 import { buildCampaigns } from './campaigns.ts'
 import {
   CampaignError,
@@ -16,9 +36,11 @@ import {
   saveCustomFlyer,
   updateCustomCampaign,
 } from './customCampaigns.ts'
-import { getSetting, listRecords, listServices, migrate, pool, setSetting, writeDays } from './db.ts'
+import { DataKeyError, initDataCrypto } from './dataCrypto.ts'
+import { getSetting, listAppointmentRecords, listRecords, listServices, listStatRecords, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
+import { LoginLimiter } from './loginLimiter.ts'
 import { authenticate, countUsers, getUserById, migrateUsers, type User } from './users.ts'
 
 const PORT = Number(process.env.PORT ?? 3000)
@@ -69,7 +91,12 @@ function readCookie(req: FastifyRequest, name: string): string | null {
   const header = req.headers.cookie ?? ''
   for (const part of header.split(';')) {
     const [k, ...v] = part.trim().split('=')
-    if (k === name) return decodeURIComponent(v.join('='))
+    if (k !== name) continue
+    try {
+      return decodeURIComponent(v.join('='))
+    } catch {
+      return null // cookie malformato: come se non ci fosse
+    }
   }
   return null
 }
@@ -100,21 +127,25 @@ function setSession(reply: FastifyReply, req: FastifyRequest, user: User) {
 
 const publicUser = (u: User) => ({ username: u.username, email: u.email })
 
-// Tentativi falliti per nome utente: ogni errore aumenta l'attesa (max 5 s).
-const failures = new Map<string, { n: number; at: number }>()
+// Tentativi di accesso ogni 15 minuti: 10 per nome utente dallo stesso IP, 30 errori per IP e
+// 50 per nome utente da IP nuovi (gli IP da cui l'utente è già entrato non hanno questo tetto).
+const limiter = new LoginLimiter({ windowMs: 15 * 60000, perUserIp: 10, perIp: 30, perUser: 50 })
+
+/** IP del client: X-Real-IP lo imposta il Nginx dell'app (l'unico che raggiunge le API). */
+const clientIp = (req: FastifyRequest) => String(req.headers['x-real-ip'] ?? req.ip)
 
 app.post('/api/login', async (req, reply) => {
   const { username, password } = (req.body ?? {}) as { username?: string; password?: string }
-  const key = String(username ?? '').trim().toLowerCase()
-  const f = failures.get(key)
-  if (f && Date.now() - f.at < 15 * 60000) await new Promise((r) => setTimeout(r, Math.min(5000, 400 * f.n)))
-  const user = await authenticate(String(username ?? ''), String(password ?? ''))
-  if (!user) {
-    failures.set(key, { n: (f?.n ?? 0) + 1, at: Date.now() })
-    if (failures.size > 1000) failures.clear()
-    throw new HttpError(401, 'Nome utente o password errati')
+  const name = String(username ?? '')
+  const ip = clientIp(req)
+  const wait = limiter.attempt(name, ip)
+  if (wait) {
+    reply.header('retry-after', String(wait))
+    throw new HttpError(429, `Troppi tentativi di accesso: riprova tra ${Math.ceil(wait / 60)} minuti.`)
   }
-  failures.delete(key)
+  const user = await authenticate(name, String(password ?? ''))
+  if (!user) throw new HttpError(401, 'Nome utente o password errati')
+  limiter.success(name, ip)
   setSession(reply, req, user)
   return { ok: true, user: publicUser(user) }
 })
@@ -143,9 +174,18 @@ app.get('/api/me', async (req) => {
 })
 
 app.addHook('onRequest', async (req) => {
-  const open = ['/api/login', '/api/logout', '/api/health', '/api/me']
   const path = req.url.split('?')[0]
+  // Richieste arrivate dal server delle conferme (porta 8081, dominio pubblico dei link): solo le
+  // rotte pubbliche e il logo. Nginx lo garantisce già; qui è la seconda protezione.
+  if (req.headers['x-public-gateway']) {
+    const allowed = path.startsWith('/api/public/') || (path === '/api/logo' && (req.method === 'GET' || req.method === 'HEAD'))
+    if (!allowed) throw new HttpError(404, 'Non trovato')
+    return
+  }
+  const open = ['/api/login', '/api/logout', '/api/health', '/api/me']
   if (open.includes(path)) return
+  // Pagina di conferma degli appuntamenti: il paziente non ha un account, il codice nel link basta.
+  if (path.startsWith('/api/public/')) return
   // Il logo si può leggere senza accesso (pagina di login); caricarlo o eliminarlo no.
   if (path === '/api/logo' && (req.method === 'GET' || req.method === 'HEAD')) return
   if (!(await sessionUser(req))) throw new HttpError(401, 'Accesso richiesto')
@@ -198,6 +238,8 @@ interface Settings {
   logoVersion: number
   /** Modello grafico dei volantini. */
   flyerStyle: FlyerStyle
+  /** Indirizzo pubblico dell'app (es. https://studio.example.it), usato nei link di conferma. */
+  publicUrl: string
 }
 
 const FLYER_STYLES = ['smile', 'mint'] as const
@@ -211,6 +253,34 @@ async function logoSettings(): Promise<Pick<Settings, 'logoType' | 'logoVersion'
   return { logoType, logoVersion: version }
 }
 
+/** "conferma.dominio.it/" → "https://conferma.dominio.it"; vuoto resta vuoto. Errore se non valido. */
+function normalizePublicUrl(raw: string): string {
+  let url = raw.trim().replace(/\/+$/, '')
+  if (!url) return ''
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
+    throw new Error("L'indirizzo pubblico deve iniziare con https:// (o http://)")
+  }
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new Error('Indirizzo pubblico non valido (es. https://studio.esempio.it)')
+  }
+  if (parsed.search || parsed.hash || parsed.username) throw new Error('Indirizzo pubblico non valido (es. https://studio.esempio.it)')
+  return `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, '')}`
+}
+
+/** CONFIRM_URL del .env (scelto con setup.sh), normalizzato; ignorato se non valido. */
+const ENV_CONFIRM_URL = (() => {
+  try {
+    return normalizePublicUrl(process.env.CONFIRM_URL ?? '')
+  } catch {
+    console.warn(`CONFIRM_URL non valido, ignorato: ${process.env.CONFIRM_URL}`)
+    return ''
+  }
+})()
+
 async function readSettings(): Promise<Settings> {
   return {
     studioName: (await getSetting('studioName')) ?? 'Studio Odontoiatrico',
@@ -221,6 +291,8 @@ async function readSettings(): Promise<Settings> {
     ...(await logoSettings()),
     // "tech" è il vecchio nome del modello Mint.
     flyerStyle: ['mint', 'tech'].includes((await getSetting('flyerStyle')) ?? '') ? 'mint' : 'smile',
+    // Impostato nell'app, altrimenti quello scelto con setup.sh (CONFIRM_URL nel .env).
+    publicUrl: (await getSetting('publicUrl')) || ENV_CONFIRM_URL,
   }
 }
 
@@ -228,7 +300,7 @@ app.get('/api/settings', async () => readSettings())
 
 // Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown; logoType?: unknown; flyerStyle?: unknown }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown; logoType?: unknown; flyerStyle?: unknown; publicUrl?: unknown }
   if (body.studioName !== undefined) {
     const name = String(body.studioName).trim().slice(0, 80)
     if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
@@ -263,6 +335,15 @@ app.put('/api/settings', async (req) => {
     const style = body.flyerStyle === 'tech' ? 'mint' : body.flyerStyle
     if (!FLYER_STYLES.includes(style as FlyerStyle)) throw new HttpError(400, 'Modello di volantino non valido')
     await setSetting('flyerStyle', String(style))
+  }
+  if (body.publicUrl !== undefined) {
+    let url: string
+    try {
+      url = normalizePublicUrl(String(body.publicUrl))
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message)
+    }
+    await setSetting('publicUrl', url)
   }
   return readSettings()
 })
@@ -309,6 +390,7 @@ interface ServiceBody {
   price?: number | string | null
   active?: boolean
   sort?: number
+  color?: string | null
 }
 
 function parseServiceBody(b: ServiceBody) {
@@ -317,7 +399,9 @@ function parseServiceBody(b: ServiceBody) {
   if (!b.category || !CAT_IDS.has(b.category)) throw new HttpError(400, 'Categoria non valida')
   const price = b.price === null || b.price === undefined || b.price === '' ? null : Number(b.price)
   if (price !== null && (!Number.isFinite(price) || price < 0)) throw new HttpError(400, 'Prezzo non valido')
-  return { name, category: b.category as CategoryId, price, active: b.active !== false }
+  const color = b.color === null || b.color === undefined || b.color === '' ? null : String(b.color).toLowerCase()
+  if (color !== null && !/^#[0-9a-f]{6}$/.test(color)) throw new HttpError(400, 'Colore non valido (formato #rrggbb)')
+  return { name, category: b.category as CategoryId, price, active: b.active !== false, color }
 }
 
 app.post('/api/services', async (req) => {
@@ -327,9 +411,9 @@ app.post('/api/services', async (req) => {
   for (let i = 2; existing.has(id); i++) id = `${slugify(s.name)}-${i}`
   try {
     await pool.query(
-      `INSERT INTO services (id, name, category, price, active, sort)
-       VALUES ($1,$2,$3,$4,$5,(SELECT coalesce(max(sort),0)+1 FROM services))`,
-      [id, s.name, s.category, s.price, s.active],
+      `INSERT INTO services (id, name, category, price, active, color, sort)
+       VALUES ($1,$2,$3,$4,$5,$6,(SELECT coalesce(max(sort),0)+1 FROM services))`,
+      [id, s.name, s.category, s.price, s.active, s.color],
     )
   } catch (e) {
     if ((e as { code?: string }).code === '23505') throw new HttpError(409, 'Esiste già una prestazione con questo nome')
@@ -342,8 +426,8 @@ app.put('/api/services/:id', async (req) => {
   const { id } = req.params as { id: string }
   const s = parseServiceBody((req.body ?? {}) as ServiceBody)
   try {
-    const r = await pool.query('UPDATE services SET name=$2, category=$3, price=$4, active=$5 WHERE id=$1', [
-      id, s.name, s.category, s.price, s.active,
+    const r = await pool.query('UPDATE services SET name=$2, category=$3, price=$4, active=$5, color=$6 WHERE id=$1', [
+      id, s.name, s.category, s.price, s.active, s.color,
     ])
     if (!r.rowCount) throw new HttpError(404, 'Prestazione non trovata')
   } catch (e) {
@@ -369,13 +453,14 @@ app.delete('/api/services/:id', async (req) => {
 
 app.get('/api/records', async (req) => {
   const q = req.query as { from?: string; to?: string }
-  return listRecords(optDate(q.from, 'from'), optDate(q.to, 'to'))
+  return listStatRecords(optDate(q.from, 'from'), optDate(q.to, 'to'))
 })
 
 app.get('/api/days/:date', async (req) => {
   const date = assertDate((req.params as { date: string }).date)
-  const rows = await listRecords(date, date)
-  return { date, items: Object.fromEntries(rows.map((r) => [r.s, r.q])) }
+  const [rows, appts] = await Promise.all([listRecords(date, date), listAppointmentRecords(date, date)])
+  // items: registrate a mano (modificabili); appointments: dagli appuntamenti confermati (automatiche).
+  return { date, items: Object.fromEntries(rows.map((r) => [r.s, r.q])), appointments: Object.fromEntries(appts.map((r) => [r.s, r.q])) }
 })
 
 app.put('/api/days/:date', async (req) => {
@@ -394,7 +479,7 @@ app.put('/api/days/:date', async (req) => {
 
 app.delete('/api/records', async (req) => {
   const { confirm } = req.query as { confirm?: string }
-  if (confirm !== 'ELIMINA') throw new HttpError(400, 'Conferma mancante')
+  if (confirm !== 'ELIMINA DATI') throw new HttpError(400, 'Conferma mancante: scrivi ELIMINA DATI')
   await pool.query('DELETE FROM records')
   return { ok: true }
 })
@@ -404,7 +489,7 @@ app.delete('/api/records', async (req) => {
 app.get('/api/campaigns', async (req) => {
   const { months } = req.query as { months?: string }
   const horizon = Math.min(24, Math.max(1, Number(months) || 12))
-  const [services, records] = await Promise.all([listServices(), listRecords()])
+  const [services, records] = await Promise.all([listServices(), listStatRecords()])
   return buildCampaigns(services, records, today(), horizon)
 })
 
@@ -447,6 +532,122 @@ app.delete('/api/custom-campaigns/:id', async (req) => {
   return { ok: true }
 })
 
+// ---------- Appuntamenti ----------
+
+function appointmentId(req: FastifyRequest): number {
+  const id = Number((req.params as { id: string }).id)
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Appuntamento non valido')
+  return id
+}
+
+async function appointmentCall<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (e instanceof AppointmentError) throw new HttpError(/non trovato/.test(e.message) ? 404 : 400, e.message)
+    throw e
+  }
+}
+
+app.get('/api/appointments', async (req) => {
+  const q = req.query as { from?: string; to?: string }
+  return appointmentCall(() => listAppointments(assertDate(q.from, 'from'), assertDate(q.to, 'to')))
+})
+
+app.get('/api/appointments/patients', async () => listPatients())
+
+app.get('/api/appointments/to-reschedule', async () => listToReschedule())
+
+app.post('/api/appointments/:id/reschedule', async (req) => appointmentCall(() => setToReschedule(appointmentId(req))))
+
+app.post('/api/appointments', async (req) => {
+  const user = await sessionUser(req)
+  return appointmentCall(() => createAppointment(parseAppointment(req.body), user?.username ?? null))
+})
+
+app.put('/api/appointments/:id', async (req) => appointmentCall(() => updateAppointment(appointmentId(req), parseAppointment(req.body))))
+
+app.post('/api/appointments/:id/sent', async (req) => appointmentCall(() => markSent(appointmentId(req))))
+
+app.post('/api/appointments/:id/call', async (req) => appointmentCall(() => markCalled(appointmentId(req))))
+
+app.post('/api/appointments/:id/confirmation', async (req) => {
+  const confirmed = (req.body as { confirmed?: unknown } | null)?.confirmed
+  if (typeof confirmed !== 'boolean') throw new HttpError(400, 'Valore di confirmed non valido')
+  return appointmentCall(() => setManualConfirmation(appointmentId(req), confirmed))
+})
+
+app.post('/api/appointments/:id/no-show', async (req) => {
+  const noShow = (req.body as { noShow?: unknown } | null)?.noShow
+  if (typeof noShow !== 'boolean') throw new HttpError(400, 'Valore di noShow non valido')
+  return appointmentCall(() => setNoShow(appointmentId(req), noShow))
+})
+
+app.delete('/api/appointments/:id', async (req) => {
+  await appointmentCall(() => deleteAppointment(appointmentId(req)))
+  return { ok: true }
+})
+
+/** Solo ciò che serve al paziente: niente telefono, cognome o note interne. */
+async function publicView(a: ScheduledAppointment): Promise<PublicAppointment> {
+  const st = await readSettings()
+  return {
+    studio: { name: st.studioName, phone: st.phone, address: st.address, logoType: st.logoType, logoVersion: st.logoVersion, flyerStyle: st.flyerStyle },
+    firstName: a.patientName.split(' ')[0],
+    day: a.day,
+    time: a.time,
+    duration: a.duration,
+    serviceName: a.serviceName,
+    confirmed: a.confirmedAt !== null,
+    confirmedAt: a.confirmedAt,
+    past: a.day < today(),
+    timeZone: STUDIO_TZ,
+  }
+}
+
+// Fuso dello studio (variabile TZ del container): gli orari degli appuntamenti sono in quest'ora.
+const STUDIO_TZ = process.env.TZ || 'Europe/Rome'
+
+const NOT_FOUND = 'Link non valido o scaduto, oppure l\'appuntamento è stato annullato.'
+
+app.get('/api/public/appointments/:token', async (req, reply) => {
+  reply.header('cache-control', 'no-store').header('x-robots-tag', 'noindex, nofollow')
+  const a = await findByToken((req.params as { token: string }).token)
+  if (!a) throw new HttpError(404, NOT_FOUND)
+  return publicView(a)
+})
+
+// Evento da aggiungere al calendario del telefono (iPhone apre direttamente "Aggiungi evento").
+app.get('/api/public/appointments/:token/calendar.ics', async (req, reply) => {
+  const token = (req.params as { token: string }).token
+  const a = await findByToken(token)
+  if (!a) throw new HttpError(404, NOT_FOUND)
+  const st = await readSettings()
+  const start = zonedToUtc(a.day, a.time, STUDIO_TZ)
+  const ics = buildIcs({
+    // Stesso UID per lo stesso appuntamento: riaggiungendolo il calendario lo aggiorna invece di duplicarlo.
+    uid: `${createHash('sha256').update(token).digest('hex').slice(0, 24)}@studio-odontoiatrico`,
+    start,
+    end: start + a.duration * 60_000,
+    ...appointmentEventText({ studioName: st.studioName, studioPhone: st.phone, address: st.address, serviceName: a.serviceName }),
+  })
+  return reply
+    .header('content-type', 'text/calendar; charset=utf-8')
+    .header('content-disposition', `attachment; filename="appuntamento-${a.day}.ics"`)
+    .header('cache-control', 'no-store')
+    .header('x-robots-tag', 'noindex, nofollow')
+    .send(ics)
+})
+
+// Conferma solo con POST (pulsante nella pagina): le anteprime dei link di WhatsApp fanno GET.
+app.post('/api/public/appointments/:token/confirm', async (req, reply) => {
+  reply.header('cache-control', 'no-store').header('x-robots-tag', 'noindex, nofollow')
+  const a = await confirmByToken((req.params as { token: string }).token)
+  if (!a) throw new HttpError(404, NOT_FOUND)
+  if (!a.confirmedAt) throw new HttpError(410, "L'appuntamento è già passato: non è più possibile confermarlo.")
+  return publicView(a)
+})
+
 // ---------- Excel ----------
 
 function sendXlsx(reply: FastifyReply, filename: string, buf: Buffer) {
@@ -462,9 +663,9 @@ app.get('/api/excel/template', async (_req, reply) => {
 })
 
 app.get('/api/excel/export', async (_req, reply) => {
-  const [services, records] = await Promise.all([listServices(), listRecords()])
+  const [services, records, appts] = await Promise.all([listServices(), listRecords(), listAppointmentRecords()])
   const { showPrices } = await readSettings()
-  return sendXlsx(reply, `prestazioni-${today()}.xlsx`, await buildExport(services, records, showPrices))
+  return sendXlsx(reply, `prestazioni-${today()}.xlsx`, await buildExport(services, records, showPrices, appts))
 })
 
 app.post('/api/excel/import', async (req): Promise<ImportResult> => {
@@ -482,7 +683,10 @@ app.post('/api/excel/import', async (req): Promise<ImportResult> => {
 
 // ---------- Dati dimostrativi ----------
 
+// Solo su un'installazione ancora vuota: in produzione un clic sbagliato sostituirebbe dati veri.
 app.post('/api/demo', async () => {
+  const { rows } = await pool.query('SELECT EXISTS (SELECT 1 FROM records) AS has')
+  if (rows[0].has) throw new HttpError(409, 'I dati dimostrativi si possono generare solo quando non ci sono registrazioni.')
   const services = (await listServices()).filter((s) => s.active)
   const to = addDays(today(), -1)
   const from = `${Number(to.slice(0, 4)) - 2}-${to.slice(5, 7)}-01`
@@ -500,6 +704,7 @@ async function start() {
       await migrateUsers()
       await migrateCustomCampaigns()
       await migrateBranding()
+      await migrateAppointments()
       break
     } catch (e) {
       if (attempt >= 30) throw e
@@ -508,6 +713,7 @@ async function start() {
     }
   }
   await loadSecret()
+  await initDataCrypto()
   await app.listen({ port: PORT, host: '0.0.0.0' })
   const n = await countUsers()
   console.log(`Backend in ascolto sulla porta ${PORT} · utenti configurati: ${n}`)
@@ -523,6 +729,6 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 }
 
 start().catch((e) => {
-  console.error(e)
+  console.error(e instanceof DataKeyError ? `ERRORE: ${e.message}` : e)
   process.exit(1)
 })

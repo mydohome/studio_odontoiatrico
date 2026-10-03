@@ -30,6 +30,7 @@ REPO_DIR=$PWD
 
 # ---------- Opzioni ----------
 
+ORIG_ARGS=("$@")
 ASSUME_YES=0
 CHECK_ONLY=0
 BACKUP=1
@@ -121,9 +122,12 @@ fi
 # ---------- Controlli ----------
 
 # Un solo aggiornamento alla volta (es. cron + lancio manuale).
-exec 9>"$REPO_DIR/.update.lock"
-if command -v flock >/dev/null 2>&1 && ! flock -n 9; then
-  die "Un altro aggiornamento è già in corso."
+# (Quando lo script si rilancia nella nuova versione il blocco è già preso, ereditato sul descrittore 9.)
+if [ -z "${UPDATE_OLD:-}" ]; then
+  exec 9>"$REPO_DIR/.update.lock"
+  if command -v flock >/dev/null 2>&1 && ! flock -n 9; then
+    die "Un altro aggiornamento è già in corso."
+  fi
 fi
 
 [ -d .git ] || die "Questa cartella non è un clone git del repository."
@@ -131,13 +135,17 @@ fi
 [ -f .env ] || die ".env non trovato: esegui prima ./setup.sh"
 command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || die "Docker non è raggiungibile."
 
-echo "${B}[$(ts)] Aggiornamento Studio Odontoiatrico${N}"
+[ -n "${UPDATE_OLD:-}" ] || echo "${B}[$(ts)] Aggiornamento Studio Odontoiatrico${N}"
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 [ "$BRANCH" != HEAD ] || die "Il repository non è su un branch (HEAD staccato): esegui 'git checkout main'."
 UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "origin/$BRANCH")
 REMOTE=${UPSTREAM%%/*}
 REMOTE_BRANCH=${UPSTREAM#*/}
+
+version() { git describe --tags --always "$1" 2>/dev/null || git rev-parse --short "$1"; }
+
+if [ -z "${UPDATE_OLD:-}" ]; then
 
 # Modifiche locali ai file versionati bloccherebbero (o verrebbero perse con) l'aggiornamento.
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
@@ -150,7 +158,6 @@ git fetch --quiet "$REMOTE" "$REMOTE_BRANCH" || die "Impossibile contattare GitH
 
 OLD=$(git rev-parse HEAD)
 NEW=$(git rev-parse "$UPSTREAM")
-version() { git describe --tags --always "$1" 2>/dev/null || git rev-parse --short "$1"; }
 
 if [ "$OLD" = "$NEW" ]; then
   ok "Già aggiornato alla versione più recente ($(version "$OLD"))."
@@ -221,6 +228,23 @@ done
 if [ "$OLD" != "$NEW" ]; then
   git merge --ff-only --quiet "$NEW"
   ok "Codice aggiornato a $(version "$NEW")."
+  # Se è cambiato anche questo script, i passi successivi (es. nuove variabili nel .env) li fa la
+  # nuova versione: si rilancia da una sua copia, ripartendo da qui.
+  if ! git diff --quiet "$OLD" "$NEW" -- update.sh; then
+    NEXT=$(mktemp "${TMPDIR:-/tmp}/update-sh.XXXXXX")
+    cp update.sh "$NEXT"
+    rm -f "$UPDATE_SH_COPY"
+    trap - EXIT
+    UPDATE_SH_COPY=$NEXT UPDATE_REPO_DIR=$REPO_DIR UPDATE_OLD=$OLD UPDATE_TEMPLATE=$TEMPLATE \
+      exec bash "$NEXT" "${ORIG_ARGS[@]}"
+  fi
+fi
+
+else
+  # Rilanciato dalla versione precedente dello script, a codice già aggiornato.
+  OLD=$UPDATE_OLD
+  NEW=$(git rev-parse HEAD)
+  TEMPLATE=${UPDATE_TEMPLATE:-}
 fi
 
 if [ -n "$TEMPLATE" ] && [ -f "$TEMPLATE" ] && ! cmp -s docker-compose.yml "$TEMPLATE"; then
@@ -229,6 +253,46 @@ if [ -n "$TEMPLATE" ] && [ -f "$TEMPLATE" ] && ! cmp -s docker-compose.yml "$TEM
   ok "docker-compose.yml aggiornato dal template $TEMPLATE (copia del precedente salvata)."
 elif [ -z "$TEMPLATE" ]; then
   warn "docker-compose.yml è stato personalizzato: non lo modifico. Confrontalo con i template _deploy_*_example.yml."
+fi
+
+# Porta delle conferme (solo con NPM su un altro server): ogni studio sullo stesso server ne usa una
+# diversa. Se manca nel .env se ne sceglie una libera, così l'avvio non fallisce per un conflitto.
+port_busy() {
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$1\$" && return 0
+  else
+    local hex
+    hex=$(printf '%04X' "$1")
+    cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | awk -v h=":$hex" '$4 == "0A" && substr($2, length($2) - 4) == h { f = 1 } END { exit !f }' && return 0
+  fi
+  docker ps --format '{{.Ports}}' 2>/dev/null | tr ',' '\n' | grep -qE ":$1->" && return 0
+  return 1
+}
+if grep -q 'CONFIRM_PORT' docker-compose.yml && [ -z "$(env_get CONFIRM_PORT)" ]; then
+  for p in $(seq 8180 8199); do
+    if ! port_busy "$p"; then
+      printf '\n# Porta pubblicata per le conferme degli appuntamenti (aggiunta da update.sh)\nCONFIRM_PORT=%s\n' "$p" >>.env
+      ok "Porta per le conferme degli appuntamenti: $p (CONFIRM_PORT nel .env)."
+      break
+    fi
+  done
+fi
+
+# Chiave che cifra i dati dei pazienti: si genera una volta sola e poi non va più cambiata.
+if [ -z "$(env_get DATA_KEY)" ]; then
+  if grep -q 'DATA_KEY' docker-compose.yml; then
+    if command -v openssl >/dev/null 2>&1; then
+      key=$(openssl rand -hex 32)
+    else
+      key=$(head -c 32 /dev/urandom | od -An -v -tx1 | tr -d ' \n')
+    fi
+    printf '\n# Chiave che cifra nome, telefono e note dei pazienti nel database (aggiunta da update.sh).\n# NON cambiarla e conservane una copia fuori dal server: senza questa chiave i dati non sono più leggibili.\nDATA_KEY=%s\n' "$key" >>.env
+    ok "Generata la chiave DATA_KEY: al riavvio nome, telefono e note dei pazienti vengono cifrati nel database."
+    warn "Salva una copia della chiave fuori dal server (es. gestore di password), non insieme ai backup:"
+    echo "    $key"
+  else
+    warn "docker-compose.yml personalizzato senza DATA_KEY: i dati dei pazienti restano in chiaro. Aggiungi DATA_KEY: \${DATA_KEY:-} all'ambiente del servizio api."
+  fi
 fi
 
 # Nuove variabili introdotte in .env.example e assenti nel .env.
@@ -280,6 +344,7 @@ if confirm "Tornare alla versione precedente ($(version "$OLD"))?"; then
   fi
   if deploy; then
     warn "Ripristinata la versione precedente $(version "$OLD"). Il backup del database è in backups/."
+    warn "Se nome e telefono dei pazienti appaiono come codici «v1:…», ripristina quel backup con ./recovery.sh."
   else
     die "Anche la versione precedente non parte: controlla con 'docker compose logs'. Backup del database in backups/."
   fi

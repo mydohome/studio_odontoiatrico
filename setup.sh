@@ -87,6 +87,15 @@ die() {
 }
 title() { printf '\n%s\n' "${B}$*${N}"; }
 
+# Chiave da 32 byte in esadecimale (DATA_KEY).
+gen_data_key() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+  else
+    head -c 32 /dev/urandom | od -An -v -tx1 | tr -d ' \n'
+  fi
+}
+
 # Stringa casuale alfanumerica (sicura dentro URL e file .env).
 gen_secret() {
   local len=${1:-32} out=''
@@ -154,6 +163,25 @@ instance_owner() {
     docker ps -a --filter "label=com.docker.compose.project=$1" --format '{{.Label "com.docker.compose.project.working_dir"}}'
     docker ps -a --filter "name=^/$1-(app|api|db)$" --format '{{.Label "com.docker.compose.project.working_dir"}}'
   } 2>/dev/null | grep -v '^$' | head -n1 || true
+}
+
+# Prima porta libera per le conferme degli appuntamenti tra 8180 e 8199 (diversa da quella HTTP).
+free_confirm_port() {
+  local p
+  for p in $(seq 8180 8199); do
+    [ "$p" != "${PORT:-}" ] && ! port_in_use "$p" && { printf '%s' "$p"; return; }
+  done
+  printf '8180'
+}
+
+# Indirizzo dei link di conferma: vuoto oppure http(s)://host[/percorso], senza / finale.
+normalize_url() {
+  local u=$1
+  u=${u%/}
+  [ -z "$u" ] && return 0
+  [[ "$u" =~ ^https?:// ]] || u="https://$u"
+  [[ "$u" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$ ]] || return 1
+  printf '%s' "${u%/}"
 }
 
 # Prima porta libera tra 80 e 8080–8099.
@@ -254,8 +282,12 @@ KEEP_DB_PASSWORD=''
 KEEP_DB_USER=''
 KEEP_DB_NAME=''
 KEEP_SESSION=''
+KEEP_DATA_KEY=''
+NEW_DATA_KEY=0
 OLD_PORT=''
 OLD_TZ=''
+OLD_CONFIRM_URL=''
+OLD_CONFIRM_PORT=''
 OLD_INSTANCE=''
 FRESH_INSTALL=1
 REWRITE_ENV=1
@@ -271,8 +303,11 @@ if [ -f "$ENV_FILE" ]; then
   KEEP_DB_USER=$(env_get POSTGRES_USER "$ENV_FILE")
   KEEP_DB_NAME=$(env_get POSTGRES_DB "$ENV_FILE")
   KEEP_SESSION=$(env_get SESSION_SECRET "$ENV_FILE")
+  KEEP_DATA_KEY=$(env_get DATA_KEY "$ENV_FILE")
   OLD_PORT=$(env_get HTTP_PORT "$ENV_FILE")
   OLD_TZ=$(env_get TZ "$ENV_FILE")
+  OLD_CONFIRM_URL=$(env_get CONFIRM_URL "$ENV_FILE")
+  OLD_CONFIRM_PORT=$(env_get CONFIRM_PORT "$ENV_FILE")
   # Installazioni create prima dell'introduzione delle istanze: nome storico.
   OLD_INSTANCE=$(env_get INSTANCE "$ENV_FILE")
   OLD_INSTANCE=${OLD_INSTANCE:-studio-odontoiatrico}
@@ -289,10 +324,23 @@ elif [ -d db/data ]; then
     echo
     [ -n "$KEEP_DB_PASSWORD" ] || die "Annullato. Per ripartire da zero elimina la cartella db/data (cancella tutti i dati)."
   fi
+  # Anche la chiave dei dati dei pazienti: con una nuova non sarebbero più leggibili.
+  if [ -n "${DATA_KEY:-}" ]; then
+    KEEP_DATA_KEY=$DATA_KEY
+  elif [ "$ASSUME_YES" -eq 0 ]; then
+    read -r -s -p "Chiave dei dati dei pazienti DATA_KEY (invio = nessuna, se non era impostata): " KEEP_DATA_KEY </dev/tty
+    echo
+  fi
+  KEEP_DATA_KEY=$(printf '%s' "$KEEP_DATA_KEY" | tr -d '[:space:]')
+  case $KEEP_DATA_KEY in
+    '' | *[!A-Za-z0-9+/=_-]*) [ -z "$KEEP_DATA_KEY" ] || die "DATA_KEY non valida (deve essere quella del vecchio .env, 64 caratteri esadecimali)." ;;
+  esac
 fi
 
 PORT=${OLD_PORT:-80}
 TIMEZONE=${OLD_TZ:-Europe/Rome}
+CONFIRM_LINK=$OLD_CONFIRM_URL
+CPORT=${OLD_CONFIRM_PORT:-8180}
 INSTANCE_NAME=${ARG_INSTANCE:-${OLD_INSTANCE:-studio-odontoiatrico}}
 if [ "$REWRITE_ENV" -eq 1 ]; then
   # Nome dell'istanza: prefisso di container, immagini e reti. Permette più studi sullo stesso
@@ -348,6 +396,36 @@ if [ "$REWRITE_ENV" -eq 1 ]; then
     done
   fi
 
+  # Link di conferma degli appuntamenti su un dominio separato (facoltativo).
+  [ "$ASSUME_YES" -eq 1 ] || info "Link di conferma degli appuntamenti: meglio un dominio separato dal gestionale (es. conferma.dominio.it), che mostra solo la pagina di conferma. Invio senza indirizzo = stesso indirizzo del gestionale; \"-\" toglie quello impostato. Si può cambiare anche dopo, in Impostazioni."
+  while :; do
+    ans=$(ask "Indirizzo per i link di conferma (es. https://conferma.dominio.it)" "${CONFIRM_URL:-$OLD_CONFIRM_URL}")
+    [ "$ans" = - ] && ans=''
+    if CONFIRM_LINK=$(normalize_url "$ans"); then break; fi
+    [ "$ASSUME_YES" -eq 1 ] && die "Indirizzo per i link di conferma non valido: $ans"
+    warn "Indirizzo non valido: scrivi per esempio https://conferma.dominio.it (oppure invio per nessuno)."
+  done
+
+  # Porta delle conferme (solo se l'app pubblica le porte).
+  if [ "$MODE" = network ]; then
+    DEFAULT_CPORT=${CONFIRM_PORT:-${OLD_CONFIRM_PORT:-}}
+    [ -n "$DEFAULT_CPORT" ] || DEFAULT_CPORT=$(free_confirm_port)
+    while :; do
+      CPORT=$(ask "Porta per i link di conferma (solo pagina di conferma)" "$DEFAULT_CPORT")
+      if ! [[ "$CPORT" =~ ^[0-9]+$ ]] || [ "$CPORT" -lt 1 ] || [ "$CPORT" -gt 65535 ] || [ "$CPORT" = "$PORT" ]; then
+        [ "$ASSUME_YES" -eq 1 ] && die "Porta per le conferme non valida: $CPORT"
+        warn "Inserisci un numero tra 1 e 65535 diverso dalla porta HTTP ($PORT)."
+        continue
+      fi
+      if [ "$CPORT" != "$OLD_CONFIRM_PORT" ] && port_in_use "$CPORT"; then
+        [ "$ASSUME_YES" -eq 1 ] && die "La porta $CPORT è già in uso su questo server. Scegline un'altra con CONFIRM_PORT=..."
+        warn "La porta $CPORT è già in uso su questo server: scegline un'altra (es. $(free_confirm_port))."
+        continue
+      fi
+      break
+    done
+  fi
+
   # Fuso orario.
   DEFAULT_TZ=${TZ:-${OLD_TZ:-Europe/Rome}}
   while :; do
@@ -361,6 +439,8 @@ if [ "$REWRITE_ENV" -eq 1 ]; then
   DB_NAME=${KEEP_DB_NAME:-studio}
   DB_PASSWORD=${KEEP_DB_PASSWORD:-$(gen_secret 32)}
   SESSION=${KEEP_SESSION:-$(gen_secret 48)}
+  DATAKEY=${KEEP_DATA_KEY:-$(gen_data_key)}
+  [ -n "$KEEP_DATA_KEY" ] || NEW_DATA_KEY=1
   no_quotes "$DB_PASSWORD" || die "La password del database non può contenere apici singoli."
 
   [ -f "$ENV_FILE" ] && backup "$ENV_FILE"
@@ -381,8 +461,17 @@ POSTGRES_PASSWORD='$DB_PASSWORD'
 # Chiave per firmare i cookie di sessione (cambiandola si chiudono tutte le sessioni)
 SESSION_SECRET='$SESSION'
 
+# Chiave che cifra nome, telefono e note dei pazienti nel database. NON cambiarla e conservane una
+# copia fuori dal server (es. gestore di password): senza questa chiave i dati non sono più leggibili.
+DATA_KEY=$DATAKEY
+
 # Porta HTTP pubblicata sull'host (usata solo con $TPL_NETWORK)
 HTTP_PORT=$PORT
+
+# Link di conferma degli appuntamenti su un dominio separato (vuoto = stesso indirizzo del gestionale)
+CONFIRM_URL=$CONFIRM_LINK
+# Porta pubblicata per le conferme (solo con $TPL_NETWORK; in NPM sullo stesso host si usa la 8081 del container)
+CONFIRM_PORT=$CPORT
 
 # Fuso orario (determina il "giorno di oggi")
 TZ=$TIMEZONE
@@ -392,6 +481,12 @@ EOF
   chmod 600 "$ENV_FILE"
   umask 022
   ok "File $ENV_FILE creato (leggibile solo dal tuo utente)."
+elif [ -z "$KEEP_DATA_KEY" ]; then
+  # .env mantenuto ma senza la chiave dei dati dei pazienti (installazione precedente): si aggiunge.
+  DATAKEY=$(gen_data_key)
+  NEW_DATA_KEY=1
+  printf '\n# Chiave che cifra nome, telefono e note dei pazienti nel database. NON cambiarla e conservane una\n# copia fuori dal server: senza questa chiave i dati non sono più leggibili.\nDATA_KEY=%s\n' "$DATAKEY" >>"$ENV_FILE"
+  ok "Aggiunta al $ENV_FILE la chiave DATA_KEY per cifrare i dati dei pazienti."
 fi
 
 # ---------- 3. docker-compose.yml ----------
@@ -568,23 +663,44 @@ if [ "$CREATE_USER" -eq 1 ]; then
   fi
 fi
 echo "  Fuso orario:    $TIMEZONE"
+echo "  Link conferma:  ${CONFIRM_LINK:-stesso indirizzo del gestionale (Impostazioni → Studio)}"
 echo "  Backup:         $BACKUP_STATUS"
-echo
-if [ "$MODE" = npm ]; then
-  echo "  ${B}In Nginx Proxy Manager${N} crea un Proxy Host con:"
-  echo "    Scheme: http   Forward Hostname: $INSTANCE_NAME-app   Forward Port: 80"
-  echo "    Scheda SSL: richiedi il certificato Let's Encrypt e attiva Force SSL."
-else
-  echo "  ${B}Nel Nginx Proxy Manager remoto${N} crea un Proxy Host con:"
-  echo "    Scheme: http   Forward Hostname: ${HOST_IP:-<ip-di-questo-server>}   Forward Port: $PORT"
-  echo "  Apri la porta $PORT nel firewall, possibilmente solo verso l'IP del server NPM"
-  echo "  (su OCI: Security List + iptables, vedi README)."
+if [ "$NEW_DATA_KEY" -eq 1 ]; then
+  echo
+  echo "  ${Y}Chiave dei dati dei pazienti (DATA_KEY nel $ENV_FILE):${N} nome, telefono e note sono cifrati"
+  echo "  nel database con questa chiave. Salvane una copia fuori dal server (es. gestore di password),"
+  echo "  non insieme ai backup: senza la chiave i dati e i backup non sono più leggibili."
+  echo "    ${B}$DATAKEY${N}"
 fi
 echo
-echo "  Gestione utenti:  ./manage-users.sh"
-echo "  Ripristino:       ./recovery.sh (sceglie da un elenco dei backup disponibili)"
+CONFIRM_HOST=${CONFIRM_LINK#*://}
+CONFIRM_HOST=${CONFIRM_HOST%%/*}
+if [ "$MODE" = npm ]; then
+  echo "  ${B}In Nginx Proxy Manager${N} crea un Proxy Host per il gestionale:"
+  echo "    Scheme: http   Forward Hostname: $INSTANCE_NAME-app   Forward Port: 80"
+  if [ -n "$CONFIRM_LINK" ]; then
+    echo "  e uno per i link di conferma (${CONFIRM_HOST}), che mostra solo la pagina di conferma:"
+    echo "    Scheme: http   Forward Hostname: $INSTANCE_NAME-app   Forward Port: 8081"
+  fi
+  echo "    Scheda SSL: richiedi il certificato Let's Encrypt e attiva Force SSL."
+else
+  echo "  ${B}Nel Nginx Proxy Manager remoto${N} crea un Proxy Host per il gestionale:"
+  echo "    Scheme: http   Forward Hostname: ${HOST_IP:-<ip-di-questo-server>}   Forward Port: $PORT"
+  if [ -n "$CONFIRM_LINK" ]; then
+    echo "  e uno per i link di conferma (${CONFIRM_HOST}), che mostra solo la pagina di conferma:"
+    echo "    Scheme: http   Forward Hostname: ${HOST_IP:-<ip-di-questo-server>}   Forward Port: $CPORT"
+  fi
+  echo "  Apri le porte $PORT${CONFIRM_LINK:+ e $CPORT} nel firewall, possibilmente solo verso l'IP del server NPM"
+  echo "  (su OCI: Security List + iptables, vedi README)."
+fi
+if [ -n "$CONFIRM_LINK" ]; then
+  echo "  Con le conferme su un dominio separato il gestionale può restare chiuso al pubblico:"
+  echo "  in NPM aggiungi al suo Proxy Host una Access List (solo gli IP dello studio, o utente e password)."
+fi
+echo
+echo "  Amministrazione:  ./studio (stato, backup, ripristino, aggiornamenti, utenti, log: ./studio help)"
 if [ "$STARTED" -eq 1 ]; then
-  echo "  Log dell'app:     docker compose logs -f"
+  echo "  Log dell'app:     ./studio logs -f"
 else
   echo "  Avvio dell'app:   docker compose up -d --build"
 fi

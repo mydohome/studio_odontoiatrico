@@ -1,8 +1,12 @@
 import type {
+  Appointment,
+  AppointmentInput,
   CampaignResponse,
   CustomCampaign,
   CustomCampaignInput,
+  ScheduledAppointment,
   ImportResult,
+  PublicAppointment,
   RecordRow,
   Service,
 } from '../../../shared/types.ts'
@@ -23,6 +27,8 @@ export interface AppSettings {
   logoVersion: number
   /** Modello grafico dei volantini: "Smile" (colorato) o "Mint" (pulito, tecnologico). */
   flyerStyle: 'smile' | 'mint'
+  /** Indirizzo pubblico dell'app per i link di conferma (vuoto = quello del browser). */
+  publicUrl: string
 }
 
 /** Nome e logo dello studio: pubblici, mostrati anche nella pagina di accesso. */
@@ -95,10 +101,11 @@ export const api = {
     if (to) q.set('to', to)
     return request<RecordRow[]>('GET', `/api/records?${q}`)
   },
-  day: (date: string) => request<{ date: string; items: Record<string, number> }>('GET', `/api/days/${date}`),
+  day: (date: string) =>
+    request<{ date: string; items: Record<string, number>; appointments?: Record<string, number> }>('GET', `/api/days/${date}`),
   saveDay: (date: string, items: Record<string, number>) =>
     request<{ date: string; items: Record<string, number> }>('PUT', `/api/days/${date}`, { items }),
-  deleteAll: () => request<{ ok: boolean }>('DELETE', '/api/records?confirm=ELIMINA'),
+  deleteAll: (phrase: string) => request<{ ok: boolean }>('DELETE', `/api/records?confirm=${encodeURIComponent(phrase)}`),
 
   campaigns: (months = 12) => request<CampaignResponse>('GET', `/api/campaigns?months=${months}`),
 
@@ -114,6 +121,22 @@ export const api = {
   saveCustomFlyer: (id: number, flyer: object | null) =>
     request<CustomCampaign>('PUT', `/api/custom-campaigns/${id}/flyer`, { flyer }),
   deleteCustomCampaign: (id: number) => request<{ ok: boolean }>('DELETE', `/api/custom-campaigns/${id}`),
+
+  appointments: (from: string, to: string) => request<ScheduledAppointment[]>('GET', `/api/appointments?from=${from}&to=${to}`),
+  toReschedule: () => request<Appointment[]>('GET', '/api/appointments/to-reschedule'),
+  rescheduleAppointment: (id: number) => request<Appointment>('POST', `/api/appointments/${id}/reschedule`, {}),
+  patients: () => request<{ name: string; phone: string }[]>('GET', '/api/appointments/patients'),
+  createAppointment: (a: AppointmentInput) => request<Appointment>('POST', '/api/appointments', a),
+  updateAppointment: (id: number, a: AppointmentInput) => request<Appointment>('PUT', `/api/appointments/${id}`, a),
+  deleteAppointment: (id: number) => request<{ ok: boolean }>('DELETE', `/api/appointments/${id}`),
+  appointmentSent: (id: number) => request<Appointment>('POST', `/api/appointments/${id}/sent`, {}),
+  appointmentCalled: (id: number) => request<Appointment>('POST', `/api/appointments/${id}/call`, {}),
+  appointmentNoShow: (id: number, noShow: boolean) => request<Appointment>('POST', `/api/appointments/${id}/no-show`, { noShow }),
+  appointmentConfirmation: (id: number, confirmed: boolean) =>
+    request<Appointment>('POST', `/api/appointments/${id}/confirmation`, { confirmed }),
+  publicAppointment: (token: string) => request<PublicAppointment>('GET', `/api/public/appointments/${encodeURIComponent(token)}`),
+  confirmAppointment: (token: string) =>
+    request<PublicAppointment>('POST', `/api/public/appointments/${encodeURIComponent(token)}/confirm`),
 
   importExcel: (file: File, mode: 'replace' | 'sum') =>
     request<ImportResult>('POST', `/api/excel/import?mode=${mode}`, undefined, file),

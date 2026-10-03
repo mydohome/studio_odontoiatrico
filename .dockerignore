@@ -5,3 +5,12 @@
 db
 backups
 update.log
+# File locali con password, chiavi o log: mai nel contesto di build
+.env
+.env.*
+*.bak-*
+docker-compose.yml
+backup.log
+.update.lock
+.update-failed
+.backup.lock

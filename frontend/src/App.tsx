@@ -1,10 +1,11 @@
-import { BarChart3, ClipboardPlus, Loader2, Megaphone, Settings } from 'lucide-react'
+import { BarChart3, CalendarDays, ClipboardPlus, Loader2, Megaphone, Settings } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from './components/Toast.tsx'
 import { Tooth } from './components/Tooth.tsx'
 import { api, setUnauthorizedHandler, type SessionUser, type StudioBrand } from './lib/api.ts'
 import { useCustomLogo } from './lib/logo.ts'
 import { useAppData } from './lib/useData.ts'
+import Appuntamenti from './pages/Appuntamenti.tsx'
 import Campagne from './pages/Campagne.tsx'
 import Impostazioni from './pages/Impostazioni.tsx'
 import Login from './pages/Login.tsx'
@@ -13,9 +14,10 @@ import Registra from './pages/Registra.tsx'
 // La dashboard include la libreria dei grafici: caricata solo quando serve.
 const Dashboard = lazy(() => import('./pages/Dashboard.tsx'))
 
-type TabId = 'registra' | 'dashboard' | 'campagne' | 'impostazioni'
+type TabId = 'appuntamenti' | 'registra' | 'dashboard' | 'campagne' | 'impostazioni'
 
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
+  { id: 'appuntamenti', label: 'Appuntamenti', icon: <CalendarDays size={17} /> },
   { id: 'registra', label: 'Registra', icon: <ClipboardPlus size={17} /> },
   { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={17} /> },
   { id: 'campagne', label: 'Campagne', icon: <Megaphone size={17} /> },
@@ -24,7 +26,7 @@ const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
 
 const tabFromHash = (): TabId => {
   const h = window.location.hash.replace('#', '') as TabId
-  return TABS.some((t) => t.id === h) ? h : 'registra'
+  return TABS.some((t) => t.id === h) ? h : 'appuntamenti'
 }
 
 export default function App() {
@@ -86,7 +88,7 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
   return (
     <>
       <header className="app-header">
-        <div className="app-header-inner">
+        <div className={`app-header-inner ${tab === 'appuntamenti' ? 'is-wide' : ''}`}>
           <div className="brand">
             {headerLogo ? (
               <img className="brand-logo-img" src={headerLogo} alt="" />
@@ -107,7 +109,8 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
           </nav>
         </div>
       </header>
-      <main>
+      {/* L'agenda usa tutta la larghezza dello schermo, le altre pagine restano a 1200 px. */}
+      <main className={tab === 'appuntamenti' ? 'is-wide' : undefined}>
         {data.loading ? (
           <div className="empty">
             <Loader2 size={24} /> Caricamento…
@@ -116,6 +119,7 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
           <div className="alert alert-danger">Impossibile contattare il server: {data.error}</div>
         ) : (
           <>
+            {tab === 'appuntamenti' && <Appuntamenti data={data} />}
             {tab === 'registra' && <Registra data={data} />}
             {tab === 'dashboard' && (
               <Suspense fallback={<div className="empty">Caricamento…</div>}>

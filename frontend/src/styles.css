@@ -32,6 +32,20 @@
   --div-neg: #2a78d6;
   --div-mid: #f0efec;
   --div-pos: #e34948;
+
+  --st-link: #1f7a3a;
+  --st-link-soft: #e3f3e7;
+  --st-manual: #2563c4;
+  --st-manual-soft: #e6eefb;
+  --st-sent: #9a6500;
+  --st-sent-soft: #fcf1dc;
+  --st-new: #6b6e72;
+  --st-new-soft: #eeefec;
+  --whatsapp: #1fa855;
+  --st-resched: #3730a3;
+  --st-resched-soft: #e0e7ff;
+  --st-noshow: #9f1239;
+  --st-noshow-soft: #fde4ea;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -68,6 +82,20 @@
     --div-neg: #3987e5;
     --div-mid: #383835;
     --div-pos: #e66767;
+
+    --st-link: #5cc27a;
+    --st-link-soft: #17301f;
+    --st-manual: #7aa8f5;
+    --st-manual-soft: #1a2740;
+    --st-sent: #e2a93a;
+    --st-sent-soft: #3a2d12;
+    --st-new: #a3a6a2;
+    --st-new-soft: #262928;
+    --whatsapp: #25c463;
+    --st-resched: #a5b4fc;
+    --st-resched-soft: #1e1b4b;
+    --st-noshow: #fb7f99;
+    --st-noshow-soft: #3b1420;
   }
 }
 
@@ -185,6 +213,16 @@ main {
   padding: 22px 16px 60px;
 }
 
+main.is-wide,
+.app-header-inner.is-wide {
+  max-width: 1680px;
+}
+
+main.is-wide {
+  padding-top: 14px;
+  padding-bottom: 12px;
+}
+
 .page-head {
   display: flex;
   align-items: flex-end;
@@ -203,6 +241,22 @@ main {
 .page-head p {
   margin: 4px 0 0;
   color: var(--text-2);
+}
+
+/* Titolo e sottotitolo sulla stessa riga: più spazio in altezza per il contenuto. */
+.page-head-inline {
+  justify-content: flex-start;
+  align-items: baseline;
+  gap: 2px 14px;
+  margin-bottom: 10px;
+}
+
+.page-head-inline p {
+  margin: 0;
+}
+
+.page-head-inline h1 {
+  font-size: 1.35rem;
 }
 
 .grid {
@@ -295,6 +349,13 @@ main {
 
 .btn:hover {
   background: var(--surface-2);
+}
+
+.btn-sm {
+  padding: 6px 11px;
+  font-size: 0.86rem;
+  border-radius: 9px;
+  gap: 6px;
 }
 
 .btn:disabled {
@@ -523,6 +584,17 @@ select.input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Prestazioni già contate dagli appuntamenti confermati in agenda. */
+.entry-appt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--good);
 }
 
 .stepper {
@@ -1469,4 +1541,1029 @@ tbody tr:last-child td {
   max-width: 120px;
   object-fit: contain;
   flex: none;
+}
+
+/* ---------- Appuntamenti ---------- */
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.st-link {
+  --c: var(--st-link);
+  --c-soft: var(--st-link-soft);
+}
+
+.st-manual {
+  --c: var(--st-manual);
+  --c-soft: var(--st-manual-soft);
+}
+
+.st-sent {
+  --c: var(--st-sent);
+  --c-soft: var(--st-sent-soft);
+}
+
+.st-new {
+  --c: var(--st-new);
+  --c-soft: var(--st-new-soft);
+}
+
+/* Non presentato: l'appuntamento resta visibile in agenda, barrato. */
+.st-noshow {
+  --c: var(--st-noshow);
+  --c-soft: var(--st-noshow-soft);
+}
+
+.cal-ev.st-noshow .cal-ev-name,
+.agenda-item.st-noshow strong {
+  text-decoration: line-through;
+}
+
+.alert-noshow {
+  background: var(--st-noshow-soft);
+  color: var(--st-noshow);
+}
+
+.btn-noshow {
+  color: var(--st-noshow);
+  border-color: color-mix(in srgb, var(--st-noshow) 40%, var(--border));
+}
+
+.appt-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+  color: var(--c);
+  background: var(--c-soft);
+  border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  justify-self: start;
+}
+
+.btn-whatsapp {
+  background: var(--whatsapp);
+  border-color: var(--whatsapp);
+  color: #fff;
+}
+
+.btn-whatsapp:hover {
+  background: color-mix(in srgb, var(--whatsapp) 85%, #000);
+}
+
+.cal-card {
+  padding: 14px;
+}
+
+.cal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cal-date-pick {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Il selettore di data nativo, invisibile sopra l'icona. */
+.cal-date-pick input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cal-date-pick input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  cursor: pointer;
+}
+
+.cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+.cal-legend .appt-tag {
+  font-size: 0.74rem;
+  padding: 2px 8px;
+}
+
+.cal-legend > .small {
+  margin-right: 4px;
+}
+
+.cal {
+  --hours-w: 50px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cal-head,
+.cal-body {
+  display: grid;
+  grid-template-columns: var(--hours-w) repeat(var(--cols), minmax(0, 1fr));
+}
+
+.cal-head {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.cal-day-head {
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  padding: 8px 6px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  color: var(--text-2);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.cal-day-head:disabled {
+  cursor: default;
+}
+
+.cal-day-head:not(:disabled):hover {
+  background: var(--surface);
+}
+
+.cal-day-head strong {
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.cal-day-head.is-today strong {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+
+.cal-day-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Altezza calcolata dalla pagina (fascia 9–19 nello schermo); questo è il valore di riserva. */
+.cal-scroll {
+  max-height: max(420px, calc(100vh - 290px));
+  overflow-y: auto;
+}
+
+@media (max-width: 520px) {
+  .cal-new-label {
+    display: none;
+  }
+}
+
+.cal-body {
+  position: relative;
+}
+
+.cal-hours {
+  position: relative;
+}
+
+.cal-hours span {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-hours span:first-child {
+  transform: none;
+}
+
+/* Righe delle ore come sfondo della colonna. */
+.cal-col {
+  position: relative;
+  border-left: 1px solid var(--border);
+  background-image: linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  cursor: copy;
+}
+
+.cal-col.is-today {
+  background-color: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.cal-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--danger);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.cal-now::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.cal-ev {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
+  border-left: 4px solid var(--c);
+  border-radius: 7px;
+  background: var(--c-soft);
+  color: var(--text);
+  text-align: left;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cal-ev:hover {
+  z-index: 3;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+}
+
+.cal-ev.is-short {
+  justify-content: center;
+  padding-block: 0;
+}
+
+.cal-ev-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.cal-ev-icon {
+  flex: none;
+  color: var(--c);
+}
+
+.cal-ev-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Affiancati nella settimana: c'è posto solo per il nome (l'ora si legge dalla posizione). */
+.cal-ev.is-narrow .cal-ev-time,
+.cal-ev.is-narrow .cal-ev-icon {
+  display: none;
+}
+
+.cal-ev-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-ev-sub {
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Elenco della settimana su schermi stretti. */
+.agenda {
+  display: grid;
+  gap: 12px;
+}
+
+.agenda-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+
+.agenda-day.is-today .agenda-day-head strong {
+  color: var(--accent);
+}
+
+.agenda-empty {
+  margin: 4px 0;
+}
+
+.agenda-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.agenda-time {
+  display: grid;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.agenda-time small {
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.agenda-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agenda-main .appt-tag {
+  margin-top: 3px;
+}
+
+.agenda-main > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dettaglio dell'appuntamento: su schermi larghi dati a sinistra e messaggio a destra, senza scorrere. */
+.modal-wide {
+  width: min(960px, 100%);
+}
+
+.appt-detail {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 860px) {
+  .appt-detail {
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+    align-items: start;
+    gap: 22px;
+  }
+
+  .modal-wide .modal-body {
+    padding: 14px 18px 16px;
+  }
+}
+
+.appt-facts {
+  display: grid;
+  gap: 8px;
+}
+
+.appt-facts > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.appt-facts > div svg {
+  flex: none;
+  color: var(--text-3);
+}
+
+.appt-notes {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  white-space: pre-line;
+}
+
+.appt-history {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.appt-message {
+  display: grid;
+  gap: 8px;
+}
+
+.appt-message textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.appt-message-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.appt-message-head .field-label {
+  margin: 0;
+}
+
+.appt-icons-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.appt-paste-hint kbd {
+  font-family: inherit;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--good) 40%, transparent);
+  background: var(--surface);
+}
+
+.appt-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.appt-detail-foot {
+  flex-wrap: wrap;
+}
+
+/* Telefono: pulsanti in griglia su due colonne e messaggio più corto (si allunga trascinando). */
+@media (max-width: 600px) {
+  .appt-detail-foot {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .appt-detail-foot > span {
+    display: none;
+  }
+
+  .appt-detail-foot .btn {
+    padding: 7px 8px;
+  }
+
+  .appt-message textarea {
+    max-height: 32vh;
+  }
+}
+
+.appt-form-foot {
+  flex-wrap: wrap;
+}
+
+.appt-prepare {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  cursor: pointer;
+}
+
+/* Pagina pubblica di conferma */
+.public-page .public-card {
+  max-width: 420px;
+  gap: 14px;
+}
+
+.public-state {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 6px;
+  text-align: center;
+  color: var(--text-2);
+}
+
+.public-state p {
+  margin: 0;
+}
+
+.public-hello {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.public-when {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+
+.public-day {
+  font-size: 1.3rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.public-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+
+.public-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.public-line svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--accent);
+}
+
+a.public-line {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.public-confirm {
+  padding: 13px 16px;
+  font-size: 1.05rem;
+}
+
+.public-done {
+  align-items: center;
+}
+
+.public-calendar {
+  display: grid;
+  gap: 8px;
+}
+
+.public-calendar p {
+  margin: 0;
+}
+
+.public-contact {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.public-contact p {
+  margin: 0;
+}
+
+.public-contact-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .cal {
+    --hours-w: 42px;
+  }
+
+  .cal-toolbar {
+    justify-content: center;
+  }
+
+  .period-label {
+    min-width: 0;
+  }
+}
+
+/* Agenda: colonna "da fare" a sinistra, calendario nel resto dello schermo. */
+.appt-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.appt-side {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+@media (min-width: 1100px) {
+  .appt-layout {
+    grid-template-columns: 360px minmax(0, 1fr);
+  }
+
+  /* Resta in vista scorrendo il calendario; se è lunga scorre per conto suo. */
+  .appt-side {
+    position: sticky;
+    top: 76px;
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+}
+
+/* Schermi medi: i due riquadri affiancati sopra il calendario. */
+@media (min-width: 700px) and (max-width: 1099px) {
+  .appt-side {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.appt-side .card {
+  padding: 12px;
+}
+
+.appt-side .to-confirm-head h2 {
+  font-size: 0.98rem;
+}
+
+.side-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'main actions'
+    'sub sub';
+  align-items: center;
+  gap: 4px 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.side-row-main {
+  grid-area: main;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.side-row-time {
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.side-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-row-sub {
+  grid-area: sub;
+  display: flex;
+  align-items: center;
+  gap: 4px 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.side-row-sub .appt-tag {
+  font-size: 0.72rem;
+  padding: 1px 7px;
+}
+
+.side-row-actions {
+  grid-area: actions;
+  display: flex;
+  gap: 4px;
+}
+
+.side-row-actions .btn-icon {
+  padding: 5px 6px;
+}
+
+/* Da confermare */
+.to-confirm {
+  display: grid;
+  gap: 8px;
+}
+
+.to-confirm.has-items {
+  border-color: color-mix(in srgb, var(--st-sent) 45%, var(--border));
+  box-shadow: inset 4px 0 0 var(--st-sent), var(--shadow);
+}
+
+.to-confirm-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+}
+
+.to-confirm-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.to-confirm.has-items .to-confirm-head h2 svg {
+  color: var(--st-sent);
+}
+
+.to-confirm:not(.has-items) .to-confirm-head h2 svg {
+  color: var(--st-link);
+}
+
+.to-confirm-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--st-sent);
+  color: #fff;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.to-confirm-day {
+  display: grid;
+  gap: 6px;
+}
+
+.to-confirm-day-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-2);
+}
+
+.to-confirm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.to-confirm-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.to-confirm-time {
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.to-confirm-who {
+  display: grid;
+  min-width: 0;
+}
+
+.to-confirm-who > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.to-confirm-info {
+  display: flex;
+  align-items: center;
+  gap: 4px 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.to-confirm-called {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.to-confirm-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.to-confirm-actions .btn {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 960px) {
+  .to-confirm-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .to-confirm-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Badge della prestazione */
+.svc-badge {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 6px;
+  vertical-align: middle;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.svc-badge-md {
+  font-size: 0.78rem;
+  padding: 2px 8px;
+}
+
+.svc-badge-sm {
+  font-size: 0.7rem;
+  line-height: 1.35;
+  padding: 0 6px;
+}
+
+.svc-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+/* Da riprogrammare */
+.st-resched {
+  --c: var(--st-resched);
+  --c-soft: var(--st-resched-soft);
+}
+
+.alert-resched {
+  background: var(--st-resched-soft);
+  color: var(--st-resched);
+  border: 1px solid color-mix(in srgb, var(--st-resched) 30%, transparent);
+}
+
+.btn-resched {
+  color: var(--st-resched);
+  border-color: color-mix(in srgb, var(--st-resched) 45%, var(--border));
+}
+
+.btn-resched:hover {
+  background: var(--st-resched-soft);
+}
+
+.to-confirm-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.to-resched {
+  display: grid;
+  gap: 8px;
+}
+
+.to-resched.has-items {
+  border-color: color-mix(in srgb, var(--st-resched) 45%, var(--border));
+  box-shadow: inset 4px 0 0 var(--st-resched), var(--shadow);
+}
+
+.to-resched .to-confirm-head h2 svg {
+  color: var(--st-resched);
+}
+
+/* Senza appuntamenti il riquadro resta una riga sola. */
+.to-resched:not(.has-items) {
+  padding-block: 12px;
+}
+
+.to-resched:not(.has-items) h2 {
+  font-size: 0.95rem;
+}
+
+/* Tinta fissa (anche nel tema scuro): la scritta bianca deve restare leggibile. */
+.to-resched-count {
+  background: #3730a3;
+}
+
+.btn-resched-solid {
+  background: #3730a3;
+  border-color: #3730a3;
+  color: #fff;
+}
+
+.btn-resched-solid:hover {
+  background: #312e81;
+}
+
+.cal-ev-badge {
+  display: flex;
+  min-width: 0;
+}
+
+.agenda-main .svc-badge {
+  justify-self: start;
+}
+
+/* Prestazioni: categoria e colore del badge */
+.service-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.badge-color {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.badge-color-preview {
+  position: relative;
+  cursor: pointer;
+}
+
+/* Il selettore di colore nativo, invisibile sopra l'anteprima. */
+.badge-color-preview input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+.badge-color-reset {
+  padding: 4px;
 }

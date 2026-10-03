@@ -18,3 +18,4 @@ update.log
 .update-failed
 backup.log
 .backup.lock
+*.tsbuildinfo

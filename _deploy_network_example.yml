@@ -7,12 +7,14 @@
 # Passi:
 # 1) ./setup.sh                → scegli "host diverso", crea .env, docker-compose.yml e il primo utente
 # 2) Apri la porta HTTP_PORT (predefinita 80) nel firewall, idealmente SOLO verso l'IP del server NPM
-# 3) Nel NPM remoto crea un "Proxy Host":
-#      Scheme / Forward Hostname / Forward Port:  http / <IP di questo server> / HTTP_PORT
-#      SSL: certificato Let's Encrypt + "Force SSL"
+# 3) Nel NPM remoto crea due "Proxy Host":
+#      gestionale (es. studio.dominio.it):  http / <IP di questo server> / HTTP_PORT
+#      conferme   (es. conferma.dominio.it): http / <IP di questo server> / CONFIRM_PORT (predefinita 8180)
+#      SSL: certificato Let's Encrypt + "Force SSL"; sul gestionale conviene una Access List
 #
 # Regole applicate:
-# - Solo "app" (Nginx con l'interfaccia) pubblica una porta sull'host.
+# - Solo "app" (Nginx con l'interfaccia) pubblica porte sull'host: HTTP_PORT per il gestionale e
+#   CONFIRM_PORT, che risponde solo alla pagina di conferma degli appuntamenti.
 # - "api" e "db" stanno SOLO sulla rete interna "backend" (internal: true), senza porte
 #   pubblicate e senza accesso a Internet.
 
@@ -31,6 +33,8 @@ services:
       - api
     ports:
       - "${HTTP_PORT:-80}:80"
+      # Solo conferme degli appuntamenti (dominio pubblico dei link): nessun accesso al gestionale.
+      - "${CONFIRM_PORT:-8180}:8081"
     networks:
       - web
       - backend
@@ -64,7 +68,10 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-studio}:${POSTGRES_PASSWORD:?Imposta POSTGRES_PASSWORD nel file .env}@db:5432/${POSTGRES_DB:-studio}
       SESSION_SECRET: ${SESSION_SECRET:-}
+      DATA_KEY: ${DATA_KEY:-}
       TZ: ${TZ:-Europe/Rome}
+      # Indirizzo dei link di conferma (es. https://conferma.dominio.it), se diverso dal gestionale.
+      CONFIRM_URL: ${CONFIRM_URL:-}
     depends_on:
       db:
         condition: service_healthy

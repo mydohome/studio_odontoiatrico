@@ -6,6 +6,7 @@ export const MONTHS = [
 ]
 export const MONTHS_SHORT = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic']
 export const WEEKDAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
+export const WEEKDAYS = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato']
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -78,4 +79,10 @@ export function formatWeek(startIso: string): string {
 export function isValidISO(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
   return toISO(fromISO(s)) === s
+}
+
+/** "Lunedì 5 ottobre 2026" */
+export function formatLongDay(iso: string): string {
+  const d = fromISO(iso)
+  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].toLowerCase()} ${d.getFullYear()}`
 }

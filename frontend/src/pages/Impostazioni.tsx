@@ -1,6 +1,6 @@
-import { Check, Database, Download, FileSpreadsheet, ImageUp, LogOut, Plus, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
-import { useRef, useState, type DragEvent } from 'react'
-import { CATEGORIES } from '../../../shared/catalog.ts'
+import { Check, Database, Download, FileSpreadsheet, ImageUp, LogOut, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { badgeColor, CATEGORIES } from '../../../shared/catalog.ts'
 import type { CategoryId, ImportResult, Service } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
 import { api, EXPORT_URL, TEMPLATE_URL, type SessionUser } from '../lib/api.ts'
@@ -58,11 +58,13 @@ function StudioCard({ data }: { data: AppDataState }) {
   const [phone, setPhone] = useState(data.settings.phone)
   const [address, setAddress] = useState(data.settings.address)
   const [doctorName, setDoctorName] = useState(data.settings.doctorName)
+  const [publicUrl, setPublicUrl] = useState(data.settings.publicUrl)
   const changed =
     name.trim() !== data.settings.studioName ||
     doctorName.trim() !== data.settings.doctorName ||
     phone.trim() !== data.settings.phone ||
-    address.trim() !== data.settings.address
+    address.trim() !== data.settings.address ||
+    publicUrl.trim() !== data.settings.publicUrl
   const { showPrices } = data.settings
 
   const togglePrices = async (value: boolean) => {
@@ -80,7 +82,7 @@ function StudioCard({ data }: { data: AppDataState }) {
   return (
     <div className="card">
       <h2>Studio</h2>
-      <p className="sub">Dati mostrati nell'intestazione e nei volantini delle campagne.</p>
+      <p className="sub">Dati mostrati nell'intestazione, nei volantini e nei messaggi degli appuntamenti.</p>
       <form
         className="studio-form"
         onSubmit={async (e) => {
@@ -91,12 +93,14 @@ function StudioCard({ data }: { data: AppDataState }) {
               doctorName: doctorName.trim(),
               phone: phone.trim(),
               address: address.trim(),
+              publicUrl: publicUrl.trim(),
             })
             data.setSettings(r)
             setName(r.studioName)
             setDoctorName(r.doctorName)
             setPhone(r.phone)
             setAddress(r.address)
+            setPublicUrl(r.publicUrl)
             notify('Dati dello studio salvati')
           } catch (err) {
             notify((err as Error).message, 'error')
@@ -138,6 +142,22 @@ function StudioCard({ data }: { data: AppDataState }) {
             maxLength={120}
             onChange={(e) => setAddress(e.target.value)}
           />
+        </label>
+        <label>
+          Indirizzo dei link di conferma degli appuntamenti
+          <input
+            className="input"
+            type="url"
+            inputMode="url"
+            placeholder={`es. https://conferma.dominio.it (vuoto: ${window.location.origin})`}
+            value={publicUrl}
+            maxLength={200}
+            onChange={(e) => setPublicUrl(e.target.value)}
+          />
+          <span className="small muted" style={{ fontWeight: 400 }}>
+            Meglio un dominio separato dal gestionale, inoltrato in Nginx Proxy Manager alla porta 8081 del container (o
+            CONFIRM_PORT): lì risponde solo la pagina di conferma, e il gestionale può restare chiuso al pubblico.
+          </span>
         </label>
         <div>
           <button className="btn btn-primary" disabled={!name.trim() || !changed}>
@@ -464,7 +484,11 @@ function ImportCard({ data }: { data: AppDataState }) {
 function DataCard({ data }: { data: AppDataState }) {
   const notify = useToast()
   const [busy, setBusy] = useState(false)
-  const days = new Set(data.records.map((r) => r.d)).size
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  // Solo le registrazioni a mano (quelle che si possono eliminare): gli appuntamenti hanno la loro scheda.
+  const manual = data.records.filter((r) => r.q - (r.a ?? 0) > 0)
+  const days = new Set(manual.map((r) => r.d)).size
+  const total = manual.reduce((n, r) => n + r.q - (r.a ?? 0), 0)
 
   const run = async (fn: () => Promise<string>) => {
     setBusy(true)
@@ -484,39 +508,138 @@ function DataCard({ data }: { data: AppDataState }) {
         <Database size={17} /> Dati
       </h2>
       <p className="sub">
-        {days} giornate registrate · {data.records.reduce((a, r) => a + r.q, 0)} prestazioni in totale.
+        {days} giornate registrate · {total} prestazioni inserite a mano (più quelle degli appuntamenti confermati).
       </p>
       <div className="settings-row">
         <a className="btn" href={EXPORT_URL} download>
           <Download size={16} /> Esporta tutto in Excel
         </a>
-        <button
-          className="btn"
-          disabled={busy}
-          onClick={() => {
-            if (!window.confirm('Generare 2 anni di dati dimostrativi? Le giornate esistenti nel periodo verranno sostituite.')) return
-            run(async () => {
-              const r = await api.demo()
-              return `Generate ${r.days} giornate dimostrative`
-            })
-          }}
-        >
-          <Sparkles size={16} /> Genera dati demo
+        {/* Solo finché non ci sono registrazioni: non deve poter sostituire dati veri. */}
+        {!days && (
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() => {
+              if (!window.confirm('Generare 2 anni di dati dimostrativi per provare l\'app?')) return
+              run(async () => {
+                const r = await api.demo()
+                return `Generate ${r.days} giornate dimostrative`
+              })
+            }}
+          >
+            <Sparkles size={16} /> Genera dati demo
+          </button>
+        )}
+        <button className="btn btn-danger" disabled={busy || !days} onClick={() => setConfirmDelete(true)}>
+          <Trash2 size={16} /> Elimina tutti i dati
         </button>
-        <button
-          className="btn btn-danger"
-          disabled={busy || !days}
-          onClick={() => {
-            const ok = window.prompt('Operazione irreversibile. Scrivi ELIMINA per cancellare tutte le registrazioni.')
-            if (ok !== 'ELIMINA') return
+      </div>
+      {confirmDelete && (
+        <DeleteAllDialog
+          days={days}
+          total={total}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => {
+            setConfirmDelete(false)
             run(async () => {
-              await api.deleteAll()
+              await api.deleteAll(DELETE_PHRASE)
               return 'Tutte le registrazioni sono state eliminate'
             })
           }}
-        >
-          <Trash2 size={16} /> Elimina tutti i dati
-        </button>
+        />
+      )}
+    </div>
+  )
+}
+
+const DELETE_PHRASE = 'ELIMINA DATI'
+const FINAL_WAIT_S = 5
+
+/**
+ * Eliminazione di tutte le registrazioni in tre passaggi: avviso, frase da scrivere esattamente,
+ * conferma finale attivabile solo dopo qualche secondo. Nessun passaggio si supera con Invio per sbaglio.
+ */
+function DeleteAllDialog({ days, total, onCancel, onConfirm }: { days: number; total: number; onCancel: () => void; onConfirm: () => void }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [phrase, setPhrase] = useState('')
+  const [wait, setWait] = useState(FINAL_WAIT_S)
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && onCancel()
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onCancel])
+
+  useEffect(() => {
+    if (step !== 3 || wait <= 0) return
+    const t = setTimeout(() => setWait((w) => w - 1), 1000)
+    return () => clearTimeout(t)
+  }, [step, wait])
+
+  return (
+    <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="del-title">
+      <div className="modal-dialog">
+        <div className="modal-head">
+          <h2 id="del-title">Elimina tutti i dati · passaggio {step} di 3</h2>
+        </div>
+        <div className="modal-body">
+          {step === 1 && (
+            <>
+              <div className="alert alert-danger">
+                <span>
+                  Stai per eliminare <strong>tutte le registrazioni delle prestazioni</strong>: {days} giornate, {total}{' '}
+                  prestazioni in totale. L'operazione non si può annullare dall'app.
+                </span>
+              </div>
+              <p className="small muted">
+                Appuntamenti, campagne, utenti e impostazioni restano. Prima di continuare conviene usare «Esporta tutto in
+                Excel»: il file si può reimportare.
+              </p>
+            </>
+          )}
+          {step === 2 && (
+            <label>
+              Per continuare scrivi esattamente <strong>{DELETE_PHRASE}</strong>
+              <input
+                className="input"
+                autoFocus
+                autoComplete="off"
+                spellCheck={false}
+                value={phrase}
+                onChange={(e) => setPhrase(e.target.value)}
+                onPaste={(e) => e.preventDefault()}
+                onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+              />
+            </label>
+          )}
+          {step === 3 && (
+            <div className="alert alert-danger">
+              <span>
+                <strong>Ultima conferma.</strong> Eliminare definitivamente {days} giornate di registrazioni?
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="modal-foot">
+          <button type="button" className="btn" autoFocus={step !== 2} onClick={onCancel}>
+            Annulla
+          </button>
+          {step === 1 && (
+            <button type="button" className="btn btn-danger" onClick={() => setStep(2)}>
+              Continua
+            </button>
+          )}
+          {step === 2 && (
+            <button type="button" className="btn btn-danger" disabled={phrase !== DELETE_PHRASE} onClick={() => setStep(3)}>
+              Continua
+            </button>
+          )}
+          {step === 3 && (
+            <button type="button" className="btn btn-danger" disabled={wait > 0} onClick={onConfirm}>
+              <Trash2 size={16} /> {wait > 0 ? `Elimina definitivamente (${wait})` : 'Elimina definitivamente'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -671,19 +794,22 @@ function ServiceRow({
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           aria-label="Nome prestazione"
         />
-        <select
-          className="input small"
-          style={{ width: '100%', padding: '3px 6px', marginTop: 4, color: 'var(--text-2)' }}
-          value={s.category}
-          onChange={(e) => onUpdate(s, { category: e.target.value as CategoryId })}
-          aria-label="Categoria"
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+        <div className="service-meta">
+          <select
+            className="input small"
+            style={{ flex: 1, minWidth: 0, padding: '3px 6px', color: 'var(--text-2)' }}
+            value={s.category}
+            onChange={(e) => onUpdate(s, { category: e.target.value as CategoryId })}
+            aria-label="Categoria"
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <BadgeColor s={s} onChange={(color) => onUpdate(s, { color })} />
+        </div>
       </td>
       {showPrice && (
         <td className="r">
@@ -712,5 +838,32 @@ function ServiceRow({
         </button>
       </td>
     </tr>
+  )
+}
+
+/** Colore del badge della prestazione negli appuntamenti: anteprima, scelta e ritorno al colore della categoria. */
+function BadgeColor({ s, onChange }: { s: Service; onChange: (color: string | null) => void }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  const color = draft ?? badgeColor(s.category, s.color)
+  // Il selettore cambia colore di continuo mentre si trascina: si salva quando si ferma.
+  const pick = (value: string) => {
+    setDraft(value)
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => onChange(value), 500)
+  }
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+  return (
+    <span className="badge-color">
+      <label className="svc-badge svc-badge-sm badge-color-preview" style={{ background: color }} title="Colore del badge negli appuntamenti: clicca per cambiarlo">
+        Badge
+        <input type="color" value={color} onChange={(e) => pick(e.target.value)} aria-label={`Colore del badge di ${s.name}`} />
+      </label>
+      {s.color && (
+        <button type="button" className="btn btn-ghost btn-icon badge-color-reset" onClick={() => onChange(null)} title="Usa il colore della categoria">
+          <RotateCcw size={13} />
+        </button>
+      )}
+    </span>
   )
 }

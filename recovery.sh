@@ -9,6 +9,10 @@
 #   ./recovery.sh --yes            nessuna domanda (con --latest o --file)
 #   ./recovery.sh --no-safety      non salva lo stato attuale prima del ripristino (sconsigliato)
 #
+# Dati dei pazienti cifrati: se il backup è stato cifrato con una DATA_KEY diversa da quella del .env
+# (es. backup di un altro server), lo script chiede la chiave originale, la verifica sul backup prima
+# di toccare il database e la scrive nel .env. Con --yes si passa con RESTORE_DATA_KEY=...
+#
 # Backup elencati: quelli giornalieri di backup.sh (backups/daily), quelli fatti da update.sh prima
 # di ogni aggiornamento (backups/pre-update-*.sql.gz) e le copie di sicurezza fatte da questo script
 # prima di ogni ripristino (backups/pre-restore), così un ripristino si può sempre annullare.
@@ -39,7 +43,7 @@ while [ $# -gt 0 ]; do
       ;;
     --file=*) FILE=${1#--file=} ;;
     -h | --help)
-      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -61,6 +65,15 @@ warn() { printf '%s\n' "${Y}!${N} $*" >&2; }
 die() {
   printf '%s\n' "${R}✖${N} $*" >&2
   exit 1
+}
+
+env_get() {
+  local line
+  line=$(grep -E "^$1=" .env 2>/dev/null | tail -n1) || true
+  line=${line#*=}
+  line=${line#\'}
+  line=${line%\'}
+  printf '%s' "$line"
 }
 
 # ---------- Elenco dei backup ----------
@@ -171,9 +184,83 @@ echo
 info "Backup scelto: ${B}$SRC${N} ($KIND)"
 [ -f "$SRC/backup.info" ] && sed -n 's/^versione=/  versione dell\x27app: /p; s/^istanza=\(..*\)/  istanza: \1/p' "$SRC/backup.info"
 
+# Il database deve essere acceso (serve anche per leggere il backup; le API vengono fermate durante il ripristino).
+if [ -z "$(docker compose ps --status running -q db 2>/dev/null)" ]; then
+  info "Avvio il database..."
+  docker compose up -d db
+  for _ in $(seq 1 30); do
+    docker compose exec -T db sh -c 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' </dev/null && break
+    sleep 2
+  done
+fi
+
+# ---------- Chiave dei dati dei pazienti ----------
+
+# Valore di controllo della chiave salvato nelle impostazioni del backup (vuoto = dati in chiaro).
+# Exit 1 se il backup non si riesce a leggere: meglio fermarsi che ripristinare senza verificare.
+backup_key_check() {
+  local out
+  if [ -d "$SRC" ]; then
+    out=$(tar -C "$SRC" -cf - --exclude=backup.info . | docker compose exec -T db sh -c '
+      d=$(mktemp -d)
+      trap "rm -rf $d" EXIT
+      tar -xf - -C "$d" && pg_restore -a -t settings -f - "$d" && echo __OK__
+    ' 2>/dev/null) || true
+  else
+    out=$({ gzip -dc "$SRC" | awk '/^COPY public\.settings /{c=1; next} c && /^\\\.$/{c=0} c' && echo __OK__; } 2>/dev/null) || true
+  fi
+  case $out in *__OK__*) ;; *) return 1 ;; esac
+  printf '%s\n' "$out" | awk -F'\t' '$1 == "dataKeyCheck" && !f { print $2; f = 1 }'
+}
+
+# La chiave apre i dati del backup? (verifica fatta dal codice dell'app, nel container delle API)
+key_check() {
+  DATA_KEY=$1 DATA_KEY_CHECK=$CHECK docker compose run --rm --no-deps -T -e DATA_KEY -e DATA_KEY_CHECK api \
+    node src/keyCheck.ts </dev/null >/dev/null 2>&1
+}
+
+NEW_KEY=''
+CUR_KEY=$(env_get DATA_KEY)
+CHECK=$(backup_key_check) || die "Non riesco a leggere il backup per verificare la chiave dei dati: nessun ripristino eseguito."
+if [ -n "$CHECK" ]; then
+  info "Il backup contiene dati dei pazienti cifrati: verifico la chiave..."
+  if [ -n "$CUR_KEY" ] && key_check "$CUR_KEY"; then
+    ok "La chiave DATA_KEY del .env è quella del backup."
+  else
+    warn "Il backup è cifrato con una chiave diversa da DATA_KEY di questo server (es. un backup di un altro server)."
+    if [ -n "${RESTORE_DATA_KEY:-}" ]; then
+      key_check "$RESTORE_DATA_KEY" || die "RESTORE_DATA_KEY non è la chiave di questo backup: nessun ripristino eseguito."
+      NEW_KEY=$RESTORE_DATA_KEY
+    elif [ "$ASSUME_YES" -eq 1 ]; then
+      die "Passa la chiave del backup con RESTORE_DATA_KEY=... oppure esegui lo script in modo interattivo."
+    else
+      info "Inserisci la DATA_KEY del server da cui proviene il backup (quella che hai salvato a parte)."
+      for attempt in 1 2 3; do
+        read -r -s -p "DATA_KEY del backup (invio = annulla): " k </dev/tty
+        echo
+        k=$(printf '%s' "$k" | tr -d '[:space:]')
+        k=${k#DATA_KEY=}
+        [ -n "$k" ] || {
+          info "Nessun ripristino eseguito."
+          exit 0
+        }
+        rc=0
+        key_check "$k" || rc=$?
+        if [ "$rc" -eq 0 ]; then
+          NEW_KEY=$k
+          break
+        fi
+        if [ "$rc" -eq 2 ]; then warn "Formato non valido: sono 64 caratteri esadecimali."; else warn "Non è la chiave di questo backup."; fi
+      done
+      [ -n "$NEW_KEY" ] || die "Chiave non corretta: nessun ripristino eseguito."
+    fi
+    ok "Chiave verificata: dopo il ripristino la scrivo nel .env al posto di quella attuale."
+  fi
+fi
+
 if [ "$ASSUME_YES" -eq 0 ]; then
   echo
-  warn "Tutti i dati attuali (registrazioni, campagne, utenti, impostazioni, logo) verranno sostituiti con quelli del backup."
+  warn "Tutti i dati attuali (registrazioni, appuntamenti, campagne, utenti, impostazioni, logo) verranno sostituiti con quelli del backup."
   [ "$SAFETY" -eq 1 ] && info "Prima del ripristino salvo una copia dello stato attuale: potrai tornarci con questo stesso script."
   read -r -p "Scrivi RIPRISTINA per confermare: " ans </dev/tty
   [ "$ans" = RIPRISTINA ] || {
@@ -183,16 +270,6 @@ if [ "$ASSUME_YES" -eq 0 ]; then
 fi
 
 # ---------- Ripristino ----------
-
-# Il database deve essere acceso (le API no: vengono fermate durante il ripristino).
-if [ -z "$(docker compose ps --status running -q db 2>/dev/null)" ]; then
-  info "Avvio il database..."
-  docker compose up -d db
-  for _ in $(seq 1 30); do
-    docker compose exec -T db sh -c 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' </dev/null && break
-    sleep 2
-  done
-fi
 
 if [ "$SAFETY" -eq 1 ]; then
   ./backup.sh --pre-restore || die "Copia di sicurezza non riuscita: ripristino annullato (usa --no-safety per saltarla)."
@@ -206,6 +283,20 @@ docker compose stop api >/dev/null 2>&1 || true
 restart_api() {
   [ "$API_WAS_RUNNING" -eq 1 ] || return 0
   docker compose start api >/dev/null 2>&1 || docker compose up -d api >/dev/null
+}
+
+# Chiave del backup nel .env (la precedente resta nella copia .env.bak-*).
+set_data_key() {
+  local bak tmp
+  bak=".env.bak-$(date +%Y%m%d-%H%M%S)"
+  cp -p .env "$bak"
+  chmod 600 "$bak"
+  tmp=$(mktemp .env.XXXXXX)
+  awk -v k="$NEW_KEY" 'BEGIN { done = 0 } /^DATA_KEY=/ { if (!done) print "DATA_KEY=" k; done = 1; next } { print } END { if (!done) print "DATA_KEY=" k }' .env >"$tmp"
+  chmod 600 "$tmp"
+  mv "$tmp" .env
+  ok "DATA_KEY del backup scritta nel .env (copia del precedente: $bak)."
+  [ -z "$CUR_KEY" ] || info "La chiave precedente di questo server è in $bak: serve per riaprire la copia \"prima di un ripristino\"."
 }
 
 # Tutto in una sola transazione: schema svuotato e ricaricato dal backup, oppure nessuna modifica.
@@ -235,7 +326,14 @@ ok "Database ripristinato da $SRC."
 
 # ---------- Riavvio e verifica ----------
 
-restart_api
+if [ -n "$NEW_KEY" ]; then
+  set_data_key
+  # Le API vanno ricreate per leggere la nuova chiave dal .env.
+  API_WAS_RUNNING=1
+  docker compose up -d api >/dev/null
+else
+  restart_api
+fi
 if [ "$API_WAS_RUNNING" -eq 1 ]; then
   info "Attendo che l'app sia pronta..."
   READY=0

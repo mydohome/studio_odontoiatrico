@@ -16,6 +16,8 @@ export interface Service {
   price: number | null
   active: boolean
   sort: number
+  /** Colore del badge negli appuntamenti (#rrggbb); vuoto = colore della categoria. */
+  color?: string | null
 }
 
 /** Riga compatta: data, id prestazione, quantità. */
@@ -23,6 +25,8 @@ export interface RecordRow {
   d: string
   s: string
   q: number
+  /** Di cui da appuntamenti confermati (solo nelle statistiche, non nelle registrazioni a mano). */
+  a?: number
 }
 
 export type CampaignType = 'calo' | 'richiamo' | 'conversione' | 'trend' | 'crosssell' | 'calendario' | 'personalizzata'
@@ -96,3 +100,66 @@ export type CustomCampaignInput = Pick<
   CustomCampaign,
   'category' | 'title' | 'offer' | 'target' | 'channels' | 'dateFrom' | 'dateTo' | 'notes'
 >
+
+/** Stato della conferma di un appuntamento. */
+export type AppointmentStatus = 'da-inviare' | 'inviato' | 'confermato-link' | 'confermato-manuale' | 'non-presentato' | 'da-riprogrammare'
+
+export interface Appointment {
+  id: number
+  /** Giorno (YYYY-MM-DD) e ora di inizio (HH:MM), ora locale dello studio. Vuoti se da riprogrammare. */
+  day: string | null
+  time: string | null
+  /** Durata in minuti. */
+  duration: number
+  patientName: string
+  patientPhone: string
+  serviceId: string | null
+  /** Nome della prestazione (resta anche se la prestazione viene eliminata dall'elenco). */
+  serviceName: string
+  /** Categoria e colore del badge della prestazione (null se non specificata o eliminata). */
+  serviceCategory: string | null
+  serviceColor: string | null
+  /** Da riprogrammare: data e ora che aveva e da quando aspetta una nuova data. */
+  prevDay: string | null
+  prevTime: string | null
+  rescheduleAt: string | null
+  notes: string
+  /** Codice segreto del link di conferma. */
+  token: string
+  /** Il paziente non si è presentato (da quel momento non conta nelle statistiche). */
+  noShowAt: string | null
+  status: AppointmentStatus
+  sentAt: string | null
+  /** Quante volte è stato preparato il messaggio (primo invio e solleciti) e quando l'ultima. */
+  sendCount: number
+  lastSentAt: string | null
+  /** Chiamate senza risposta. */
+  callCount: number
+  lastCallAt: string | null
+  confirmedAt: string | null
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type AppointmentInput = Pick<Appointment, 'duration' | 'patientName' | 'patientPhone' | 'serviceId' | 'notes'> & { day: string; time: string }
+
+/** Appuntamento con data e ora (tutti tranne quelli da riprogrammare). */
+export type ScheduledAppointment = Appointment & { day: string; time: string }
+
+/** Dati visibili al paziente nella pagina di conferma (link senza accesso). */
+export interface PublicAppointment {
+  studio: { name: string; phone: string; address: string; logoType: string; logoVersion: number; flyerStyle: 'smile' | 'mint' }
+  /** Solo il nome di battesimo del paziente. */
+  firstName: string
+  day: string
+  time: string
+  duration: number
+  serviceName: string
+  confirmed: boolean
+  confirmedAt: string | null
+  /** Appuntamento già passato: non si può più confermare. */
+  past: boolean
+  /** Fuso orario dello studio (es. Europe/Rome), per l'evento di calendario. */
+  timeZone: string
+}

@@ -42,8 +42,8 @@
   --st-new: #6b6e72;
   --st-new-soft: #eeefec;
   --whatsapp: #1fa855;
-  --st-resched: #c2410c;
-  --st-resched-soft: #ffedd5;
+  --st-resched: #3730a3;
+  --st-resched-soft: #e0e7ff;
   --st-noshow: #9f1239;
   --st-noshow-soft: #fde4ea;
 }
@@ -92,8 +92,8 @@
     --st-new: #a3a6a2;
     --st-new-soft: #262928;
     --whatsapp: #25c463;
-    --st-resched: #fb923c;
-    --st-resched-soft: #3a2010;
+    --st-resched: #a5b4fc;
+    --st-resched-soft: #1e1b4b;
     --st-noshow: #fb7f99;
     --st-noshow-soft: #3b1420;
   }
@@ -2365,17 +2365,17 @@ a.public-line {
 
 /* Tinta fissa (anche nel tema scuro): la scritta bianca deve restare leggibile. */
 .to-resched-count {
-  background: #c2410c;
+  background: #3730a3;
 }
 
 .btn-resched-solid {
-  background: #c2410c;
-  border-color: #c2410c;
+  background: #3730a3;
+  border-color: #3730a3;
   color: #fff;
 }
 
 .btn-resched-solid:hover {
-  background: #9a3412;
+  background: #312e81;
 }
 
 .cal-ev-badge {

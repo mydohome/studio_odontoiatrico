@@ -156,6 +156,18 @@ fi
 info "Controllo novità su $UPSTREAM..."
 git fetch --quiet "$REMOTE" "$REMOTE_BRANCH" || die "Impossibile contattare GitHub (git fetch non riuscito)."
 
+# Un server rimasto su un branch di prova non riceve gli aggiornamenti di main: lo si dice ogni volta
+# (anche nel log dell'aggiornamento notturno), con quante versioni di main mancano.
+if [ "$BRANCH" != main ] && git fetch --quiet "$REMOTE" main 2>/dev/null; then
+  behind_main=$(git rev-list --count "$UPSTREAM..$REMOTE/main" 2>/dev/null || echo '?')
+  if [ "$behind_main" != 0 ]; then
+    warn "Questa installazione segue il branch $BRANCH, non main: mancano $behind_main versioni di main."
+  else
+    warn "Questa installazione segue il branch $BRANCH, non main: i prossimi aggiornamenti di main non arriveranno qui."
+  fi
+  warn "Per passare a main: git checkout main && ./studio update"
+fi
+
 OLD=$(git rev-parse HEAD)
 NEW=$(git rev-parse "$UPSTREAM")
 

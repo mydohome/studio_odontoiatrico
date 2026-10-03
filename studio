@@ -78,6 +78,27 @@ cron_time() {
   crontab -l 2>/dev/null | awk -v d="cd '$PWD' " -v s="./$1" 'index($0, d) && index($0, s) { printf "%02d:%02d\n", $2, $1; exit }'
 }
 
+# Server rimasto su un branch diverso da main: non riceve gli aggiornamenti della versione principale.
+# Stampa l'avviso (exit 0) oppure niente (exit 1). Aggiorna origin/main con un fetch breve.
+off_main_warning() {
+  local branch behind
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || return 1
+  [ "$branch" != main ] || return 1
+  timeout 10 git fetch --quiet origin main 2>/dev/null || true
+  if git rev-parse --verify --quiet origin/main >/dev/null; then
+    behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo '?')
+  else
+    behind='?'
+  fi
+  if [ "$branch" = HEAD ]; then
+    printf '%s' "Il server è su una versione fissa (non su un branch): non riceve aggiornamenti. Per passare a main: git checkout main && ./studio update"
+  elif [ "$behind" = 0 ]; then
+    printf '%s' "Il server segue il branch $branch, non main: per ora ha tutto quello che c'è in main, ma non riceverà i prossimi aggiornamenti. Per passare a main: git checkout main && ./studio update"
+  else
+    printf '%s' "Il server segue il branch $branch, non main: non riceve gli aggiornamenti di main ($behind versioni indietro). Per passare a main: git checkout main && ./studio update"
+  fi
+}
+
 # ---------- status ----------
 
 cmd_status() {
@@ -91,6 +112,8 @@ cmd_status() {
   printf '\n%sStudio odontoiatrico · %s%s\n\n' "$B" "$instance" "$N"
   printf '  %-16s %s %s(branch %s)%s\n' "Versione" "$version" "$D" "$branch" "$N"
   [ -f .update-failed ] && warnings+=("L'ultimo aggiornamento è fallito ed è stato annullato: vedi update.log")
+  local off_main
+  off_main=$(off_main_warning) && warnings+=("$off_main")
 
   # Container.
   printf '  %-16s' "Container"

@@ -501,6 +501,15 @@ bassa sotto i 6 mesi, media fino a 18, alta oltre.
 ./update.sh --remove-cron    # disattiva l'aggiornamento automatico
 ```
 
+`update.sh` segue il **branch** su cui si trova la cartella. Le installazioni di produzione devono stare su `main`: se
+una è rimasta su un branch di prova (es. `beta/...`), `./studio` e `update.sh` lo segnalano con quante versioni di
+`main` mancano, e il passaggio è `git checkout main && ./studio update`. Per vedere su cosa punta un'installazione:
+la prima riga di `./studio` (*Versione … (branch main)*) oppure `git rev-parse --abbrev-ref HEAD`.
+
+Le versioni importanti hanno un **tag** (es. `v2.0`: appuntamenti, conferme su dominio separato, dati cifrati, comando
+`./studio`, moduli): `git tag` le elenca e la versione in uso compare in `./studio` come `v2.0` o `v2.0-N-g…`
+(N aggiornamenti dopo `v2.0`).
+
 Cosa fa, in ordine:
 
 1. controlla che non ci siano modifiche locali ai file del repository e scarica le novità (solo *fast-forward*);

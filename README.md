@@ -212,7 +212,7 @@ studio.
   | 🟠 *In attesa* | messaggio preparato, il paziente non ha ancora confermato |
   | ⚪ *Da inviare* | messaggio non ancora preparato |
   | 🔴 *Non presentato* | il paziente non si è presentato (nome barrato in agenda): non conta nelle statistiche |
-  | 🟣 *Da riprogrammare* | il paziente deve spostare l'appuntamento: è senza data né ora |
+  | 🟧 *Da riprogrammare* | il paziente deve spostare l'appuntamento: è senza data né ora |
 
   *Non presentato* si segna dalla scheda dell'appuntamento, dal suo giorno in poi (*Era presente* lo annulla).
   Spostando l'appuntamento a un'altra data lo stato riparte da capo.
@@ -251,7 +251,7 @@ mette le registrazioni a mano nel foglio *Dati* (reimportabile) e quelle dagli a
 
 Quando un paziente, confermato o no, deve spostare l'appuntamento: **Modifica → Da riprogrammare**. L'appuntamento
 perde data e ora (il posto in agenda si libera e il link di conferma smette di funzionare), ricorda quelle di prima e
-compare nel riquadro viola **Da riprogrammare**, in cima alla pagina, con il telefono, la data che aveva e da quando
+compare nel riquadro arancione **Da riprogrammare**, in cima alla pagina, con il telefono, la data che aveva e da quando
 aspetta. **Riprogramma** apre il modulo con data e ora da scegliere: salvando torna in agenda come *Da inviare* e si
 apre il nuovo messaggio di conferma (il link resta lo stesso).
 

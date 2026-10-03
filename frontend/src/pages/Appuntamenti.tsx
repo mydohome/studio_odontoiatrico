@@ -305,6 +305,12 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
           onChange={replace}
           onClose={() => setOpenId(null)}
           onEdit={() => editForm(opened)}
+          onReschedule={async () => {
+            const a = await api.rescheduleAppointment(opened.id)
+            replace(a)
+            setOpenId(null)
+            notify(`${a.patientName}: da riprogrammare`)
+          }}
           onDelete={async () => {
             try {
               await api.deleteAppointment(opened.id)

@@ -42,10 +42,12 @@ interface Props {
   /** Modifica; per un appuntamento da riprogrammare è la scelta della nuova data. */
   onEdit: () => void
   onDelete: () => Promise<void>
+  /** Mette l'appuntamento "da riprogrammare" (senza data e ora). */
+  onReschedule: () => Promise<void>
   onClose: () => void
 }
 
-export default function AppointmentDetail({ appointment: a, settings, onChange, onEdit, onDelete, onClose }: Props) {
+export default function AppointmentDetail({ appointment: a, settings, onChange, onEdit, onDelete, onReschedule, onClose }: Props) {
   const notify = useToast()
   const [busy, setBusy] = useState(false)
   const status = STATUS[a.status]
@@ -86,6 +88,17 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
     }
   }
 
+  const reschedule = async () => {
+    if (!window.confirm(`Mettere l'appuntamento di ${a.patientName} da riprogrammare? Data e ora vengono tolte dall'agenda.`)) return
+    setBusy(true)
+    try {
+      await onReschedule()
+    } catch (e) {
+      notify((e as Error).message, 'error')
+      setBusy(false)
+    }
+  }
+
   const remove = async () => {
     if (!window.confirm(`Eliminare l'appuntamento di ${a.patientName}? Il link di conferma smetterà di funzionare.`)) return
     setBusy(true)
@@ -98,7 +111,7 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
 
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="ad-title" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-dialog">
+      <div className="modal-dialog modal-wide">
         <div className="modal-head">
           <h2 id="ad-title">{a.patientName}</h2>
           <button type="button" className="btn btn-icon btn-ghost" onClick={onClose} aria-label="Chiudi">
@@ -182,38 +195,47 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
         </div>
 
         <div className="modal-foot appt-detail-foot">
-          <button type="button" className="btn btn-ghost btn-danger" onClick={remove} disabled={busy}>
-            <Trash2 size={16} /> Elimina
+          <button type="button" className="btn btn-sm btn-ghost btn-danger" onClick={remove} disabled={busy}>
+            <Trash2 size={15} /> Elimina
           </button>
           <span style={{ flex: 1 }} />
           {scheduled ? (
             <>
+              <button
+                type="button"
+                className="btn btn-sm btn-resched"
+                onClick={reschedule}
+                disabled={busy}
+                title="Il paziente deve spostare l'appuntamento: si toglie dall'agenda e va in «Da riprogrammare»"
+              >
+                <CalendarX2 size={15} /> Da riprogrammare
+              </button>
               {started &&
                 (noShow ? (
-                  <button type="button" className="btn" onClick={() => setNoShow(false)} disabled={busy} title="Annulla «non presentato»">
-                    <UserCheck size={16} /> Era presente
+                  <button type="button" className="btn btn-sm" onClick={() => setNoShow(false)} disabled={busy} title="Annulla «non presentato»">
+                    <UserCheck size={15} /> Era presente
                   </button>
                 ) : (
-                  <button type="button" className="btn btn-noshow" onClick={() => setNoShow(true)} disabled={busy}>
-                    <UserX size={16} /> Non presentato
+                  <button type="button" className="btn btn-sm btn-noshow" onClick={() => setNoShow(true)} disabled={busy}>
+                    <UserX size={15} /> Non presentato
                   </button>
                 ))}
               {noShow ? null : confirmed ? (
-                <button type="button" className="btn" onClick={() => setConfirmed(false)} disabled={busy}>
-                  <RotateCcw size={16} /> Annulla conferma
+                <button type="button" className="btn btn-sm" onClick={() => setConfirmed(false)} disabled={busy}>
+                  <RotateCcw size={15} /> Annulla conferma
                 </button>
               ) : (
-                <button type="button" className="btn" onClick={() => setConfirmed(true)} disabled={busy} title="Ad esempio se il paziente ha confermato al telefono">
-                  <Check size={16} /> Segna confermato
+                <button type="button" className="btn btn-sm" onClick={() => setConfirmed(true)} disabled={busy} title="Ad esempio se il paziente ha confermato al telefono">
+                  <Check size={15} /> Segna confermato
                 </button>
               )}
-              <button type="button" className="btn btn-primary" onClick={onEdit} disabled={busy}>
-                <Pencil size={16} /> Modifica
+              <button type="button" className="btn btn-sm btn-primary" onClick={onEdit} disabled={busy}>
+                <Pencil size={15} /> Modifica
               </button>
             </>
           ) : (
-            <button type="button" className="btn btn-primary" onClick={onEdit} disabled={busy}>
-              <CalendarClock size={16} /> Riprogramma
+            <button type="button" className="btn btn-sm btn-resched-solid" onClick={onEdit} disabled={busy}>
+              <CalendarClock size={15} /> Riprogramma
             </button>
           )}
         </div>
@@ -311,7 +333,7 @@ function MessageSection({
           </span>
         </div>
       )}
-      <textarea className="input" rows={17} value={message} onChange={(e) => setMessage(e.target.value)} />
+      <textarea className="input" rows={16} value={message} onChange={(e) => setMessage(e.target.value)} />
       {expired && (
         <div className="alert alert-warn small">
           <TriangleAlert size={16} style={{ flex: 'none' }} />
@@ -329,24 +351,29 @@ function MessageSection({
       )}
       <div className="appt-actions">
         {IS_MOBILE ? (
-          <button type="button" className="btn btn-whatsapp" onClick={() => send('app')} disabled={!valid}>
-            <MessageCircle size={16} /> Apri in WhatsApp
+          <button type="button" className="btn btn-sm btn-whatsapp" onClick={() => send('app')} disabled={!valid}>
+            <MessageCircle size={15} /> Apri in WhatsApp
           </button>
         ) : (
           <>
-            <button type="button" className="btn btn-whatsapp" onClick={() => send('app')} disabled={!valid} title="Apre la chat nell'app WhatsApp">
-              <MessageCircle size={16} /> App WhatsApp
+            <button type="button" className="btn btn-sm btn-whatsapp" onClick={() => send('app')} disabled={!valid} title="Apre la chat nell'app WhatsApp">
+              <MessageCircle size={15} /> App WhatsApp
             </button>
-            <button type="button" className="btn" onClick={() => send('web')} disabled={!valid} title="Apre la chat in WhatsApp Web">
+            <button type="button" className="btn btn-sm" onClick={() => send('web')} disabled={!valid} title="Apre la chat in WhatsApp Web">
               WhatsApp Web
             </button>
           </>
         )}
-        <button type="button" className="btn" onClick={copyMessage}>
-          <Copy size={16} /> Copia messaggio
+        <button type="button" className="btn btn-sm" onClick={copyMessage}>
+          <Copy size={15} /> Copia messaggio
         </button>
-        <button type="button" className="btn btn-ghost" onClick={copyLink} title="Solo il link personale di conferma">
-          <Link2 size={16} /> Copia link
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost"
+          onClick={copyLink}
+          title={`Solo il link personale di conferma: chi lo apre vede nome di battesimo, data, ora e prestazione e può confermare. Smette di funzionare ${LINK_DAYS_AFTER} giorni dopo l'appuntamento.`}
+        >
+          <Link2 size={15} /> Copia link
         </button>
       </div>
       {pasteHint && (
@@ -358,8 +385,7 @@ function MessageSection({
         </div>
       )}
       <p className="small muted" style={{ margin: 0 }}>
-        Il link è personale: chi lo apre vede solo nome di battesimo, data, ora e prestazione, e può confermare. Smette di
-        funzionare {LINK_DAYS_AFTER} giorni dopo l'appuntamento.
+        Link personale, valido fino a {LINK_DAYS_AFTER} giorni dopo l'appuntamento.
       </p>
     </div>
   )

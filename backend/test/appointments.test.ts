@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { endTime, nextWorkday, whatsAppLink, whatsAppMessage, whatsAppNumber, whatsAppWebLink } from '../../shared/appointments.ts'
+import { confirmUntil, endTime, nextWorkday, whatsAppLink, whatsAppMessage, whatsAppNumber, whatsAppWebLink } from '../../shared/appointments.ts'
 import { buildIcs, googleCalendarUrl, icsStamp, zonedToUtc } from '../../shared/calendar.ts'
 import { AppointmentError, newToken, parseAppointment, TOKEN_RE } from '../src/appointments.ts'
 
@@ -162,4 +162,11 @@ test('prossimo giorno lavorativo: il venerdì e il fine settimana portano al lun
   assert.equal(nextWorkday('2026-10-02'), '2026-10-05') // venerdì → lunedì
   assert.equal(nextWorkday('2026-10-03'), '2026-10-05') // sabato → lunedì
   assert.equal(nextWorkday('2026-10-04'), '2026-10-05') // domenica → lunedì
+})
+
+test('Da confermare: oggi più i 2 giorni lavorativi successivi', () => {
+  assert.equal(confirmUntil('2026-10-05'), '2026-10-07') // lunedì → mercoledì
+  assert.equal(confirmUntil('2026-10-01'), '2026-10-05') // giovedì → lunedì
+  assert.equal(confirmUntil('2026-10-02'), '2026-10-06') // venerdì → martedì
+  assert.equal(confirmUntil('2026-10-03'), '2026-10-06') // sabato → martedì
 })

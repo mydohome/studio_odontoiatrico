@@ -1,6 +1,6 @@
 import { AlertTriangle, CalendarClock, CalendarDays, CalendarX2, Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Loader2, MessageCircle, Phone, PhoneMissed, Plus, Send, UserX } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
-import { endTime, nextWorkday } from '../../../shared/appointments.ts'
+import { confirmUntil, endTime } from '../../../shared/appointments.ts'
 import { addDays, formatDay, formatLongDay, formatWeek, fromISO, isValidISO, startOfWeek, today, WEEKDAYS_SHORT } from '../../../shared/dates.ts'
 import type { Appointment, AppointmentInput, AppointmentStatus, ScheduledAppointment } from '../../../shared/types.ts'
 import AppointmentDetail from '../components/AppointmentDetail.tsx'
@@ -90,7 +90,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
       if (!quiet) setLoading(true)
       try {
         const t = today()
-        const [l, p, r] = await Promise.all([api.appointments(from, to), api.appointments(t, nextWorkday(t)), api.toReschedule()])
+        const [l, p, r] = await Promise.all([api.appointments(from, to), api.appointments(t, confirmUntil(t)), api.toReschedule()])
         const all = [...new Map([...l, ...p].map((a) => [a.id, a])).values()]
         // Avvisa delle conferme arrivate dal link mentre la pagina era aperta.
         if (quiet) {
@@ -139,7 +139,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
       return isScheduled(a) && inRange(a.day) ? [...others, a].sort(byTime) : others
     }
     const t = today()
-    setPending((l) => upsert(l, (d) => d >= t && d <= nextWorkday(t)))
+    setPending((l) => upsert(l, (d) => d >= t && d <= confirmUntil(t)))
     setList((l) => upsert(l, (d) => d >= from && d <= to))
     setToResched((l) => (isScheduled(a) ? l.filter((x) => x.id !== a.id) : l.some((x) => x.id === a.id) ? l.map((x) => (x.id === a.id ? a : x)) : [...l, a]))
   }
@@ -227,15 +227,18 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
         </button>
       </div>
 
-      <ToReschedule list={toResched} onOpen={setOpenId} onPlan={editForm} />
-
-      <ToConfirm
-        list={pending}
-        now={now}
-        onOpen={setOpenId}
-        onCalled={(a) => quick(() => api.appointmentCalled(a.id), `Chiamata a ${a.patientName} registrata`)}
-        onConfirmed={(a) => quick(() => api.appointmentConfirmation(a.id, true), `${a.patientName}: appuntamento confermato`)}
-      />
+      <div className="appt-layout">
+        {/* A sinistra le cose da fare, compatte; il calendario occupa il resto dello schermo. */}
+        <aside className="appt-side" aria-label="Da fare">
+          <ToReschedule list={toResched} onOpen={setOpenId} onPlan={editForm} />
+          <ToConfirm
+            list={pending}
+            now={now}
+            onOpen={setOpenId}
+            onCalled={(a) => quick(() => api.appointmentCalled(a.id), `Chiamata a ${a.patientName} registrata`)}
+            onConfirmed={(a) => quick(() => api.appointmentConfirmation(a.id, true), `${a.patientName}: appuntamento confermato`)}
+          />
+        </aside>
 
       <div className="card cal-card">
         <div className="cal-toolbar">
@@ -296,6 +299,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
             }}
           />
         )}
+      </div>
       </div>
 
       {opened && !form && (
@@ -562,7 +566,7 @@ function ToConfirm({
   onConfirmed: (a: ScheduledAppointment) => void
 }) {
   const t = today()
-  const until = nextWorkday(t)
+  const until = confirmUntil(t)
   const nowMin = now.getHours() * 60 + now.getMinutes()
   // Solo quelli non confermati e non ancora iniziati.
   const items = list.filter(
@@ -575,10 +579,10 @@ function ToConfirm({
     <section className={`card to-confirm ${items.length ? 'has-items' : ''}`} aria-labelledby="tc-title">
       <div className="to-confirm-head">
         <h2 id="tc-title">
-          {items.length ? <AlertTriangle size={18} /> : <CheckCheck size={18} />} Da confermare
+          {items.length ? <AlertTriangle size={17} /> : <CheckCheck size={17} />} Da confermare
           {items.length > 0 && <span className="to-confirm-count">{items.length}</span>}
         </h2>
-        <span className="small muted">Appuntamenti {range} non ancora confermati</span>
+        <span className="small muted">Fino a {formatLongDay(until).replace(/ \d{4}$/, '').toLowerCase()}</span>
       </div>
       {items.length === 0 ? (
         <p className="small muted" style={{ margin: 0 }}>
@@ -593,43 +597,42 @@ function ToConfirm({
               .map((a) => {
                 const Icon = STATUS_ICON[a.status]
                 return (
-                  <div key={a.id} className={`to-confirm-row ${STATUS[a.status].cls}`}>
-                    <button className="to-confirm-main" onClick={() => onOpen(a.id)} title="Apri l'appuntamento">
-                      <span className="to-confirm-time">{a.time}</span>
-                      <span className="to-confirm-who">
-                        <strong>{a.patientName}</strong>
-                        <span className="to-confirm-sub">
-                          <ServiceBadge appointment={a} size="sm" />
-                          <span className="small muted">{a.patientPhone}</span>
-                        </span>
-                      </span>
+                  <div key={a.id} className={`side-row ${STATUS[a.status].cls}`}>
+                    <button className="side-row-main" onClick={() => onOpen(a.id)} title={`${a.patientName}: apri l'appuntamento`}>
+                      <span className="side-row-time">{a.time}</span>
+                      <strong className="side-row-name">{a.patientName}</strong>
                     </button>
-                    <span className="to-confirm-info small">
-                      <span className={`appt-tag ${STATUS[a.status].cls}`}>
-                        <Icon size={13} />
-                        {a.status === 'da-inviare' ? 'Mai inviato' : a.sendCount > 1 ? `Inviato ${a.sendCount} volte` : 'Inviato'}
+                    <div className="side-row-sub small">
+                      <ServiceBadge appointment={a} size="sm" />
+                      <span className={`appt-tag ${STATUS[a.status].cls}`} title={a.lastSentAt ? `Ultimo invio ${ago(a.lastSentAt)}` : undefined}>
+                        <Icon size={12} />
+                        {a.status === 'da-inviare' ? 'Mai inviato' : a.sendCount > 1 ? `Inviato ${a.sendCount}×` : 'Inviato'}
                       </span>
-                      {a.lastSentAt && <span className="muted">ultimo {ago(a.lastSentAt)}</span>}
                       {a.callCount > 0 && a.lastCallAt && (
-                        <span className="to-confirm-called">
-                          <PhoneMissed size={13} /> {a.callCount === 1 ? 'non risponde' : `${a.callCount} chiamate senza risposta`} ({ago(a.lastCallAt)})
+                        <span className="to-confirm-called" title={`Ultima chiamata ${ago(a.lastCallAt)}`}>
+                          <PhoneMissed size={12} /> {a.callCount === 1 ? 'non risponde' : `${a.callCount} chiamate`}
                         </span>
                       )}
-                    </span>
-                    <span className="to-confirm-actions">
-                      <button className="btn btn-whatsapp" onClick={() => onOpen(a.id)} title={a.status === 'da-inviare' ? 'Prepara il messaggio' : 'Prepara il sollecito'}>
-                        <MessageCircle size={15} /> {a.status === 'da-inviare' ? 'Invia' : 'Reinvia'}
+                    </div>
+                    <div className="side-row-actions">
+                      <button
+                        className="btn btn-sm btn-icon btn-whatsapp"
+                        onClick={() => onOpen(a.id)}
+                        title={a.status === 'da-inviare' ? 'Invia il messaggio WhatsApp' : 'Reinvia: prepara il sollecito WhatsApp'}
+                        aria-label={a.status === 'da-inviare' ? 'Invia' : 'Reinvia'}
+                      >
+                        <MessageCircle size={14} />
                       </button>
-                      <a className="btn" href={`tel:${a.patientPhone.replace(/[^\d+]/g, '')}`} title={`Chiama ${a.patientPhone}`}>
-                        <Phone size={15} /> Chiama
+                      <a className="btn btn-sm btn-icon" href={`tel:${a.patientPhone.replace(/[^\d+]/g, '')}`} title={`Chiama ${a.patientPhone}`} aria-label={`Chiama ${a.patientPhone}`}>
+                        <Phone size={14} />
                       </a>
-                      <button className="btn btn-ghost" onClick={() => onCalled(a)} title="Registra una chiamata senza risposta">
-                        <PhoneMissed size={15} /> Non risponde
+                      <button className="btn btn-sm btn-icon" onClick={() => onCalled(a)} title="Non risponde: registra una chiamata senza risposta" aria-label="Non risponde">
+                        <PhoneMissed size={14} />
                       </button>
-                      <button className="btn btn-ghost" onClick={() => onConfirmed(a)} title="Il paziente ha confermato (es. al telefono)">
-                        <Check size={15} /> Confermato
+                      <button className="btn btn-sm btn-icon" onClick={() => onConfirmed(a)} title="Confermato (es. al telefono)" aria-label="Confermato">
+                        <Check size={14} />
                       </button>
-                    </span>
+                    </div>
                   </div>
                 )
               })}
@@ -647,40 +650,32 @@ function ToReschedule({ list, onOpen, onPlan }: { list: Appointment[]; onOpen: (
     <section className={`card to-resched ${list.length ? 'has-items' : ''}`} aria-labelledby="tr-title">
       <div className="to-confirm-head">
         <h2 id="tr-title">
-          <CalendarX2 size={18} /> Da riprogrammare
+          <CalendarX2 size={17} /> Da riprogrammare
           {list.length > 0 && <span className="to-confirm-count to-resched-count">{list.length}</span>}
         </h2>
-        <span className="small muted">
-          {list.length ? 'Pazienti che devono spostare l\'appuntamento: scegli con loro la nuova data' : 'Nessun appuntamento da riprogrammare'}
-        </span>
+        {!list.length && <span className="small muted">Nessuno</span>}
       </div>
       {list.map((a) => (
-        <div key={a.id} className="to-confirm-row st-resched">
-          <button className="to-confirm-main" onClick={() => onOpen(a.id)} title="Apri l'appuntamento">
-            <span className="to-confirm-who">
-              <strong>{a.patientName}</strong>
-              <span className="to-confirm-sub">
-                <ServiceBadge appointment={a} size="sm" />
-                <span className="small muted">{a.patientPhone}</span>
-              </span>
-            </span>
+        <div key={a.id} className="side-row st-resched">
+          <button className="side-row-main" onClick={() => onOpen(a.id)} title={`${a.patientName}: apri l'appuntamento`}>
+            <strong className="side-row-name">{a.patientName}</strong>
           </button>
-          <span className="to-confirm-info small">
+          <div className="side-row-sub small">
+            <ServiceBadge appointment={a} size="sm" />
             {a.prevDay && a.prevTime && (
-              <span>
-                era <strong>{formatDay(a.prevDay)}</strong> alle {a.prevTime}
+              <span className="muted" title={a.rescheduleAt ? `Da riprogrammare dal ${ago(a.rescheduleAt)}` : undefined}>
+                era {formatDay(a.prevDay)} {a.prevTime}
               </span>
             )}
-            {a.rescheduleAt && <span className="muted">· da riprogrammare dal {ago(a.rescheduleAt)}</span>}
-          </span>
-          <span className="to-confirm-actions">
-            <button className="btn btn-resched-solid" onClick={() => onPlan(a)} title="Scegli la nuova data e ora">
-              <CalendarClock size={15} /> Riprogramma
+          </div>
+          <div className="side-row-actions">
+            <button className="btn btn-sm btn-resched-solid" onClick={() => onPlan(a)} title="Scegli la nuova data e ora">
+              <CalendarClock size={14} /> Riprogramma
             </button>
-            <a className="btn" href={`tel:${a.patientPhone.replace(/[^\d+]/g, '')}`} title={`Chiama ${a.patientPhone}`}>
-              <Phone size={15} /> Chiama
+            <a className="btn btn-sm btn-icon" href={`tel:${a.patientPhone.replace(/[^\d+]/g, '')}`} title={`Chiama ${a.patientPhone}`} aria-label={`Chiama ${a.patientPhone}`}>
+              <Phone size={14} />
             </a>
-          </span>
+          </div>
         </div>
       ))}
     </section>

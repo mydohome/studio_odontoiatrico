@@ -88,7 +88,7 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
   return (
     <>
       <header className="app-header">
-        <div className="app-header-inner">
+        <div className={`app-header-inner ${tab === 'appuntamenti' ? 'is-wide' : ''}`}>
           <div className="brand">
             {headerLogo ? (
               <img className="brand-logo-img" src={headerLogo} alt="" />
@@ -109,7 +109,8 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
           </nav>
         </div>
       </header>
-      <main>
+      {/* L'agenda usa tutta la larghezza dello schermo, le altre pagine restano a 1200 px. */}
+      <main className={tab === 'appuntamenti' ? 'is-wide' : undefined}>
         {data.loading ? (
           <div className="empty">
             <Loader2 size={24} /> Caricamento…

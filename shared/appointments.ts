@@ -98,6 +98,16 @@ export function whatsAppMessage(m: MessageInput, opt: MessageOptions = {}): stri
  * Prossimo giorno lavorativo dopo `day` (sabato e domenica esclusi): il venerdì è il lunedì.
  * Serve a capire quali appuntamenti vanno confermati per tempo.
  */
+/** Giorni lavorativi successivi a oggi coperti dal riquadro "Da confermare". */
+export const CONFIRM_WORKDAYS = 2
+
+/** Ultimo giorno del riquadro "Da confermare": oggi più i prossimi CONFIRM_WORKDAYS giorni lavorativi. */
+export function confirmUntil(day: string, workdays = CONFIRM_WORKDAYS): string {
+  let d = day
+  for (let i = 0; i < workdays; i++) d = nextWorkday(d)
+  return d
+}
+
 export function nextWorkday(day: string): string {
   let d = addDays(day, 1)
   for (;;) {

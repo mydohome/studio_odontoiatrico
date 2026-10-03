@@ -257,13 +257,14 @@ apre il nuovo messaggio di conferma (il link resta lo stesso).
 
 ### Da confermare
 
-In cima alla scheda c'è il riquadro **Da confermare**: gli appuntamenti non ancora confermati da adesso al **prossimo
-giorno lavorativo** (dal lunedì al giovedì: oggi e domani; il **venerdì** anche sabato e **lunedì**), raggruppati per
-giorno. Per ogni paziente mostra telefono, prestazione, quante volte è stato inviato il messaggio e quando l'ultima,
-e le chiamate senza risposta già fatte. Le azioni:
+Nella colonna a sinistra dell'agenda (sopra il calendario sugli schermi stretti) ci sono i riquadri **Da
+riprogrammare** e **Da confermare**; il calendario occupa il resto dello schermo. **Da confermare** elenca gli
+appuntamenti non ancora confermati da adesso ai **2 giorni lavorativi successivi** (es. il lunedì: oggi, martedì e
+mercoledì; il venerdì: oggi, sabato, domenica, lunedì e martedì), raggruppati per giorno, con prestazione, stato
+dell'invio e chiamate senza risposta già fatte (passando il mouse: quando). Le azioni, con un'icona ciascuna:
 
-- **Invia / Reinvia**: apre il messaggio. Se il paziente l'ha già ricevuto, il testo diventa un **sollecito**
-  ("non abbiamo ancora ricevuto la conferma del suo appuntamento di domani…");
+- **WhatsApp (Invia / Reinvia)**: apre il messaggio. Se il paziente l'ha già ricevuto, il testo diventa un
+  **sollecito** ("non abbiamo ancora ricevuto la conferma del suo appuntamento di domani…");
 - **Chiama** (sul telefono avvia la chiamata), poi **Non risponde** per registrare il tentativo (così chi arriva dopo
   sa che è già stato cercato) oppure **Confermato** se il paziente conferma a voce.
 

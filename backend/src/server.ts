@@ -240,7 +240,16 @@ interface Settings {
   flyerStyle: FlyerStyle
   /** Indirizzo pubblico dell'app (es. https://studio.example.it), usato nei link di conferma. */
   publicUrl: string
+  /** Moduli visibili nell'app. Disattivato = nascosto: i dati restano e i link già inviati funzionano. */
+  modules: Modules
 }
+
+interface Modules {
+  appointments: boolean
+  campaigns: boolean
+}
+
+const MODULE_KEYS: Record<keyof Modules, string> = { appointments: 'moduleAppointments', campaigns: 'moduleCampaigns' }
 
 const FLYER_STYLES = ['smile', 'mint'] as const
 type FlyerStyle = (typeof FLYER_STYLES)[number]
@@ -293,6 +302,10 @@ async function readSettings(): Promise<Settings> {
     flyerStyle: ['mint', 'tech'].includes((await getSetting('flyerStyle')) ?? '') ? 'mint' : 'smile',
     // Impostato nell'app, altrimenti quello scelto con setup.sh (CONFIRM_URL nel .env).
     publicUrl: (await getSetting('publicUrl')) || ENV_CONFIRM_URL,
+    modules: {
+      appointments: (await getSetting(MODULE_KEYS.appointments)) !== 'false',
+      campaigns: (await getSetting(MODULE_KEYS.campaigns)) !== 'false',
+    },
   }
 }
 
@@ -300,7 +313,7 @@ app.get('/api/settings', async () => readSettings())
 
 // Aggiorna solo i campi presenti nel corpo della richiesta.
 app.put('/api/settings', async (req) => {
-  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown; logoType?: unknown; flyerStyle?: unknown; publicUrl?: unknown }
+  const body = (req.body ?? {}) as { studioName?: unknown; showPrices?: unknown; phone?: unknown; address?: unknown; doctorName?: unknown; logoType?: unknown; flyerStyle?: unknown; publicUrl?: unknown; modules?: unknown }
   if (body.studioName !== undefined) {
     const name = String(body.studioName).trim().slice(0, 80)
     if (!name) throw new HttpError(400, 'Nome studio obbligatorio')
@@ -344,6 +357,14 @@ app.put('/api/settings', async (req) => {
       throw new HttpError(400, (e as Error).message)
     }
     await setSetting('publicUrl', url)
+  }
+  if (body.modules !== undefined) {
+    const m = body.modules as Record<string, unknown> | null
+    if (!m || typeof m !== 'object') throw new HttpError(400, 'Moduli non validi')
+    for (const [k, v] of Object.entries(m)) {
+      if (!(k in MODULE_KEYS) || typeof v !== 'boolean') throw new HttpError(400, `Modulo non valido: ${k}`)
+      await setSetting(MODULE_KEYS[k as keyof Modules], String(v))
+    }
   }
   return readSettings()
 })

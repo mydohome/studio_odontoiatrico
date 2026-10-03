@@ -16,11 +16,12 @@ const Dashboard = lazy(() => import('./pages/Dashboard.tsx'))
 
 type TabId = 'appuntamenti' | 'registra' | 'dashboard' | 'campagne' | 'impostazioni'
 
-const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
-  { id: 'appuntamenti', label: 'Appuntamenti', icon: <CalendarDays size={17} /> },
+// "module": la scheda si può nascondere da Impostazioni → Moduli.
+const TABS: { id: TabId; label: string; icon: ReactNode; module?: 'appointments' | 'campaigns' }[] = [
+  { id: 'appuntamenti', label: 'Appuntamenti', icon: <CalendarDays size={17} />, module: 'appointments' },
   { id: 'registra', label: 'Registra', icon: <ClipboardPlus size={17} /> },
   { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={17} /> },
-  { id: 'campagne', label: 'Campagne', icon: <Megaphone size={17} /> },
+  { id: 'campagne', label: 'Campagne', icon: <Megaphone size={17} />, module: 'campaigns' },
   { id: 'impostazioni', label: 'Impostazioni', icon: <Settings size={17} /> },
 ]
 
@@ -65,8 +66,11 @@ function FullLoader() {
 }
 
 function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
-  const [tab, setTab] = useState<TabId>(tabFromHash)
+  const [chosenTab, setTab] = useState<TabId>(tabFromHash)
   const data = useAppData()
+  // Schede dei moduli disattivati: nascoste; se si era su una di quelle si va alla prima visibile.
+  const visibleTabs = TABS.filter((t) => !t.module || data.settings.modules[t.module])
+  const tab = visibleTabs.some((t) => t.id === chosenTab) ? chosenTab : visibleTabs[0].id
   // Logo caricato dallo studio: se è quello scelto, compare anche nell'intestazione dell'app.
   const headerLogo = useCustomLogo(data.settings.logoType === 'custom' ? data.settings.logoVersion : 0)
 
@@ -100,7 +104,7 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
             <span className="brand-name">{data.settings.studioName}</span>
           </div>
           <nav className="tabs" role="tablist" aria-label="Sezioni">
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <button key={t.id} className="tab" role="tab" aria-selected={tab === t.id} onClick={() => go(t.id)}>
                 {t.icon}
                 <span className="tab-label">{t.label}</span>

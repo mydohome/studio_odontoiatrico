@@ -152,6 +152,14 @@ Le installazioni create prima dell'introduzione delle istanze continuano a usare
   risultano con l'IP di NPM e i limiti per IP diventano comuni. Aggiungilo a `frontend/nginx/real-ip.conf`
   (`set_real_ip_from <ip-di-npm>;`) e ricostruisci con `./studio update --rebuild`.
 
+## Moduli
+
+In **Impostazioni → Moduli** si possono spegnere **Appuntamenti** e **Campagne** per uno studio che non li usa. Un
+modulo spento è solo nascosto: la sua scheda sparisce, insieme alle impostazioni che lo riguardano (indirizzo dei link di
+conferma e colori dei badge per gli appuntamenti, modello dei volantini per le campagne), ma i dati restano salvati e
+tornano visibili riattivandolo. Con gli appuntamenti spenti, i link di conferma già inviati continuano a funzionare e gli
+appuntamenti confermati contano ancora nelle statistiche.
+
 ## Amministrazione: il comando `./studio`
 
 Tutte le operazioni di amministrazione passano da un unico comando, da lanciare nella cartella dell'istanza:

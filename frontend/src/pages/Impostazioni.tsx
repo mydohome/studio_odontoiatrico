@@ -1,5 +1,5 @@
-import { Check, Database, Download, FileSpreadsheet, ImageUp, LogOut, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { CalendarDays, Check, Database, Download, FileSpreadsheet, ImageUp, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { badgeColor, CATEGORIES } from '../../../shared/catalog.ts'
 import type { CategoryId, ImportResult, Service } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
@@ -41,6 +41,7 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
       </div>
       <div className="grid grid-2-even" style={{ alignItems: 'start' }}>
         <div className="grid">
+          <ModulesCard data={data} />
           <ImportCard data={data} />
           <StudioCard data={data} />
           <DataCard data={data} />
@@ -48,6 +49,61 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
         <ServicesCard data={data} />
       </div>
     </>
+  )
+}
+
+const MODULES: { id: 'appointments' | 'campaigns'; label: string; text: string; icon: ReactNode }[] = [
+  {
+    id: 'appointments',
+    label: 'Appuntamenti',
+    text: "Agenda, promemoria WhatsApp e conferma dei pazienti. Spento: la scheda sparisce, ma gli appuntamenti restano salvati, i link già inviati funzionano e quelli confermati contano ancora nelle statistiche.",
+    icon: <CalendarDays size={17} />,
+  },
+  {
+    id: 'campaigns',
+    label: 'Campagne',
+    text: 'Campagne suggerite e personalizzate, con i volantini. Spento: la scheda sparisce, ma le campagne restano salvate.',
+    icon: <Megaphone size={17} />,
+  },
+]
+
+/** Moduli dell'app: si possono nascondere senza perdere i dati, e riattivare quando servono. */
+function ModulesCard({ data }: { data: AppDataState }) {
+  const notify = useToast()
+  const [saving, setSaving] = useState(false)
+  const modules = data.settings.modules
+
+  const toggle = async (id: 'appointments' | 'campaigns', value: boolean) => {
+    setSaving(true)
+    try {
+      data.setSettings(await api.saveSettings({ modules: { ...modules, [id]: value } }))
+      const label = MODULES.find((m) => m.id === id)!.label
+      notify(value ? `${label}: modulo attivato` : `${label}: modulo nascosto (i dati restano)`)
+    } catch (err) {
+      notify((err as Error).message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Moduli</h2>
+      {MODULES.map((m) => (
+        <div className="setting-toggle" key={m.id}>
+          <div>
+            <label htmlFor={`module-${m.id}`} className="module-label">
+              {m.icon} {m.label}
+            </label>
+            <p className="small muted">{m.text}</p>
+          </div>
+          <label className="switch">
+            <input id={`module-${m.id}`} type="checkbox" checked={modules[m.id]} disabled={saving} onChange={(e) => toggle(m.id, e.target.checked)} />
+            <span />
+          </label>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -143,6 +199,7 @@ function StudioCard({ data }: { data: AppDataState }) {
             onChange={(e) => setAddress(e.target.value)}
           />
         </label>
+        {data.settings.modules.appointments && (
         <label>
           Indirizzo dei link di conferma degli appuntamenti
           <input
@@ -159,13 +216,14 @@ function StudioCard({ data }: { data: AppDataState }) {
             CONFIRM_PORT): lì risponde solo la pagina di conferma, e il gestionale può restare chiuso al pubblico.
           </span>
         </label>
+        )}
         <div>
           <button className="btn btn-primary" disabled={!name.trim() || !changed}>
             <Save size={16} /> Salva
           </button>
         </div>
       </form>
-      <StylePicker data={data} />
+      {data.settings.modules.campaigns && <StylePicker data={data} />}
       <LogoPicker data={data} />
       <div className="setting-toggle">
         <div>
@@ -705,7 +763,7 @@ function ServicesCard({ data }: { data: AppDataState }) {
           </thead>
           <tbody>
             {data.services.map((s) => (
-              <ServiceRow key={`${s.id}-${data.version}`} s={s} showPrice={showPrices} onUpdate={update} onRemove={remove} />
+              <ServiceRow key={`${s.id}-${data.version}`} s={s} showPrice={showPrices} showBadge={data.settings.modules.appointments} onUpdate={update} onRemove={remove} />
             ))}
           </tbody>
         </table>
@@ -762,11 +820,14 @@ function ServicesCard({ data }: { data: AppDataState }) {
 function ServiceRow({
   s,
   showPrice,
+  showBadge,
   onUpdate,
   onRemove,
 }: {
   s: Service
   showPrice: boolean
+  /** Colore del badge negli appuntamenti: solo con il modulo attivo. */
+  showBadge: boolean
   onUpdate: (s: Service, p: Partial<Service>) => void
   onRemove: (s: Service) => void
 }) {
@@ -808,7 +869,7 @@ function ServiceRow({
               </option>
             ))}
           </select>
-          <BadgeColor s={s} onChange={(color) => onUpdate(s, { color })} />
+          {showBadge && <BadgeColor s={s} onChange={(color) => onUpdate(s, { color })} />}
         </div>
       </td>
       {showPrice && (

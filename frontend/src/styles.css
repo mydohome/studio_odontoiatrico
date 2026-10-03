@@ -244,6 +244,13 @@ main.is-wide {
 }
 
 /* Titolo e sottotitolo sulla stessa riga: più spazio in altezza per il contenuto. */
+/* Impostazioni → Moduli */
+.module-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
 .page-head-inline {
   justify-content: flex-start;
   align-items: baseline;

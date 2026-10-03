@@ -197,7 +197,9 @@ studio.
 - **Nuovo appuntamento** (oppure un clic su un orario libero della griglia): data, ora, durata, nome e telefono del
   paziente, prestazione (dall'elenco delle prestazioni) e note interne. I pazienti già inseriti vengono proposti mentre
   scrivi il nome, con il loro telefono. Se l'orario si sovrappone a un altro appuntamento compare un avviso.
-- **Vista giorno o settimana**, con frecce, *Oggi* e scelta della data. Sul telefono la settimana diventa un elenco per
+- **Vista giorno o settimana**, con frecce, *Oggi*, scelta della data e *Nuovo appuntamento* nella barra del
+  calendario. Su computer l'altezza delle ore si adatta alla finestra perché la fascia **9–19** si veda senza scorrere
+  (sugli schermi più bassi, es. 1366×768, fino alle 18:30 circa); prima o dopo si scorre nella griglia. Sul telefono la settimana diventa un elenco per
   giorno. Un clic sull'intestazione di un giorno apre la vista del giorno.
 - Ogni appuntamento mostra il **badge della prestazione**, a tinta piena con scritta bianca: di base il colore della
   categoria (es. Ortodonzia fucsia) oppure quello della singola prestazione (Igiene orale verde scuro). Si cambia in

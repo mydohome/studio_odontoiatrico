@@ -218,6 +218,11 @@ main.is-wide,
   max-width: 1680px;
 }
 
+main.is-wide {
+  padding-top: 14px;
+  padding-bottom: 12px;
+}
+
 .page-head {
   display: flex;
   align-items: flex-end;
@@ -236,6 +241,22 @@ main.is-wide,
 .page-head p {
   margin: 4px 0 0;
   color: var(--text-2);
+}
+
+/* Titolo e sottotitolo sulla stessa riga: più spazio in altezza per il contenuto. */
+.page-head-inline {
+  justify-content: flex-start;
+  align-items: baseline;
+  gap: 2px 14px;
+  margin-bottom: 10px;
+}
+
+.page-head-inline p {
+  margin: 0;
+}
+
+.page-head-inline h1 {
+  font-size: 1.35rem;
 }
 
 .grid {
@@ -1638,7 +1659,12 @@ tbody tr:last-child td {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  margin: 12px 0;
+  margin: 10px 0;
+}
+
+.cal-legend .appt-tag {
+  font-size: 0.74rem;
+  padding: 2px 8px;
 }
 
 .cal-legend > .small {
@@ -1703,9 +1729,16 @@ tbody tr:last-child td {
   color: var(--accent);
 }
 
+/* Altezza calcolata dalla pagina (fascia 9–19 nello schermo); questo è il valore di riserva. */
 .cal-scroll {
   max-height: max(420px, calc(100vh - 290px));
   overflow-y: auto;
+}
+
+@media (max-width: 520px) {
+  .cal-new-label {
+    display: none;
+  }
 }
 
 .cal-body {
@@ -2169,7 +2202,7 @@ a.public-line {
   .appt-side {
     position: sticky;
     top: 76px;
-    max-height: calc(100vh - 92px);
+    max-height: calc(100vh - 140px);
     overflow-y: auto;
     padding-right: 2px;
   }

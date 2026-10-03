@@ -13,8 +13,12 @@ import type { AppDataState } from '../lib/useData.ts'
 
 type View = 'giorno' | 'settimana'
 const VIEW_KEY = 'appuntamentiVista'
-// 30 minuti = 42 px: c'è posto per orario, nome e badge della prestazione.
-const PX_PER_MIN = 1.4
+// Altezza di un minuto nella griglia: quanto basta perché la fascia 9–19 stia nello schermo
+// senza scorrere, tra un minimo leggibile e il massimo (30 minuti = 42 px, con nome e badge).
+const PX_PER_MIN_MAX = 1.4
+const PX_PER_MIN_MIN = 0.6
+const FIT_FROM = 9 * 60
+const FIT_TO = 19 * 60
 const POLL_MS = 60_000
 
 const STATUS_ICON: Record<AppointmentStatus, typeof Check> = {
@@ -217,14 +221,9 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Appuntamenti</h1>
-          <p>Agenda dello studio, con promemoria WhatsApp e conferma del paziente tramite link.</p>
-        </div>
-        <button className="btn btn-primary" onClick={() => newAppointment()}>
-          <Plus size={16} /> Nuovo appuntamento
-        </button>
+      <div className="page-head page-head-inline">
+        <h1>Appuntamenti</h1>
+        <p>Agenda dello studio, con promemoria WhatsApp e conferma del paziente tramite link.</p>
       </div>
 
       <div className="appt-layout">
@@ -265,6 +264,9 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
               <CalendarDays size={18} />
               <input type="date" value={anchor} onChange={(e) => isValidISO(e.target.value) && setAnchor(e.target.value)} aria-label="Vai a una data" />
             </label>
+            <button className="btn btn-primary cal-new" onClick={() => newAppointment()}>
+              <Plus size={16} /> <span className="cal-new-label">Nuovo appuntamento</span>
+            </button>
           </div>
         </div>
 
@@ -272,7 +274,8 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
           <span className="small muted">
             {list.length === 0 ? 'Nessun appuntamento' : `${list.length} appuntament${list.length === 1 ? 'o' : 'i'}`}
           </span>
-          {STATUS_ORDER.map((s) => {
+          {/* Solo gli stati presenti: la legenda resta su una riga. */}
+          {STATUS_ORDER.filter((s) => counts[s] > 0).map((s) => {
             const Icon = STATUS_ICON[s]
             return (
               <span key={s} className={`appt-tag ${STATUS[s].cls}`} title={STATUS[s].label}>
@@ -360,6 +363,41 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
 
 // ---------- Griglia oraria (giorno o settimana) ----------
 
+/**
+ * Scala della griglia: lo spazio dalla griglia al fondo della finestra deve contenere la fascia
+ * 9–19. Si ricalcola quando cambia la dimensione della finestra.
+ */
+function useFitDay(ref: React.RefObject<HTMLDivElement | null>) {
+  const [fit, setFit] = useState<{ px: number; maxHeight: number | undefined }>({ px: PX_PER_MIN_MAX, maxHeight: undefined })
+  // Ad ogni aggiornamento: la legenda o i riquadri possono aver spostato la griglia.
+  useLayoutEffect(() => {
+    measureRef.current?.()
+  })
+  const measureRef = useRef<() => void>(undefined)
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = ref.current
+      if (!el) return
+      // Telefono e tablet: i riquadri stanno sopra e la pagina scorre comunque, meglio ore più alte.
+      if (window.innerWidth < 1100) {
+        setFit((f) => (f.px === PX_PER_MIN_MAX && f.maxHeight === undefined ? f : { px: PX_PER_MIN_MAX, maxHeight: undefined }))
+        return
+      }
+      const top = el.getBoundingClientRect().top + window.scrollY
+      // Sotto la griglia restano il bordo della scheda e un piccolo margine.
+      const avail = Math.max(320, window.innerHeight - top - 34)
+      // 15 minuti in più perché la riga delle 19 resti visibile.
+      const px = Math.min(PX_PER_MIN_MAX, Math.max(PX_PER_MIN_MIN, (avail - 14) / (FIT_TO - FIT_FROM + 15)))
+      setFit((f) => (Math.abs(f.px - px) < 0.005 && f.maxHeight === avail ? f : { px, maxHeight: avail }))
+    }
+    measureRef.current = measure
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [ref])
+  return fit
+}
+
 function TimeGrid({
   days,
   list,
@@ -378,6 +416,7 @@ function TimeGrid({
   onPickDay: (day: string) => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const { px: PX_PER_MIN, maxHeight } = useFitDay(scrollRef)
   // Orario mostrato: 8–20, allargato se ci sono appuntamenti prima o dopo.
   const startHour = Math.min(8, ...list.map((a) => Math.floor(toMinutes(a.time) / 60)))
   const endHour = Math.max(20, ...list.map((a) => Math.ceil((toMinutes(a.time) + a.duration) / 60)))
@@ -386,13 +425,13 @@ function TimeGrid({
   const t = today()
   const nowMin = now.getHours() * 60 + now.getMinutes()
 
-  // Apre la griglia sull'ora del primo appuntamento (o su adesso, se oggi è visibile).
+  // Apre la griglia alle 9 (la fascia 9–19 sta nello schermo), o prima se c'è un appuntamento prima.
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const first = list.length ? Math.min(...list.map((a) => toMinutes(a.time))) : days.includes(t) ? nowMin : 9 * 60
-    el.scrollTop = Math.max(0, (first - startHour * 60 - 30) * PX_PER_MIN)
-  }, [days.join(), list.length > 0]) // eslint-disable-line react-hooks/exhaustive-deps
+    const first = Math.min(FIT_FROM, ...list.map((a) => toMinutes(a.time)))
+    el.scrollTop = Math.max(0, (first - startHour * 60) * PX_PER_MIN - 10)
+  }, [days.join(), list.length > 0, PX_PER_MIN]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const clickColumn = (day: string, e: MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return
@@ -421,7 +460,7 @@ function TimeGrid({
           )
         })}
       </div>
-      <div className="cal-scroll" ref={scrollRef}>
+      <div className="cal-scroll" ref={scrollRef} style={{ maxHeight }}>
         <div className="cal-body" style={{ height }}>
           <div className="cal-hours">
             {hours.map((h) => (
@@ -447,7 +486,7 @@ function TimeGrid({
                 {items.map((a) => {
                   const pos = lanes.get(a.id) ?? { lane: 0, lanes: 1 }
                   const top = (toMinutes(a.time) - startHour * 60) * PX_PER_MIN
-                  const h = Math.max(24, a.duration * PX_PER_MIN - 2)
+                  const h = Math.max(16, a.duration * PX_PER_MIN - 2)
                   const Icon = STATUS_ICON[a.status]
                   return (
                     <button

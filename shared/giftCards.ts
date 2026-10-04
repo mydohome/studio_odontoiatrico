@@ -128,6 +128,19 @@ export function isValidCode(code: string): boolean {
   return checkChar(body) === code.slice(-1)
 }
 
+/** Caratteri minimi per cercare una gift card dalla parte finale del codice. */
+export const MIN_CODE_END = 3
+
+/**
+ * Gift card il cui codice finisce con quanto scritto (es. "RTH" o "MXP4-RTH"): basta leggere gli
+ * ultimi caratteri stampati sulla card. Null se il testo è troppo corto o non può essere un codice.
+ */
+export function matchCodeEnd<T extends { code: string }>(cards: T[], raw: string): T[] | null {
+  const end = normalizeCode(raw)
+  if (end.length < MIN_CODE_END || !new RegExp(`^[${CODE_ALPHABET}]+$`).test(end)) return null
+  return cards.filter((c) => c.code.endsWith(end))
+}
+
 /** GC7KQ2MXP4RTH → GC-7KQ2-MXP4-RTH, più facile da leggere e dettare. */
 export function formatCode(code: string): string {
   return `${code.slice(0, 2)}-${code.slice(2, 6)}-${code.slice(6, 10)}-${code.slice(10)}`

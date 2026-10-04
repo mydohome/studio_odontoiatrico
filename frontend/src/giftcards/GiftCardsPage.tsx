@@ -9,6 +9,8 @@ import {
   formatCode,
   formatEuro,
   isValidCode,
+  matchCodeEnd,
+  MIN_CODE_END,
   normalizeCode,
   parseEuro,
   STATUS_LABEL,
@@ -115,7 +117,7 @@ export default function GiftCardsPage({ data }: { data: AppDataState }) {
       </div>
 
       <div className="gc-layout">
-        <UseCard current={current} onFound={setCurrent} onChange={replace} onPreview={setPreview} />
+        <UseCard cards={cards} current={current} onFound={setCurrent} onChange={replace} onPreview={setPreview} />
         <CardList cards={cards} selected={current?.id ?? null} onOpen={setCurrent} />
       </div>
 
@@ -150,11 +152,13 @@ export default function GiftCardsPage({ data }: { data: AppDataState }) {
 // ---------- Uso di una gift card ----------
 
 function UseCard({
+  cards,
   current,
   onFound,
   onChange,
   onPreview,
 }: {
+  cards: GiftCard[]
   current: GiftCard | null
   onFound: (c: GiftCard | null) => void
   onChange: (c: GiftCard) => void
@@ -164,21 +168,16 @@ function UseCard({
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /** Più gift card finiscono con gli stessi caratteri: l'operatore sceglie quella giusta. */
+  const [choices, setChoices] = useState<GiftCard[] | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => inputRef.current?.focus(), [])
 
-  // Lo scanner "scrive" il codice e preme Invio: la ricerca parte da sola.
-  const search = async (e?: FormEvent) => {
-    e?.preventDefault()
-    const c = normalizeCode(code)
-    if (!c) return
-    if (!isValidCode(c)) {
-      setError('Codice non valido: controlla di averlo scritto correttamente (es. GC-7KQ2-MXP4-RTH).')
-      return
-    }
+  const open = async (c: string) => {
     setBusy(true)
     setError(null)
+    setChoices(null)
     try {
       onFound(await giftApi.lookup(c))
       setCode('')
@@ -187,6 +186,32 @@ function UseCard({
       onFound(null)
     } finally {
       setBusy(false)
+    }
+  }
+
+  // Lo scanner "scrive" il codice e preme Invio: la ricerca parte da sola. A mano bastano anche
+  // gli ultimi caratteri del codice (almeno 3).
+  const search = async (e?: FormEvent) => {
+    e?.preventDefault()
+    const c = normalizeCode(code)
+    if (!c) return
+    if (isValidCode(c)) return open(c)
+    const found = matchCodeEnd(cards, c)
+    setChoices(null)
+    if (found === null) {
+      setError(
+        c.length < MIN_CODE_END
+          ? `Scrivi il codice intero (es. GC-7KQ2-MXP4-RTH) o almeno gli ultimi ${MIN_CODE_END} caratteri.`
+          : 'Nei codici non ci sono 0, O, 1 e I: controlla di averlo scritto correttamente.',
+      )
+    } else if (found.length === 0) {
+      setError(c.startsWith('GC') ? 'Codice non valido: controlla di averlo scritto correttamente.' : `Nessuna gift card con il codice che finisce in «${c}».`)
+    } else if (found.length === 1) {
+      await open(found[0].code)
+    } else {
+      setError(null)
+      onFound(null)
+      setChoices(found)
     }
   }
 
@@ -210,7 +235,7 @@ function UseCard({
           className="input"
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="Codice a barre o codice GC-…"
+          placeholder="Codice a barre, codice GC-… o ultimi 3 caratteri"
           autoComplete="off"
           spellCheck={false}
           aria-label="Codice della gift card"
@@ -220,10 +245,23 @@ function UseCard({
         </button>
       </form>
       {error && <div className="alert alert-danger small">{error}</div>}
+      {choices && (
+        <div className="gc-choices">
+          <p className="small muted">{choices.length} gift card finiscono così: scegli quella giusta.</p>
+          <ul className="gc-rows">
+            {choices.map((c) => (
+              <li key={c.id}>
+                <CardRow card={c} selected={false} onOpen={() => open(c.code)} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {current ? (
         <CardManager card={current} act={act} onPreview={() => onPreview(current)} />
       ) : (
-        !error && <p className="small muted">Con un lettore di codici a barre basta inquadrare la card: il codice si scrive da solo.</p>
+        !error &&
+        !choices && <p className="small muted">Con un lettore di codici a barre basta inquadrare la card: il codice si scrive da solo.</p>
       )}
     </section>
   )
@@ -445,6 +483,23 @@ const FILTERS: { id: GiftCardStatus | 'tutte'; label: string }[] = [
   { id: 'tutte', label: 'Tutte' },
 ]
 
+function CardRow({ card: c, selected, onOpen }: { card: GiftCard; selected: boolean; onOpen: () => void }) {
+  return (
+    <button className={`gc-row ${selected ? 'is-selected' : ''}`} onClick={onOpen}>
+      <span className="gc-row-main">
+        <strong>{c.recipient || c.title}</strong>
+        <span className="small muted">
+          {formatCode(c.code)} · {describeContent(c)}
+        </span>
+      </span>
+      <span className="gc-row-side small">
+        <StatusTag status={c.status} />
+        <span className="muted">{leftLabel(c)}</span>
+      </span>
+    </button>
+  )
+}
+
 function CardList({ cards, selected, onOpen }: { cards: GiftCard[]; selected: number | null; onOpen: (c: GiftCard) => void }) {
   const [filter, setFilter] = useState<GiftCardStatus | 'tutte'>('attiva')
   const [q, setQ] = useState('')
@@ -476,18 +531,7 @@ function CardList({ cards, selected, onOpen }: { cards: GiftCard[]; selected: nu
         <ul className="gc-rows">
           {shown.map((c) => (
             <li key={c.id}>
-              <button className={`gc-row ${selected === c.id ? 'is-selected' : ''}`} onClick={() => onOpen(c)}>
-                <span className="gc-row-main">
-                  <strong>{c.recipient || c.title}</strong>
-                  <span className="small muted">
-                    {formatCode(c.code)} · {describeContent(c)}
-                  </span>
-                </span>
-                <span className="gc-row-side small">
-                  <StatusTag status={c.status} />
-                  <span className="muted">{leftLabel(c)}</span>
-                </span>
-              </button>
+              <CardRow card={c} selected={selected === c.id} onOpen={() => onOpen(c)} />
             </li>
           ))}
         </ul>

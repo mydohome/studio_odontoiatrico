@@ -52,6 +52,15 @@
   letter-spacing: 0.04em;
 }
 
+.gc-choices {
+  display: grid;
+  gap: 6px;
+}
+
+.gc-choices p {
+  margin: 0;
+}
+
 .gc-manage {
   display: grid;
   gap: 12px;

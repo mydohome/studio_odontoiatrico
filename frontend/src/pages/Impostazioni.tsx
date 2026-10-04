@@ -1,4 +1,4 @@
-import { CalendarDays, Check, Database, Download, FileSpreadsheet, ImageUp, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { CalendarDays, Check, Database, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { badgeColor, CATEGORIES } from '../../../shared/catalog.ts'
 import type { CategoryId, ImportResult, Service } from '../../../shared/types.ts'
@@ -52,7 +52,7 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
   )
 }
 
-const MODULES: { id: 'appointments' | 'campaigns'; label: string; text: string; icon: ReactNode }[] = [
+const MODULES: { id: 'appointments' | 'campaigns' | 'giftcards'; label: string; text: string; icon: ReactNode }[] = [
   {
     id: 'appointments',
     label: 'Appuntamenti',
@@ -65,6 +65,12 @@ const MODULES: { id: 'appointments' | 'campaigns'; label: string; text: string; 
     text: 'Campagne suggerite e personalizzate, con i volantini. Spento: la scheda sparisce, ma le campagne restano salvate.',
     icon: <Megaphone size={17} />,
   },
+  {
+    id: 'giftcards',
+    label: 'Gift card',
+    text: 'Gift card a credito o a prestazioni (anche da pacchetti) con codice a barre, da verificare e scalare in studio. Spento: la scheda sparisce, ma le gift card restano salvate.',
+    icon: <Gift size={17} />,
+  },
 ]
 
 /** Moduli dell'app: si possono nascondere senza perdere i dati, e riattivare quando servono. */
@@ -73,7 +79,7 @@ function ModulesCard({ data }: { data: AppDataState }) {
   const [saving, setSaving] = useState(false)
   const modules = data.settings.modules
 
-  const toggle = async (id: 'appointments' | 'campaigns', value: boolean) => {
+  const toggle = async (id: 'appointments' | 'campaigns' | 'giftcards', value: boolean) => {
     setSaving(true)
     try {
       data.setSettings(await api.saveSettings({ modules: { ...modules, [id]: value } }))

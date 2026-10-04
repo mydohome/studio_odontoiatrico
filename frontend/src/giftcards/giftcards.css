@@ -1,0 +1,375 @@
+/* Modulo Gift card (stili propri: si elimina insieme al modulo). */
+
+.gc-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.gc-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .gc-layout {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+}
+
+.gc-use,
+.gc-list {
+  display: grid;
+  gap: 12px;
+}
+
+.gc-use h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.gc-search,
+.gc-redeem {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gc-search .input,
+.gc-redeem .input {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.gc-search .input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+.gc-manage {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.gc-manage-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.gc-manage-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.gc-balance {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--good-soft);
+}
+
+.gc-balance strong {
+  font-size: 2rem;
+  color: var(--good);
+  font-variant-numeric: tabular-nums;
+}
+
+.gc-items-left,
+.gc-history ul,
+.gc-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.gc-items-left li,
+.gc-history li,
+.gc-package {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.gc-items-left li.is-used {
+  opacity: 0.55;
+}
+
+.gc-history li.is-reversed strong {
+  text-decoration: line-through;
+}
+
+.gc-history li.is-reversed {
+  opacity: 0.6;
+}
+
+.gc-manage-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gc-list-head {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.gc-list-head .input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.gc-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.gc-row:hover,
+.gc-row.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface));
+}
+
+.gc-row-main {
+  display: grid;
+  min-width: 0;
+}
+
+.gc-row-main > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gc-row-side {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  flex: none;
+}
+
+.gc-st-active {
+  --c: var(--good);
+  --c-soft: var(--good-soft);
+}
+
+.gc-st-used {
+  --c: var(--text-2);
+  --c-soft: var(--surface-2);
+}
+
+.gc-st-expired {
+  --c: var(--warn);
+  --c-soft: var(--warn-soft);
+}
+
+.gc-st-cancelled {
+  --c: var(--danger);
+  --c-soft: var(--danger-soft);
+}
+
+.gc-items-editor {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.gc-item-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.gc-item-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.gc-qty {
+  width: 76px;
+}
+
+.gc-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Anteprima della card: la card è a grandezza piena (856 × 540) e viene ridotta per lo schermo. */
+.gc-preview-wrap {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.gc-preview {
+  width: min(100%, 642px);
+  aspect-ratio: 856 / 540;
+  overflow: hidden;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+
+.gc-preview > .gc-card {
+  transform-origin: top left;
+}
+
+.gc-preview-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ---------- La card ---------- */
+
+.gc-card {
+  position: relative;
+  box-sizing: border-box;
+  padding: 34px 40px 30px;
+  border-radius: 28px;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Fredoka', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.gc-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.gc-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.gc-studio {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.gc-label {
+  flex: none;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  padding: 6px 14px;
+  border: 2px solid;
+  border-radius: 999px;
+}
+
+.gc-middle {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.gc-title {
+  font-family: 'Lobster', cursive;
+  font-size: 46px;
+  line-height: 1.05;
+}
+
+.gc-amount {
+  font-size: 92px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.gc-items {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.gc-recipient {
+  font-size: 26px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.gc-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.gc-code-box {
+  background: #fff;
+  color: #111;
+  border-radius: 14px;
+  /* Margine bianco ai lati del codice a barre: almeno 10 moduli (2,2 px) perché i lettori lo leggano. */
+  padding: 12px 30px 8px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.gc-barcode {
+  display: block;
+  height: 86px;
+  width: auto;
+}
+
+.gc-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.gc-meta {
+  font-size: 18px;
+  font-weight: 500;
+  text-align: right;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.gc-card.gc-mint {
+  border: 2px solid #dbe5f3;
+}

@@ -28,7 +28,7 @@ export interface AppSettings {
   /** Modello grafico dei volantini: "Smile" (colorato) o "Mint" (pulito, tecnologico). */
   flyerStyle: 'smile' | 'mint'
   /** Moduli visibili (disattivato = nascosto, i dati restano). */
-  modules: { appointments: boolean; campaigns: boolean }
+  modules: { appointments: boolean; campaigns: boolean; giftcards: boolean }
   /** Indirizzo pubblico dell'app per i link di conferma (vuoto = quello del browser). */
   publicUrl: string
 }
@@ -55,7 +55,7 @@ export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn
 }
 
-async function request<T>(method: string, url: string, body?: unknown, raw?: Blob, rawType?: string): Promise<T> {
+export async function request<T>(method: string, url: string, body?: unknown, raw?: Blob, rawType?: string): Promise<T> {
   const headers: Record<string, string> = {}
   let payload: BodyInit | undefined
   if (raw) {

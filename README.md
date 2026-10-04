@@ -160,6 +160,41 @@ conferma e colori dei badge per gli appuntamenti, modello dei volantini per le c
 tornano visibili riattivandolo. Con gli appuntamenti spenti, i link di conferma già inviati continuano a funzionare e gli
 appuntamenti confermati contano ancora nelle statistiche.
 
+## Gift card
+
+Modulo facoltativo, **spento all'installazione**: si attiva in **Impostazioni → Moduli → Gift card** e compare la
+scheda *Gift card*.
+
+- **Nuova gift card**: a **credito** (es. 100 €), a **prestazioni** (es. 1 visita di controllo + 2 sedute di igiene)
+  oppure da un **pacchetto** (modelli predefiniti, con prezzo, creati con *Pacchetti*). Facoltativi: intestatario, chi
+  l'ha acquistata, prezzo pagato, scadenza (proposta: un anno) e note interne.
+- Ogni gift card ha un **codice univoco** (es. `GC-7KQ2-MXP4-RTH`, con un carattere di controllo che riconosce gli
+  errori di battitura) stampato anche come **codice a barre Code 128**, leggibile da qualsiasi lettore (anche quelli USB
+  che "scrivono" il codice). La grafica, in formato carta di credito con logo e nome dello studio nei colori del modello
+  dei volantini, si scarica come **immagine PNG** (da inviare su WhatsApp o per email), **PDF** a grandezza reale
+  (85,6 × 54 mm, per la tipografia) o si **stampa** su A4 da ritagliare.
+- **Usa una gift card**: si legge il codice a barre (o si scrive il codice) e compaiono credito residuo o prestazioni
+  rimaste. Si scala tutto o una parte del credito, oppure si segna una prestazione usata, con una nota facoltativa.
+  Ogni utilizzo resta nello storico (chi, quando) e si può **stornare** se registrato per errore. Due operatori insieme
+  non possono usare due volte lo stesso credito.
+- Una gift card può essere **annullata** (e riattivata); quelle scadute si usano dopo aver prolungato la scadenza
+  con *Modifica*. Intestatario, acquirente e note sono cifrati nel database come i dati dei pazienti.
+- Gli utilizzi delle gift card **non** entrano nelle statistiche delle prestazioni (che contano già registrazioni e
+  appuntamenti).
+
+### Eliminare il modulo
+
+Per nasconderlo basta spegnerlo in *Impostazioni → Moduli* (i dati restano). Per toglierlo del tutto:
+
+1. su GitHub, nella pull request che ha introdotto il modulo, **Revert** e unisci la pull request di annullamento,
+   poi `./studio update` su ogni server;
+2. cancella i dati delle gift card (irreversibile: prima `./studio backup`):
+   ```bash
+   ./studio db
+   DROP TABLE gift_card_movements, gift_card_items, gift_cards, gift_packages;
+   DELETE FROM settings WHERE key = 'moduleGiftcards';
+   ```
+
 ## Amministrazione: il comando `./studio`
 
 Tutte le operazioni di amministrazione passano da un unico comando, da lanciare nella cartella dell'istanza:

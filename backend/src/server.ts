@@ -37,6 +37,7 @@ import {
   updateCustomCampaign,
 } from './customCampaigns.ts'
 import { DataKeyError, initDataCrypto } from './dataCrypto.ts'
+import { migrateGiftCards, registerGiftCards } from './giftCards.ts'
 import { getSetting, listAppointmentRecords, listRecords, listServices, listStatRecords, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
@@ -247,9 +248,10 @@ interface Settings {
 interface Modules {
   appointments: boolean
   campaigns: boolean
+  giftcards: boolean
 }
 
-const MODULE_KEYS: Record<keyof Modules, string> = { appointments: 'moduleAppointments', campaigns: 'moduleCampaigns' }
+const MODULE_KEYS: Record<keyof Modules, string> = { appointments: 'moduleAppointments', campaigns: 'moduleCampaigns', giftcards: 'moduleGiftcards' }
 
 const FLYER_STYLES = ['smile', 'mint'] as const
 type FlyerStyle = (typeof FLYER_STYLES)[number]
@@ -305,6 +307,8 @@ async function readSettings(): Promise<Settings> {
     modules: {
       appointments: (await getSetting(MODULE_KEYS.appointments)) !== 'false',
       campaigns: (await getSetting(MODULE_KEYS.campaigns)) !== 'false',
+      // Modulo nuovo: spento finché non lo si attiva.
+      giftcards: (await getSetting(MODULE_KEYS.giftcards)) === 'true',
     },
   }
 }
@@ -716,6 +720,10 @@ app.post('/api/demo', async () => {
   return { days: days.size, imported }
 })
 
+// ---------- Gift card (modulo isolato, vedi giftCards.ts) ----------
+
+registerGiftCards(app, async (req) => (await sessionUser(req))?.username ?? null)
+
 // ---------- Avvio ----------
 
 async function start() {
@@ -726,6 +734,7 @@ async function start() {
       await migrateCustomCampaigns()
       await migrateBranding()
       await migrateAppointments()
+      await migrateGiftCards()
       break
     } catch (e) {
       if (attempt >= 30) throw e

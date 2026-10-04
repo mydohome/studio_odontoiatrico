@@ -173,8 +173,8 @@ scheda *Gift card*.
   che "scrivono" il codice). La grafica, in formato carta di credito con logo e nome dello studio nei colori del modello
   dei volantini, si scarica come **immagine PNG** (da inviare su WhatsApp o per email), **PDF** a grandezza reale
   (85,6 × 54 mm, per la tipografia) o si **stampa** su A4 da ritagliare.
-- **Usa una gift card**: si legge il codice a barre (o si scrive il codice) e compaiono credito residuo o prestazioni
-  rimaste. Si scala tutto o una parte del credito, oppure si segna una prestazione usata, con una nota facoltativa.
+- **Usa una gift card**: si legge il codice a barre (o si scrive il codice, anche solo gli **ultimi 3 caratteri**:
+  se più gift card finiscono così, si sceglie dall'elenco) e compaiono credito residuo o prestazioni rimaste. Si scala tutto o una parte del credito, oppure si segna una prestazione usata, con una nota facoltativa.
   Ogni utilizzo resta nello storico (chi, quando) e si può **stornare** se registrato per errore. Due operatori insieme
   non possono usare due volte lo stesso credito.
 - Una gift card può essere **annullata** (e riattivata); quelle scadute si usano dopo aver prolungato la scadenza

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { test } from 'node:test'
-import { CODE_ALPHABET, codeFromRandom, describeContent, formatCode, isValidCode, normalizeCode, parseEuro } from '../../shared/giftCards.ts'
+import { CODE_ALPHABET, codeFromRandom, describeContent, formatCode, isValidCode, matchCodeEnd, normalizeCode, parseEuro } from '../../shared/giftCards.ts'
 
 test('codice: formato, validità e lettura con trattini o minuscole', () => {
   for (let i = 0; i < 200; i++) {
@@ -52,4 +52,15 @@ test('importi in euro', () => {
   assert.equal(parseEuro('abc'), null)
   assert.equal(parseEuro('-5'), null)
   assert.equal(describeContent({ kind: 'prestazioni', amount: null, items: [{ name: 'Igiene orale', qty: 1 }, { name: 'Visita', qty: 2 }] }), '1 × Igiene orale, 2 × Visita')
+})
+
+test('ricerca dagli ultimi caratteri del codice', () => {
+  const cards = [{ code: 'GC8DSNRRJRRPW' }, { code: 'GC7KQ2MXP4RTH' }, { code: 'GCABCDEFGHRTH' }]
+  assert.deepEqual(matchCodeEnd(cards, 'rpw'), [cards[0]])
+  assert.deepEqual(matchCodeEnd(cards, 'RRJR-RPW'), [cards[0]])
+  assert.deepEqual(matchCodeEnd(cards, ' r t h '), [cards[1], cards[2]])
+  assert.deepEqual(matchCodeEnd(cards, 'MXP4-RTH'), [cards[1]])
+  assert.deepEqual(matchCodeEnd(cards, 'ZZZ'), [])
+  assert.equal(matchCodeEnd(cards, 'TH'), null)
+  assert.equal(matchCodeEnd(cards, 'R0H'), null)
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Doctor, RecordRow, Service } from '../../../shared/types.ts'
+import type { Doctor, DoctorRecordRow, RecordRow, Service } from '../../../shared/types.ts'
 import { setCategories, type Category } from '../../../shared/catalog.ts'
 import { api, type AppSettings } from './api.ts'
 
@@ -8,6 +8,7 @@ export function useAppData() {
   const [services, setServices] = useState<Service[]>([])
   const [categories, setCategoryList] = useState<Category[]>([])
   const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [doctorRecords, setDoctorRecords] = useState<DoctorRecordRow[]>([])
   const [records, setRecords] = useState<RecordRow[]>([])
   const [settings, setSettings] = useState<AppSettings>({ studioName: 'Studio Odontoiatrico', showPrices: true, phone: '', address: '', doctorName: '', logoType: 'famiglia', logoVersion: 0, flyerStyle: 'smile', publicUrl: '', modules: { appointments: true, campaigns: true, giftcards: false } })
   const [loading, setLoading] = useState(true)
@@ -16,7 +17,8 @@ export function useAppData() {
 
   const reload = useCallback(async () => {
     try {
-      const [s, r, st, cats, docs] = await Promise.all([api.services(), api.records(), api.settings(), api.categories(), api.doctors()])
+      const [s, r, st, cats, docs, dr] = await Promise.all([api.services(), api.records(), api.settings(), api.categories(), api.doctors(), api.doctorRecords()])
+      setDoctorRecords(dr)
       setDoctors(docs)
       // L'elenco condiviso delle categorie va aggiornato prima che le schede si ridisegnino.
       setCategories(cats)
@@ -37,7 +39,7 @@ export function useAppData() {
     reload()
   }, [reload])
 
-  return { services, categories, doctors, records, settings, setSettings, loading, error, reload, version }
+  return { services, categories, doctors, doctorRecords, records, settings, setSettings, loading, error, reload, version }
 }
 
 export type AppDataState = ReturnType<typeof useAppData>

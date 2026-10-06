@@ -19,8 +19,3 @@ export function DoctorDot({ appointment: a }: { appointment: WithDoctor }) {
   if (!a.doctorName || !a.doctorColor) return null
   return <span className="svc-dot doc-dot" style={{ background: a.doctorColor }} title={`Medico: ${a.doctorName}`} />
 }
-
-/** Nelle righe brevi: badge con il nome; dove c'è poco posto (appuntamenti affiancati) solo il pallino. */
-export function DoctorTag({ appointment, compact }: { appointment: WithDoctor; compact: boolean }) {
-  return compact ? <DoctorDot appointment={appointment} /> : <DoctorBadge appointment={appointment} size="sm" />
-}

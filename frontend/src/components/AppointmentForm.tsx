@@ -1,11 +1,11 @@
 import { AlertTriangle, CalendarX2, Save, X } from 'lucide-react'
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
-import { CATEGORIES } from '../../../shared/catalog.ts'
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
 import { endTime } from '../../../shared/appointments.ts'
 import { formatDay } from '../../../shared/dates.ts'
 import type { AppointmentInput, Doctor, ScheduledAppointment, Service } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { overlapping } from '../lib/appointments.ts'
+import ServicePicker from './ServicePicker.tsx'
 
 const DURATIONS = [10, 15, 20, 30, 45, 60, 90, 120, 180]
 
@@ -68,15 +68,6 @@ export default function AppointmentForm({ title, initial, editingId, wasConfirme
     const p = patients.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
     if (p && !v.patientPhone.trim()) set('patientPhone', p.phone)
   }
-
-  const groups = useMemo(
-    () =>
-      CATEGORIES.map((c) => ({
-        ...c,
-        items: services.filter((s) => s.category === c.id && (s.active || s.id === initial.serviceId)),
-      })).filter((g) => g.items.length),
-    [services, initial.serviceId],
-  )
 
   // Medici attivi (più quello già assegnato, se nel frattempo è stato disattivato).
   const choosable = doctors.filter((d) => d.active || d.id === initial.doctorId)
@@ -180,21 +171,10 @@ export default function AppointmentForm({ title, initial, editingId, wasConfirme
             />
           </label>
 
-          <label className="span-2">
-            Prestazione
-            <select className="input" value={v.serviceId ?? ''} onChange={(e) => set('serviceId', e.target.value || null)}>
-              <option value="">— Non specificata —</option>
-              {groups.map((g) => (
-                <optgroup key={g.id} label={g.label}>
-                  {g.items.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
+          <div className="span-2 combo-label">
+            <span className="doctor-pick-label">Prestazione</span>
+            <ServicePicker services={services} value={v.serviceId} onChange={(id) => set('serviceId', id)} />
+          </div>
 
           {choosable.length > 0 && (
             <div className="span-2 doctor-pick" role="group" aria-label="Medico">

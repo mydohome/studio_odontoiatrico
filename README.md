@@ -7,7 +7,7 @@ proposte di **campagne marketing** mese per mese calcolate sui dati raccolti.
 |---|---|
 | **Registra** | Inserimento giornaliero delle quantità per prestazione (igiene orale, visita di controllo, ortopanoramica…), con pulsanti +/−, elenco delle ultime giornate e salvataggio rapido (Ctrl/Cmd + S). |
 | **Appuntamenti** | Agenda del giorno o della settimana, promemoria WhatsApp già formattato con **link di conferma** personale per il paziente e stato di ogni appuntamento (da inviare, in attesa, confermato dal paziente, confermato dallo studio). |
-| **Dashboard** | Riepilogo per giorno, settimana o mese: totale prestazioni, fatturato stimato, media per giorno lavorato, andamento per categoria (grafico a colonne), dettaglio per prestazione con confronto sul periodo precedente. |
+| **Dashboard** | Riepilogo per giorno, settimana o mese: totale prestazioni, fatturato stimato, media per giorno lavorato, andamento per categoria (grafico a colonne), dettaglio per prestazione con confronto sul periodo precedente. Con il modulo Appuntamenti, anche le **statistiche per medico**: prestazioni, quota, fatturato stimato, variazione sul periodo precedente, prestazioni più eseguite e andamento (le registrazioni a mano non hanno un medico e vanno in «Senza medico»). |
 | **Campagne** | Per i prossimi 12 mesi propone le campagne più convenienti con punteggio, offerta, target, canali e motivazioni. Mostra la previsione per categoria e la mappa della stagionalità. |
 | **Impostazioni** | Template Excel scaricabile, import da Excel, export completo, gestione delle **categorie** (rinomina, riordina, colore del badge, aggiunta) e delle prestazioni (nome, categoria, prezzo medio, attiva/disattiva), opzione **Mostra prezzi** (nasconde prezzi e fatturato stimato in tutte le viste e nei file Excel), dati dimostrativi, nome dello studio. |
 
@@ -253,6 +253,11 @@ studio.
   nell'agenda l'appuntamento mostra il suo **badge colorato** con il nome e una **striscia** dello stesso colore sul bordo
   destro. Un medico con appuntamenti non si elimina ma si disattiva (non si può scegliere nei nuovi, lo storico resta).
   I colori delle categorie evitano rosso, verde e viola per non confondersi con i medici.
+- Nell'agenda gli appuntamenti di mezz'ora (o meno) stanno su una riga: **ora, paziente, medico, prestazione, nota**;
+  quello che non entra si tronca da destra, partendo dalla nota. Quelli di un'ora hanno il nome sopra e, sotto, medico,
+  prestazione e nota. Nella settimana, con appuntamenti affiancati, i badge si riducono a chip colorati.
+- Nel modulo la **prestazione** si sceglie dall'elenco per categoria (clic sul campo) oppure si cerca scrivendo, con
+  completamento automatico (nome o categoria, anche una parte; frecce e Invio da tastiera).
 - Ogni appuntamento ha anche un'**etichetta di stato**:
 
   | Etichetta | Significato |

@@ -41,7 +41,7 @@ import { migrateCategories, registerCategories } from './categories.ts'
 import { migrateDoctors, registerDoctors } from './doctors.ts'
 import { DataKeyError, initDataCrypto } from './dataCrypto.ts'
 import { migrateGiftCards, registerGiftCards } from './giftCards.ts'
-import { getSetting, listAppointmentRecords, listRecords, listServices, listStatRecords, migrate, pool, setSetting, writeDays } from './db.ts'
+import { getSetting, listAppointmentRecords, listDoctorRecords, listRecords, listServices, listStatRecords, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
 import { LoginLimiter } from './loginLimiter.ts'
@@ -470,6 +470,11 @@ app.delete('/api/services/:id', async (req) => {
 app.get('/api/records', async (req) => {
   const q = req.query as { from?: string; to?: string }
   return listStatRecords(optDate(q.from, 'from'), optDate(q.to, 'to'))
+})
+
+app.get('/api/doctor-records', async (req) => {
+  const q = req.query as { from?: string; to?: string }
+  return listDoctorRecords(optDate(q.from, 'from'), optDate(q.to, 'to'))
 })
 
 app.get('/api/days/:date', async (req) => {

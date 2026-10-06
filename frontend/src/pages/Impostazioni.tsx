@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, CalendarDays, Check, Database, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Building2, CalendarDays, Check, ChevronRight, Database, LayoutGrid, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { badgeColor, CATEGORIES, type Category } from '../../../shared/catalog.ts'
 import { ColorInput, useColorPick } from '../components/ColorInput.tsx'
@@ -17,38 +17,100 @@ interface Props {
   onLogout: () => void
 }
 
+type Section = 'studio' | 'dati' | 'moduli'
+
+/** Account e logout, nella testata della pagina. */
+function AccountBar({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
+  return (
+    <div className="toolbar">
+      <span className="badge" title={user.email ?? undefined}>
+        <User size={13} /> {user.username}
+      </span>
+      <button
+        className="btn"
+        onClick={async () => {
+          await api.logout().catch(() => {})
+          onLogout()
+        }}
+      >
+        <LogOut size={16} /> Esci
+      </button>
+    </div>
+  )
+}
+
 export default function Impostazioni({ data, user, onLogout }: Props) {
+  // Studio, Dati e Moduli si aprono in un menu a parte; medici, categorie e prestazioni restano qui.
+  const [section, setSection] = useState<Section | null>(null)
+  const m = data.settings.modules
+  const activeModules = [m.appointments, m.campaigns, m.giftcards].filter(Boolean).length
+  const manualDays = new Set(data.records.filter((r) => r.q - (r.a ?? 0) > 0).map((r) => r.d)).size
+
+  const SECTIONS: { id: Section; label: string; text: string; icon: ReactNode }[] = [
+    { id: 'studio', label: 'Studio', text: 'Nome, indirizzi, logo e modello dei volantini, prezzi', icon: <Building2 size={22} /> },
+    { id: 'dati', label: 'Dati', text: `Importazione ed esportazione Excel, eliminazione · ${manualDays} giornate registrate`, icon: <Database size={22} /> },
+    { id: 'moduli', label: 'Moduli', text: `Appuntamenti, campagne, gift card · ${activeModules} di 3 attivi`, icon: <LayoutGrid size={22} /> },
+  ]
+
+  if (section) {
+    const current = SECTIONS.find((x) => x.id === section)!
+    return (
+      <>
+        <div className="page-head">
+          <div className="settings-crumb">
+            <button className="btn btn-sm" onClick={() => setSection(null)}>
+              <ArrowLeft size={15} /> Impostazioni
+            </button>
+            <h1>{current.label}</h1>
+          </div>
+          <AccountBar user={user} onLogout={onLogout} />
+        </div>
+        {section === 'studio' && (
+          <div className="settings-narrow">
+            <StudioCard data={data} />
+          </div>
+        )}
+        {section === 'dati' && (
+          <div className="grid grid-2-even" style={{ alignItems: 'start' }}>
+            <ImportCard data={data} />
+            <DataCard data={data} />
+          </div>
+        )}
+        {section === 'moduli' && (
+          <div className="settings-narrow">
+            <ModulesCard data={data} />
+          </div>
+        )}
+      </>
+    )
+  }
+
   return (
     <>
       <div className="page-head">
         <div>
           <h1>Impostazioni</h1>
-          <p>Prestazioni, importazione da Excel e gestione dei dati.</p>
+          <p>Studio, dati e moduli; sotto medici, categorie e prestazioni.</p>
         </div>
-        <div className="toolbar">
-          <span className="badge" title={user.email ?? undefined}>
-            <User size={13} /> {user.username}
-          </span>
-          <button
-            className="btn"
-            onClick={async () => {
-              await api.logout().catch(() => {})
-              onLogout()
-            }}
-          >
-            <LogOut size={16} /> Esci
-          </button>
-        </div>
+        <AccountBar user={user} onLogout={onLogout} />
       </div>
-      <div className="grid grid-2-even" style={{ alignItems: 'start' }}>
+      <div className="settings-tiles">
+        {SECTIONS.map((x) => (
+          <button key={x.id} className="settings-tile" onClick={() => setSection(x.id)}>
+            <span className="settings-tile-icon">{x.icon}</span>
+            <span className="settings-tile-text">
+              <strong>{x.label}</strong>
+              <span className="small muted">{x.text}</span>
+            </span>
+            <ChevronRight size={18} className="muted" />
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-2-even" style={{ alignItems: 'start', marginTop: 16 }}>
         <div className="grid">
-          <ModulesCard data={data} />
-          <ImportCard data={data} />
-          <StudioCard data={data} />
-          <DataCard data={data} />
+          {data.settings.modules.appointments && <DoctorsCard data={data} />}
+          <CategoriesCard data={data} />
         </div>
-        {data.settings.modules.appointments && <DoctorsCard data={data} />}
-        <CategoriesCard data={data} />
         <ServicesCard data={data} />
       </div>
     </>

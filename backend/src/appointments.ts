@@ -157,6 +157,44 @@ export async function listAppointments(from: string, to: string): Promise<Appoin
   return rows.map(toAppointment)
 }
 
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+const MAX_SEARCH_RESULTS = 30
+
+/**
+ * Ricerca per paziente (nome e cognome, anche parti e in qualsiasi ordine; oppure il telefono) in tutti
+ * gli appuntamenti. I nomi sono cifrati: si filtrano qui, dopo averli decifrati. Risultati: prima i
+ * prossimi (dal più vicino), poi quelli da riprogrammare, poi i passati (dal più recente).
+ */
+export async function searchAppointments(query: string): Promise<Appointment[]> {
+  const words = fold(query).split(/\s+/).filter(Boolean)
+  const digits = query.replace(/\D/g, '')
+  if (!words.length || words.join('').length < 2) return []
+  const { rows } = await pool.query('SELECT id, day, start_time, patient_name, patient_phone FROM appointments')
+  const t = today()
+  const hits: { id: number; day: string | null; time: string | null }[] = []
+  for (const r of rows) {
+    const name = fold(decrypt(r.patient_name, 'patient_name'))
+    const byName = words.every((w) => name.includes(w))
+    const byPhone = digits.length >= 4 && decrypt(r.patient_phone, 'patient_phone').replace(/\D/g, '').includes(digits)
+    if (byName || byPhone) hits.push({ id: r.id, day: r.day, time: r.start_time })
+  }
+  const rank = (h: { day: string | null }) => (h.day === null ? 1 : h.day >= t ? 0 : 2)
+  hits.sort((a, b) => {
+    const ra = rank(a)
+    const rb = rank(b)
+    if (ra !== rb) return ra - rb
+    if (ra === 0) return (a.day! + (a.time ?? '')).localeCompare(b.day! + (b.time ?? ''))
+    if (ra === 2) return (b.day! + (b.time ?? '')).localeCompare(a.day! + (a.time ?? ''))
+    return a.id - b.id
+  })
+  const ids = hits.slice(0, MAX_SEARCH_RESULTS).map((h) => h.id)
+  if (!ids.length) return []
+  const full = await pool.query(`SELECT ${COLUMNS} FROM ${FROM} WHERE a.id = ANY($1)`, [ids])
+  const byId = new Map(full.rows.map((r) => [r.id as number, toAppointment(r)]))
+  return ids.map((id) => byId.get(id)).filter((a): a is Appointment => !!a)
+}
+
 /** Pazienti degli ultimi due anni (nome e telefono più recente), per il completamento automatico. */
 // I nomi sono cifrati: si raggruppano qui, dopo averli decifrati, e non nel database.
 export async function listPatients(): Promise<{ name: string; phone: string }[]> {

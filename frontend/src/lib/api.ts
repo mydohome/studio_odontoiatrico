@@ -140,6 +140,7 @@ export const api = {
   appointments: (from: string, to: string) => request<ScheduledAppointment[]>('GET', `/api/appointments?from=${from}&to=${to}`),
   toReschedule: () => request<Appointment[]>('GET', '/api/appointments/to-reschedule'),
   rescheduleAppointment: (id: number) => request<Appointment>('POST', `/api/appointments/${id}/reschedule`, {}),
+  searchAppointments: (q: string) => request<Appointment[]>('GET', `/api/appointments/search?q=${encodeURIComponent(q)}`),
   patients: () => request<{ name: string; phone: string }[]>('GET', '/api/appointments/patients'),
   createAppointment: (a: AppointmentInput) => request<Appointment>('POST', '/api/appointments', a),
   updateAppointment: (id: number, a: AppointmentInput) => request<Appointment>('PUT', `/api/appointments/${id}`, a),

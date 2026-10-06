@@ -9,7 +9,7 @@ proposte di **campagne marketing** mese per mese calcolate sui dati raccolti.
 | **Appuntamenti** | Agenda del giorno o della settimana, promemoria WhatsApp già formattato con **link di conferma** personale per il paziente e stato di ogni appuntamento (da inviare, in attesa, confermato dal paziente, confermato dallo studio). |
 | **Dashboard** | Riepilogo per giorno, settimana o mese: totale prestazioni, fatturato stimato, media per giorno lavorato, andamento per categoria (grafico a colonne), dettaglio per prestazione con confronto sul periodo precedente. Con il modulo Appuntamenti, anche le **statistiche per medico**: prestazioni, quota, fatturato stimato, variazione sul periodo precedente, prestazioni più eseguite e andamento (le registrazioni a mano non hanno un medico e vanno in «Senza medico»). |
 | **Campagne** | Per i prossimi 12 mesi propone le campagne più convenienti con punteggio, offerta, target, canali e motivazioni. Mostra la previsione per categoria e la mappa della stagionalità. |
-| **Impostazioni** | Template Excel scaricabile, import da Excel, export completo, gestione delle **categorie** (rinomina, riordina, colore del badge, aggiunta) e delle prestazioni (nome, categoria, prezzo medio, attiva/disattiva), opzione **Mostra prezzi** (nasconde prezzi e fatturato stimato in tutte le viste e nei file Excel), dati dimostrativi, nome dello studio. |
+| **Impostazioni** | Tre voci che aprono un menu a parte: **Studio** (nome, telefono, indirizzi, logo, modello dei volantini, prezzi), **Dati** (importazione da Excel con template, esportazione completa, dati dimostrativi, eliminazione) e **Moduli** (attiva/disattiva Appuntamenti, Campagne, Gift card). Nella pagina restano **medici**, **categorie** (rinomina, riordina, colore del badge, aggiunta) e **prestazioni** (nome, categoria, prezzo medio, attiva/disattiva). Cambiando il colore di una categoria lo prendono anche le sue prestazioni (quelle con un colore proprio tornano a seguire la categoria). |
 
 ## Architettura
 
@@ -248,6 +248,9 @@ studio.
   categoria (es. Ortodonzia fucsia) oppure quello della singola prestazione (Igiene orale verde scuro). Si cambia in
   **Impostazioni → Prestazioni** cliccando sul badge accanto alla categoria (il colore di default di ogni categoria si cambia in **Impostazioni → Categorie**) (la freccia circolare torna al colore della
   categoria). Negli appuntamenti più corti di mezz'ora il badge diventa un pallino colorato.
+- **Cerca** (nella barra del calendario): si scrive una parte del nome, del cognome o il telefono del paziente e compare
+  l'anteprima dei suoi appuntamenti (prossimi, da riprogrammare, passati) con medico, prestazione e stato; un clic apre
+  la scheda e porta il calendario su quel giorno. Frecce e Invio da tastiera.
 - **Medici**: in **Impostazioni → Medici** si inseriscono i medici dello studio (nome, colore, attivo/disattivo; all'inizio
   ce ne sono tre di esempio, viola, verde e rosso, da rinominare). Nel modulo dell'appuntamento si sceglie il medico;
   nell'agenda l'appuntamento mostra il suo **badge colorato** con il nome e una **striscia** dello stesso colore sul bordo

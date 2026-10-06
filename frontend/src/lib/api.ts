@@ -10,6 +10,7 @@ import type {
   RecordRow,
   Service,
   Doctor,
+  DoctorRecordRow,
 } from '../../../shared/types.ts'
 import type { Category } from '../../../shared/catalog.ts'
 
@@ -114,6 +115,7 @@ export const api = {
     if (to) q.set('to', to)
     return request<RecordRow[]>('GET', `/api/records?${q}`)
   },
+  doctorRecords: () => request<DoctorRecordRow[]>('GET', '/api/doctor-records'),
   day: (date: string) =>
     request<{ date: string; items: Record<string, number>; appointments?: Record<string, number> }>('GET', `/api/days/${date}`),
   saveDay: (date: string, items: Record<string, number>) =>

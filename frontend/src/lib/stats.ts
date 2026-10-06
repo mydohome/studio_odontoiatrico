@@ -12,7 +12,7 @@ import {
   startOfWeek,
   WEEKDAYS_SHORT,
 } from '../../../shared/dates.ts'
-import type { CategoryId, RecordRow, Service } from '../../../shared/types.ts'
+import type { CategoryId, DoctorRecordRow, RecordRow, Service } from '../../../shared/types.ts'
 
 export type PeriodType = 'giorno' | 'settimana' | 'mese'
 
@@ -81,6 +81,31 @@ export function aggregate(records: RecordRow[], services: Service[], p: Period):
     byCategory.set(s.category, (byCategory.get(s.category) ?? 0) + r.q)
   }
   return { total, revenue, workedDays: days.size, byService, byCategory }
+}
+
+/** Chiave del gruppo «senza medico» (prestazioni registrate a mano o in appuntamenti senza medico). */
+export const NO_DOCTOR = 0
+
+export interface DoctorAggregate {
+  total: number
+  revenue: number
+  byService: Map<string, number>
+}
+
+/** Prestazioni degli appuntamenti nel periodo, per medico. */
+export function aggregateDoctors(rows: DoctorRecordRow[], services: Service[], p: Period): Map<number, DoctorAggregate> {
+  const price = new Map(services.map((s) => [s.id, s.price ?? 0]))
+  const out = new Map<number, DoctorAggregate>()
+  for (const r of rows) {
+    if (r.d < p.start || r.d > p.end || !price.has(r.s)) continue
+    const k = r.doc ?? NO_DOCTOR
+    const a = out.get(k) ?? { total: 0, revenue: 0, byService: new Map<string, number>() }
+    a.total += r.q
+    a.revenue += r.q * (price.get(r.s) ?? 0)
+    a.byService.set(r.s, (a.byService.get(r.s) ?? 0) + r.q)
+    out.set(k, a)
+  }
+  return out
 }
 
 /** Serie per il grafico dell'andamento, una colonna per categoria. */

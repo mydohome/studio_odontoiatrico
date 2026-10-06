@@ -1,7 +1,7 @@
 import pg from 'pg'
 import { DEFAULT_SERVICES } from '../../shared/catalog.ts'
 import { today } from '../../shared/dates.ts'
-import type { RecordRow, Service } from '../../shared/types.ts'
+import type { DoctorRecordRow, RecordRow, Service } from '../../shared/types.ts'
 
 // Le date SQL vengono restituite come stringhe YYYY-MM-DD (niente conversioni di fuso orario).
 pg.types.setTypeParser(1082, (v: string) => v)
@@ -80,6 +80,21 @@ export async function listAppointmentRecords(from?: string, to?: string): Promis
      WHERE confirmed_at IS NOT NULL AND no_show_at IS NULL AND service_id IS NOT NULL AND day IS NOT NULL AND day <= $3
        AND ($1::date IS NULL OR day >= $1) AND ($2::date IS NULL OR day <= $2)
      GROUP BY day, service_id ORDER BY day`,
+    [from ?? null, to ?? null, today()],
+  )
+  return rows
+}
+
+/**
+ * Come listAppointmentRecords, ma per medico: serve alle statistiche per medico (le registrazioni a
+ * mano non hanno un medico, quindi non compaiono qui).
+ */
+export async function listDoctorRecords(from?: string, to?: string): Promise<DoctorRecordRow[]> {
+  const { rows } = await pool.query(
+    `SELECT day AS d, service_id AS s, doctor_id AS doc, count(*)::int AS q FROM appointments
+     WHERE confirmed_at IS NOT NULL AND no_show_at IS NULL AND service_id IS NOT NULL AND day IS NOT NULL AND day <= $3
+       AND ($1::date IS NULL OR day >= $1) AND ($2::date IS NULL OR day <= $2)
+     GROUP BY day, service_id, doctor_id ORDER BY day`,
     [from ?? null, to ?? null, today()],
   )
   return rows

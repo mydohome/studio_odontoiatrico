@@ -1,4 +1,4 @@
-import { Activity, BarChart3, CalendarCheck, ChevronLeft, ChevronRight, Euro, Trophy, TrendingDown, TrendingUp } from 'lucide-react'
+import { Activity, BarChart3, CalendarCheck, ChevronLeft, ChevronRight, Euro, Stethoscope, Trophy, TrendingDown, TrendingUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from 'recharts'
 import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
@@ -6,9 +6,11 @@ import { categoryInfo, CATEGORIES } from '../../../shared/catalog.ts'
 import { today } from '../../../shared/dates.ts'
 import {
   aggregate,
+  aggregateDoctors,
   delta,
   eur,
   fmt,
+  NO_DOCTOR,
   periodOf,
   periodsEndingAt,
   shiftAnchor,
@@ -57,6 +59,40 @@ function TrendTooltip({ active, payload }: TooltipContentProps<ValueType, NameTy
   )
 }
 
+interface DoctorLine {
+  /** Id del medico, o NO_DOCTOR. */
+  id: number
+  name: string
+  color: string
+  total: number
+  revenue: number
+  prevTotal: number
+  top: { name: string; q: number }[]
+}
+
+function DoctorTooltip({ active, payload, lines }: TooltipContentProps<ValueType, NameType> & { lines: DoctorLine[] }) {
+  if (!active || !payload?.length) return null
+  const row = payload[0].payload as Record<string, number | string>
+  const items = lines.filter((l) => Number(row[`m${l.id}`]) > 0)
+  return (
+    <div className="chart-tooltip">
+      <div className="t">{row.full}</div>
+      {items.map((l) => (
+        <div className="row" key={l.id}>
+          <span>
+            <span className="dot" style={{ background: l.color }} /> {l.name}
+          </span>
+          <strong className="num">{row[`m${l.id}`]}</strong>
+        </div>
+      ))}
+      <div className="row" style={{ marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 4 }}>
+        <span>Totale</span>
+        <strong className="num">{row.total}</strong>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard({ data, onGoRegistra }: { data: AppDataState; onGoRegistra: () => void }) {
   const [type, setType] = useState<PeriodType>('mese')
   const [anchor, setAnchor] = useState(today())
@@ -71,6 +107,52 @@ export default function Dashboard({ data, onGoRegistra }: { data: AppDataState; 
     [records, services, type, anchor],
   )
   const showPrices = data.settings.showPrices
+
+  // ---- Per medico: contano le prestazioni degli appuntamenti confermati; il resto (registrazioni a mano
+  // e appuntamenti senza medico) va in «Senza medico», così i totali tornano con il resto della dashboard.
+  const { doctors, doctorRecords } = data
+  const doctorsOn = data.settings.modules.appointments
+  const periods = useMemo(() => periodsEndingAt(type, anchor, TREND_COUNT[type]), [type, anchor])
+  const doctorView = useMemo(() => {
+    const split = (p: ReturnType<typeof periodOf>) => {
+      const tot = aggregate(records, services, p)
+      const per = aggregateDoctors(doctorRecords, services, p)
+      let total = 0
+      let revenue = 0
+      for (const [k, v] of per) {
+        if (k === NO_DOCTOR) continue
+        total += v.total
+        revenue += v.revenue
+      }
+      per.set(NO_DOCTOR, { total: tot.total - total, revenue: tot.revenue - revenue, byService: new Map() })
+      return { tot, per }
+    }
+    const curS = split(period)
+    const prevS = split(prevPeriod)
+    const trend = periods.map((p) => ({ p, ...split(p) }))
+    const used = (id: number) => id === NO_DOCTOR || [curS, prevS, ...trend].some((x) => (x.per.get(id)?.total ?? 0) > 0)
+    const meta = [
+      ...doctors.map((d) => ({ id: d.id, name: d.name, color: d.color })),
+      { id: NO_DOCTOR, name: 'Senza medico', color: 'var(--text-3)' },
+    ].filter((m) => used(m.id))
+    const lines: DoctorLine[] = meta.map((m) => {
+      const c = curS.per.get(m.id)
+      const top = [...(c?.byService ?? [])]
+        .map(([sid, q]) => ({ name: services.find((x) => x.id === sid)?.name ?? sid, q }))
+        .sort((a, b) => b.q - a.q)
+        .slice(0, 3)
+      return { ...m, total: c?.total ?? 0, revenue: c?.revenue ?? 0, prevTotal: prevS.per.get(m.id)?.total ?? 0, top }
+    })
+    const rows = trend.map(({ p, tot, per }) => {
+      const row: Record<string, number | string> = { key: p.start, label: p.short, full: p.label, total: tot.total }
+      for (const m of meta) row[`m${m.id}`] = per.get(m.id)?.total ?? 0
+      return row
+    })
+    return { lines, rows }
+  }, [records, doctorRecords, doctors, services, period.start, period.end, prevPeriod.start, prevPeriod.end, periods])
+  const doctorLines = doctorView.lines.filter((l) => l.id !== NO_DOCTOR || l.total > 0 || l.prevTotal > 0)
+  const namedDoctors = doctorLines.some((l) => l.id !== NO_DOCTOR)
+  const maxDoctor = Math.max(1, ...doctorLines.map((l) => l.total))
   const hasPrices = services.some((s) => (s.price ?? 0) > 0)
   const isFuture = shiftAnchor(type, anchor, 1) > today()
 
@@ -304,6 +386,94 @@ export default function Dashboard({ data, onGoRegistra }: { data: AppDataState; 
           )}
         </div>
       </div>
+
+      {doctorsOn && namedDoctors && (
+        <>
+          <div className="grid grid-2" style={{ marginTop: 16 }}>
+            <div className="card" style={{ alignSelf: 'start' }}>
+              <h2>
+                <Stethoscope size={18} style={{ verticalAlign: '-3px' }} /> Per medico · {period.label}
+              </h2>
+              <p className="sub">
+                Prestazioni degli appuntamenti confermati. Le registrazioni a mano e gli appuntamenti senza medico sono in «Senza medico».
+              </p>
+              <div style={{ display: 'grid', gap: 14 }}>
+                {doctorLines.map((l) => {
+                  const d = delta(l.total, l.prevTotal)
+                  return (
+                    <div key={l.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: '0.9rem', marginBottom: 4 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                          <span className="dot" style={{ background: l.color }} />
+                          <strong>{l.name}</strong>
+                        </span>
+                        <span className="num" style={{ whiteSpace: 'nowrap' }}>
+                          <strong>{l.total}</strong> <span className="muted">· {cur.total ? fmt((l.total / cur.total) * 100) : 0}%</span>
+                          {showPrices && hasPrices && <span className="muted"> · {eur(l.revenue)}</span>}
+                          {d !== null && (
+                            <span className={d >= 0 ? 'delta-up' : 'delta-down'} title={`${PREV_LABEL[type]}: ${l.prevTotal}`}>
+                              {' '}
+                              {d >= 0 ? '+' : ''}
+                              {fmt(d * 100)}%
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="bar-cell">
+                        <div className="track">
+                          <div className="fill" style={{ width: `${(l.total / maxDoctor) * 100}%`, background: l.color }} />
+                        </div>
+                      </div>
+                      {l.top.length > 0 && l.id !== NO_DOCTOR && (
+                        <div className="small muted" style={{ marginTop: 4 }}>
+                          {l.top.map((t) => `${t.name} ${t.q}`).join(' · ')}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="card">
+              <h2>Andamento per medico</h2>
+              <p className="sub">
+                Ultimi {TREND_COUNT[type]} {type === 'giorno' ? 'giorni' : type === 'settimana' ? 'settimane' : 'mesi'}
+              </p>
+              <div style={{ width: '100%', height: 260 }}>
+                <ResponsiveContainer>
+                  <BarChart data={doctorView.rows} margin={{ top: 4, right: 4, bottom: 0, left: -18 }} barCategoryGap="22%">
+                    <CartesianGrid vertical={false} stroke="var(--grid)" />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={8} />
+                    <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+                    <Tooltip content={(props) => <DoctorTooltip {...props} lines={doctorView.lines} />} cursor={{ fill: 'var(--surface-2)' }} />
+                    {doctorView.lines.map((l, i) => (
+                      <Bar
+                        key={l.id}
+                        dataKey={`m${l.id}`}
+                        stackId="m"
+                        fill={l.color}
+                        stroke="var(--surface)"
+                        strokeWidth={1}
+                        radius={i === doctorView.lines.length - 1 ? [4, 4, 0, 0] : 0}
+                        isAnimationActive={false}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="legend">
+                {doctorView.lines.map((l) => (
+                  <span key={l.id}>
+                    <span className="dot" style={{ background: l.color }} />
+                    {l.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }

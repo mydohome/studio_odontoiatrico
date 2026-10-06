@@ -32,6 +32,14 @@ export interface RecordRow {
   a?: number
 }
 
+/** Prestazioni degli appuntamenti conteggiati nelle statistiche, per medico (null = senza medico). */
+export interface DoctorRecordRow {
+  d: string
+  s: string
+  doc: number | null
+  q: number
+}
+
 export type CampaignType = 'calo' | 'richiamo' | 'conversione' | 'trend' | 'crosssell' | 'calendario' | 'personalizzata'
 
 export interface CampaignSuggestion {

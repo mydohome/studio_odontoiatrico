@@ -9,7 +9,7 @@ proposte di **campagne marketing** mese per mese calcolate sui dati raccolti.
 | **Appuntamenti** | Agenda del giorno o della settimana, promemoria WhatsApp già formattato con **link di conferma** personale per il paziente e stato di ogni appuntamento (da inviare, in attesa, confermato dal paziente, confermato dallo studio). |
 | **Dashboard** | Riepilogo per giorno, settimana o mese: totale prestazioni, fatturato stimato, media per giorno lavorato, andamento per categoria (grafico a colonne), dettaglio per prestazione con confronto sul periodo precedente. |
 | **Campagne** | Per i prossimi 12 mesi propone le campagne più convenienti con punteggio, offerta, target, canali e motivazioni. Mostra la previsione per categoria e la mappa della stagionalità. |
-| **Impostazioni** | Template Excel scaricabile, import da Excel, export completo, gestione delle prestazioni (nome, categoria, prezzo medio, attiva/disattiva), opzione **Mostra prezzi** (nasconde prezzi e fatturato stimato in tutte le viste e nei file Excel), dati dimostrativi, nome dello studio. |
+| **Impostazioni** | Template Excel scaricabile, import da Excel, export completo, gestione delle **categorie** (rinomina, riordina, colore del badge, aggiunta) e delle prestazioni (nome, categoria, prezzo medio, attiva/disattiva), opzione **Mostra prezzi** (nasconde prezzi e fatturato stimato in tutte le viste e nei file Excel), dati dimostrativi, nome dello studio. |
 
 ## Architettura
 
@@ -246,7 +246,7 @@ studio.
   giorno. Un clic sull'intestazione di un giorno apre la vista del giorno.
 - Ogni appuntamento mostra il **badge della prestazione**, a tinta piena con scritta bianca: di base il colore della
   categoria (es. Ortodonzia fucsia) oppure quello della singola prestazione (Igiene orale verde scuro). Si cambia in
-  **Impostazioni → Prestazioni** cliccando sul badge accanto alla categoria (la freccia circolare torna al colore della
+  **Impostazioni → Prestazioni** cliccando sul badge accanto alla categoria (il colore di default di ogni categoria si cambia in **Impostazioni → Categorie**) (la freccia circolare torna al colore della
   categoria). Negli appuntamenti più corti di mezz'ora il badge diventa un pallino colorato.
 - Ogni appuntamento ha anche un'**etichetta di stato**:
 

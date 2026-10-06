@@ -22,7 +22,6 @@ import type {
   Service,
 } from '../../shared/types.ts'
 
-const CAT_IDS = CATEGORIES.map((c) => c.id)
 const MAX_PER_MONTH = 5
 
 /** Categorie "cura" che dovrebbero seguire le visite/diagnosi. */
@@ -38,7 +37,7 @@ interface Template {
 }
 
 // Libreria di campagne tipo, per categoria.
-const LIBRARY: Record<CategoryId, { fill: Template; reactivate: Template; upsell: Template }> = {
+const BUILTIN_LIBRARY: Record<string, { fill: Template; reactivate: Template; upsell: Template }> = {
   prevenzione: {
     fill: {
       title: 'Pacchetto prevenzione',
@@ -201,6 +200,17 @@ const LIBRARY: Record<CategoryId, { fill: Template; reactivate: Template; upsell
   },
 }
 
+/** Testi pronti per le categorie iniziali; per quelle aggiunte dallo studio, testi generici col suo nome. */
+function libraryFor(cat: string): { fill: Template; reactivate: Template; upsell: Template } {
+  if (BUILTIN_LIBRARY[cat]) return BUILTIN_LIBRARY[cat]
+  const label = CATEGORY_BY_ID[cat]?.label ?? cat
+  return {
+    fill: { title: `Promozione ${label}`, offer: `Offerta dedicata a ${label} per riempire l'agenda`, target: 'Pazienti dello studio', channels: ['Email', 'WhatsApp'] },
+    reactivate: { title: `Torna da noi: ${label}`, offer: `Un incentivo per riprendere i trattamenti di ${label}`, target: `Pazienti che hanno già fatto ${label}`, channels: ['Email', 'Telefonata dalla segreteria'] },
+    upsell: { title: `Scopri anche ${label}`, offer: `Un'offerta su ${label} per chi è già in studio`, target: 'Pazienti già in studio', channels: ['In studio', 'WhatsApp'] },
+  }
+}
+
 const CONVERSION: Template = {
   title: 'Piani di cura in sospeso',
   offer: 'Richiamo dei preventivi non accettati, rateizzazione a tasso zero e 10% di sconto se confermati entro il mese',
@@ -266,6 +276,7 @@ export function buildCampaigns(
   todayIso: string,
   horizon = 12,
 ): CampaignResponse {
+  const CAT_IDS = CATEGORIES.map((c) => c.id)
   const catOf = new Map(services.map((s) => [s.id, s.category]))
   const currentMonth = monthKey(todayIso)
   const lastComplete = addMonths(currentMonth, -1)
@@ -279,6 +290,7 @@ export function buildCampaigns(
     if (ym > lastComplete) continue // il mese in corso è parziale
     const cat = catOf.get(r.s)
     if (!cat) continue
+    if (!byCat[cat]) continue
     byCat[cat][ym] = (byCat[cat][ym] ?? 0) + r.q
     ;(bySvc[r.s] ??= {})[ym] = (bySvc[r.s][ym] ?? 0) + r.q
     if (!firstMonth || ym < firstMonth) firstMonth = ym
@@ -290,7 +302,7 @@ export function buildCampaigns(
   const confidence: CampaignResponse['confidence'] =
     historyMonths === 0 ? 'nessuna' : historyMonths < 6 ? 'bassa' : historyMonths < 18 ? 'media' : 'alta'
 
-  const val = (cat: string, ym: string) => byCat[cat][ym] ?? 0
+  const val = (cat: string, ym: string) => byCat[cat]?.[ym] ?? 0
 
   // Indici stagionali.
   const seasonality: CampaignResponse['seasonality'] = []
@@ -419,7 +431,7 @@ export function buildCampaigns(
         // 1. Calo stagionale atteso: riempire l'agenda.
         if (dipIndex < 0.92) {
           add(
-            suggestion('calo', cat, LIBRARY[cat].fill, (1 - dipIndex) * 180 * weight, [
+            suggestion('calo', cat, libraryFor(cat).fill, (1 - dipIndex) * 180 * weight, [
               reduced
                 ? `${label}: in ${MONTHS[m].toLowerCase()} cala più del resto dello studio (${pct(dipIndex - 1)} rispetto all'attività complessiva)`
                 : `${label}: in ${MONTHS[m].toLowerCase()} il volume è storicamente ${pct(si - 1)} rispetto a un mese medio`,
@@ -430,9 +442,10 @@ export function buildCampaigns(
 
         // 2. Picco di domanda: sfruttarlo con cross-selling.
         if (si > 1.12) {
-          const target = CROSS_SELL[cat] ?? cat
+          const wanted = CROSS_SELL[cat]
+          const target = wanted && CATEGORY_BY_ID[wanted] ? wanted : cat
           add(
-            suggestion('crosssell', target, LIBRARY[cat].upsell, (si - 1) * 120 * weight, [
+            suggestion('crosssell', target, libraryFor(cat).upsell, (si - 1) * 120 * weight, [
               `${label}: mese di picco (${pct(si - 1)} sulla media), molti pazienti in studio da intercettare con un'offerta complementare`,
             ], `-${cat}`),
           )
@@ -441,7 +454,7 @@ export function buildCampaigns(
         // 3. Trend in calo negli ultimi mesi: riattivazione (solo mesi vicini).
         if (trend[cat] < -0.1 && k < 3) {
           add(
-            suggestion('trend', cat, LIBRARY[cat].reactivate, -trend[cat] * 220 * weight * (1 - k * 0.25), [
+            suggestion('trend', cat, libraryFor(cat).reactivate, -trend[cat] * 220 * weight * (1 - k * 0.25), [
               months.length >= 15
                 ? `${label}: negli ultimi 3 mesi il volume è ${pct(trend[cat])} rispetto agli stessi mesi dell'anno scorso`
                 : `${label}: negli ultimi 3 mesi il volume (destagionalizzato) è ${pct(trend[cat])} rispetto ai 3 precedenti`,
@@ -471,7 +484,7 @@ export function buildCampaigns(
       }
 
       // 5. Calo della conversione diagnosi → cure (solo prossimi mesi).
-      if (convDrop > 0.1 && k < 3) {
+      if (convDrop > 0.1 && k < 3 && CATEGORY_BY_ID.conservativa) {
         add(
           suggestion('conversione', 'conservativa', CONVERSION, convDrop * 200 * (1 - k * 0.25), [
             `Rapporto cure/visite negli ultimi 3 mesi ${pct(-convDrop)} rispetto allo storico: ci sono piani di cura da recuperare`,
@@ -482,6 +495,7 @@ export function buildCampaigns(
 
     // 6. Ricorrenze di calendario (sempre presenti, rafforzate dai dati).
     for (const hook of CALENDAR[m]) {
+      if (!SI[hook.category]) continue // categoria eliminata dallo studio
       const si = SI[hook.category][m]
       const dataBoost = historyMonths > 0 ? clamp((1 - si) * 40, -10, 20) : 0
       add({

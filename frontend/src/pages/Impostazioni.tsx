@@ -1,6 +1,6 @@
-import { CalendarDays, Check, Database, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarDays, Check, Database, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
-import { badgeColor, CATEGORIES } from '../../../shared/catalog.ts'
+import { badgeColor, CATEGORIES, type Category } from '../../../shared/catalog.ts'
 import type { CategoryId, ImportResult, Service } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
 import { api, EXPORT_URL, TEMPLATE_URL, type SessionUser } from '../lib/api.ts'
@@ -46,6 +46,7 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
           <StudioCard data={data} />
           <DataCard data={data} />
         </div>
+        <CategoriesCard data={data} />
         <ServicesCard data={data} />
       </div>
     </>
@@ -709,9 +710,156 @@ function DeleteAllDialog({ days, total, onCancel, onConfirm }: { days: number; t
   )
 }
 
+function CategoriesCard({ data }: { data: AppDataState }) {
+  const notify = useToast()
+  const [draft, setDraft] = useState({ label: '', badge: '#0e7490' })
+  const used = new Map<string, number>()
+  for (const s of data.services) used.set(s.category, (used.get(s.category) ?? 0) + 1)
+
+  const run = async (fn: () => Promise<unknown>, ok?: string) => {
+    try {
+      await fn()
+      if (ok) notify(ok)
+      data.reload()
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    }
+  }
+
+  const move = (i: number, by: -1 | 1) => {
+    const ids = data.categories.map((c) => c.id)
+    ;[ids[i], ids[i + by]] = [ids[i + by], ids[i]]
+    return run(() => api.reorderCategories(ids))
+  }
+
+  const remove = (c: Category) => {
+    if (!window.confirm(`Eliminare la categoria "${c.label}"?`)) return
+    return run(() => api.deleteCategory(c.id), 'Categoria eliminata')
+  }
+
+  const add = () =>
+    run(async () => {
+      await api.createCategory(draft)
+      setDraft({ ...draft, label: '' })
+    }, 'Categoria aggiunta')
+
+  return (
+    <div className="card">
+      <h2>Categorie</h2>
+      <p className="sub">
+        Raggruppano le prestazioni nella registrazione, nei grafici e nelle campagne. Puoi rinominarle, riordinarle e aggiungerne di nuove; una categoria si elimina solo se nessuna
+        prestazione la usa.
+      </p>
+      <ul className="cat-list">
+        {data.categories.map((c, i) => (
+          <CategoryRow
+            key={`${c.id}-${data.version}`}
+            c={c}
+            count={used.get(c.id) ?? 0}
+            showBadge={data.settings.modules.appointments}
+            first={i === 0}
+            last={i === data.categories.length - 1}
+            onSave={(label, badge) => run(() => api.updateCategory(c.id, { label, badge }))}
+            onMove={(by) => move(i, by)}
+            onRemove={() => remove(c)}
+          />
+        ))}
+      </ul>
+      <form
+        className="settings-row"
+        style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}
+        onSubmit={(e) => {
+          e.preventDefault()
+          add()
+        }}
+      >
+        <input className="input" style={{ flex: '2 1 160px' }} placeholder="Nuova categoria" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} maxLength={60} />
+        {data.settings.modules.appointments && (
+          <input type="color" className="cat-color" value={draft.badge} onChange={(e) => setDraft({ ...draft, badge: e.target.value })} aria-label="Colore del badge della nuova categoria" />
+        )}
+        <button className="btn btn-primary" disabled={!draft.label.trim()}>
+          <Plus size={16} /> Aggiungi
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function CategoryRow({
+  c,
+  count,
+  showBadge,
+  first,
+  last,
+  onSave,
+  onMove,
+  onRemove,
+}: {
+  c: Category
+  count: number
+  /** Colore del badge negli appuntamenti: solo con il modulo attivo. */
+  showBadge: boolean
+  first: boolean
+  last: boolean
+  onSave: (label: string, badge: string) => void
+  onMove: (by: -1 | 1) => void
+  onRemove: () => void
+}) {
+  const [label, setLabel] = useState(c.label)
+  const [badge, setBadge] = useState(c.badge)
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  const commitLabel = () => {
+    const l = label.trim()
+    if (l && l !== c.label) onSave(l, badge)
+    else setLabel(c.label)
+  }
+  // Il selettore cambia colore di continuo mentre si trascina: si salva quando si ferma.
+  const pick = (value: string) => {
+    setBadge(value)
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => onSave(label.trim() || c.label, value), 500)
+  }
+
+  return (
+    <li className="cat-row">
+      <span className="cat-move">
+        <button type="button" className="btn btn-ghost btn-icon" disabled={first} onClick={() => onMove(-1)} aria-label={`Sposta su ${c.label}`}>
+          <ArrowUp size={14} />
+        </button>
+        <button type="button" className="btn btn-ghost btn-icon" disabled={last} onClick={() => onMove(1)} aria-label={`Sposta giù ${c.label}`}>
+          <ArrowDown size={14} />
+        </button>
+      </span>
+      <input
+        className="input"
+        style={{ flex: 1, minWidth: 0, padding: '5px 8px' }}
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        onBlur={commitLabel}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        maxLength={60}
+        aria-label="Nome categoria"
+      />
+      {showBadge && <input type="color" className="cat-color" value={badge} onChange={(e) => pick(e.target.value)} aria-label={`Colore del badge di ${c.label}`} title="Colore del badge delle prestazioni negli appuntamenti" />}
+      <span className="small muted cat-count">{count === 1 ? '1 prestazione' : `${count} prestazioni`}</span>
+      <button
+        className="btn btn-icon btn-ghost btn-danger"
+        onClick={onRemove}
+        disabled={count > 0}
+        title={count > 0 ? 'Usata da alcune prestazioni: spostale prima in un\'altra categoria' : 'Elimina'}
+        aria-label={`Elimina ${c.label}`}
+      >
+        <Trash2 size={16} />
+      </button>
+    </li>
+  )
+}
+
 function ServicesCard({ data }: { data: AppDataState }) {
   const notify = useToast()
-  const [draft, setDraft] = useState({ name: '', category: 'prevenzione' as CategoryId, price: '' })
+  const [draft, setDraft] = useState({ name: '', category: '' as CategoryId, price: '' })
   const { showPrices } = data.settings
 
   const update = async (s: Service, patch: Partial<Service>) => {
@@ -738,7 +886,7 @@ function ServicesCard({ data }: { data: AppDataState }) {
     try {
       await api.createService({
         name: draft.name,
-        category: draft.category,
+        category: draft.category || data.categories[0]?.id,
         price: !showPrices || draft.price === '' ? null : Number(draft.price),
         active: true,
       })
@@ -793,7 +941,7 @@ function ServicesCard({ data }: { data: AppDataState }) {
         <select
           className="input"
           style={{ flex: '1 1 150px' }}
-          value={draft.category}
+          value={draft.category || data.categories[0]?.id}
           onChange={(e) => setDraft({ ...draft, category: e.target.value as CategoryId })}
           aria-label="Categoria"
         >

@@ -1,45 +1,72 @@
 import type { CategoryId, Service } from './types.ts'
 
-export interface CategoryInfo {
+/** Categoria delle prestazioni: modificabile dallo studio in Impostazioni. */
+export interface Category {
   id: CategoryId
   label: string
-  /** Variabile CSS del colore (ordine categoriale fisso). */
+  /** Colore del badge delle prestazioni negli appuntamenti (#rrggbb). */
+  badge: string
+  /** Posizione nella tavolozza dei grafici (1–8): resta fissa anche se la categoria cambia nome o posto. */
+  slot: number
+  sort: number
+}
+
+export interface CategoryInfo extends Category {
+  /** Variabile CSS del colore nei grafici. */
   color: string
 }
 
-// L'ordine definisce lo slot colore: non riordinare.
-export const CATEGORIES: CategoryInfo[] = [
-  { id: 'prevenzione', label: 'Prevenzione e igiene', color: 'var(--series-1)' },
-  { id: 'diagnostica', label: 'Diagnostica', color: 'var(--series-2)' },
-  { id: 'conservativa', label: 'Conservativa ed endodonzia', color: 'var(--series-3)' },
-  { id: 'estetica', label: 'Estetica', color: 'var(--series-4)' },
-  { id: 'ortodonzia', label: 'Ortodonzia', color: 'var(--series-5)' },
-  { id: 'chirurgia', label: 'Chirurgia e implantologia', color: 'var(--series-6)' },
-  { id: 'protesi', label: 'Protesi', color: 'var(--series-7)' },
-  { id: 'pedodonzia', label: 'Pedodonzia', color: 'var(--series-8)' },
+/** Colori dei grafici disponibili (--series-1 … --series-8). */
+export const SERIES_SLOTS = 8
+
+/**
+ * Categorie iniziali. Per queste esistono testi pronti di campagne e volantini (scelti dall'id, quindi
+ * validi anche se la categoria viene rinominata); le categorie aggiunte dallo studio usano testi generici.
+ */
+export const DEFAULT_CATEGORIES: Category[] = [
+  { id: 'prevenzione', label: 'Prevenzione e igiene', badge: '#0e7490', slot: 1, sort: 1 },
+  { id: 'diagnostica', label: 'Diagnostica', badge: '#4b5563', slot: 2, sort: 2 },
+  { id: 'conservativa', label: 'Conservativa ed endodonzia', badge: '#1d4ed8', slot: 3, sort: 3 },
+  { id: 'estetica', label: 'Estetica', badge: '#a16207', slot: 4, sort: 4 },
+  { id: 'ortodonzia', label: 'Ortodonzia', badge: '#c0168c', slot: 5, sort: 5 },
+  { id: 'chirurgia', label: 'Chirurgia e implantologia', badge: '#b91c1c', slot: 6, sort: 6 },
+  { id: 'protesi', label: 'Protesi', badge: '#4d7c0f', slot: 7, sort: 7 },
+  { id: 'pedodonzia', label: 'Pedodonzia', badge: '#c2410c', slot: 8, sort: 8 },
 ]
 
 /**
- * Colori dei badge delle prestazioni (appuntamenti): tinte piene con scritta bianca leggibile.
- * Una singola prestazione può avere un colore proprio (es. Igiene orale verde scuro).
+ * Categorie in uso, nell'ordine scelto dallo studio. Sono un elenco condiviso aggiornato con
+ * setCategories (dal server all'avvio e dopo ogni modifica, dal browser a ogni caricamento dei dati):
+ * così tutte le schede e i calcoli leggono le stesse categorie senza doverle passare ovunque.
  */
-export const CATEGORY_BADGE: Record<CategoryId, string> = {
-  prevenzione: '#0e7490',
-  diagnostica: '#4b5563',
-  conservativa: '#1d4ed8',
-  estetica: '#a16207',
-  ortodonzia: '#c0168c',
-  chirurgia: '#b91c1c',
-  protesi: '#4d7c0f',
-  pedodonzia: '#c2410c',
+export const CATEGORIES: CategoryInfo[] = []
+export const CATEGORY_BY_ID: Record<CategoryId, CategoryInfo> = {}
+
+export function setCategories(list: Category[]): void {
+  const sorted = [...list].sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label))
+  CATEGORIES.splice(0, CATEGORIES.length, ...sorted.map((c) => ({ ...c, color: `var(--series-${((c.slot - 1) % SERIES_SLOTS) + 1})` })))
+  for (const k of Object.keys(CATEGORY_BY_ID)) delete CATEGORY_BY_ID[k]
+  for (const c of CATEGORIES) CATEGORY_BY_ID[c.id] = c
+}
+
+setCategories(DEFAULT_CATEGORIES)
+
+/** Dati della categoria; per un id sconosciuto (mai atteso) una categoria neutra, invece di un errore. */
+export function categoryInfo(id: CategoryId): CategoryInfo {
+  return CATEGORY_BY_ID[id] ?? { id, label: 'Senza categoria', badge: '#6b7280', slot: 0, sort: 0, color: 'var(--text-3)' }
 }
 
 /** Colore del badge: quello della prestazione, altrimenti quello della sua categoria. */
 export function badgeColor(category: string | null | undefined, color?: string | null): string {
-  return color || (category && CATEGORY_BADGE[category as CategoryId]) || '#6b7280'
+  return color || (category && CATEGORY_BY_ID[category]?.badge) || '#6b7280'
 }
 
-export const CATEGORY_BY_ID = Object.fromEntries(CATEGORIES.map((c) => [c.id, c])) as Record<CategoryId, CategoryInfo>
+/** Colore dei grafici per una nuova categoria: il meno usato (a parità, il primo). */
+export function freeSlot(list: Pick<Category, 'slot'>[]): number {
+  const used = Array<number>(SERIES_SLOTS).fill(0)
+  for (const c of list) if (c.slot >= 1 && c.slot <= SERIES_SLOTS) used[c.slot - 1]++
+  return used.indexOf(Math.min(...used)) + 1
+}
 
 export const DEFAULT_SERVICES: Service[] = [
   { id: 'igiene', name: 'Igiene orale', category: 'prevenzione', price: 80, active: true, sort: 1, color: '#166534' },

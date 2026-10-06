@@ -2,6 +2,7 @@
 // Tutti i campi restano modificabili dall'utente nell'editor.
 
 import { daysInMonth, fromISO, MONTHS, monthIndex } from '../../../shared/dates.ts'
+import { CATEGORY_BY_ID } from '../../../shared/catalog.ts'
 import type { CampaignSuggestion, CategoryId } from '../../../shared/types.ts'
 
 export type ThemeId = 'rosa' | 'blu' | 'verde' | 'viola' | 'arancio'
@@ -147,7 +148,7 @@ interface CategoryCopy {
 }
 
 // Testi di base per categoria.
-const COPY: Record<CategoryId, CategoryCopy> = {
+const COPY: Record<string, CategoryCopy> = {
   prevenzione: {
     theme: 'rosa',
     bannerTop: 'Il mese della',
@@ -300,6 +301,20 @@ export function formatPeriod(from: string, to: string): string {
   return `dal ${pad(a.getDate())} ${ma} al ${pad(b.getDate())} ${mb}`
 }
 
+/** Testi per una categoria aggiunta dallo studio: generici, con il suo nome. */
+function genericCopy(category: CategoryId): CategoryCopy {
+  const label = CATEGORY_BY_ID[category]?.label ?? 'Il tuo sorriso'
+  return {
+    theme: 'rosa',
+    bannerTop: 'Offerta',
+    bannerMain: label.toUpperCase().slice(0, 18),
+    offerName: 'Sorriso Su Misura',
+    topQuote: `${label}: un'attenzione in più per il tuo sorriso!`,
+    footer: 'Il tuo sorriso è la nostra priorità',
+    tags: ['Sorrisi', 'Salute', 'Cura'],
+  }
+}
+
 export function buildFlyer(
   campaign: CampaignSuggestion,
   month: string,
@@ -308,7 +323,7 @@ export function buildFlyer(
   style: FlyerStyle = 'smile',
 ): FlyerData {
   const m = monthIndex(month)
-  const base = COPY[campaign.category]
+  const base = COPY[campaign.category] ?? genericCopy(campaign.category)
   let copy: CategoryCopy = { ...base }
 
   switch (campaign.type) {

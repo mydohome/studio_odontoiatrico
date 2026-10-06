@@ -1,4 +1,7 @@
-export type CategoryId =
+/** Id di una categoria: quelle iniziali (testi pronti di campagne e volantini) o aggiunte dallo studio. */
+export type CategoryId = string
+
+export type BuiltinCategoryId =
   | 'prevenzione'
   | 'diagnostica'
   | 'conservativa'

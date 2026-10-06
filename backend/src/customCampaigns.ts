@@ -1,13 +1,12 @@
 // Campagne personalizzate create dall'utente.
 
-import { CATEGORIES } from '../../shared/catalog.ts'
+import { CATEGORY_BY_ID } from '../../shared/catalog.ts'
 import { isValidISO } from '../../shared/dates.ts'
 import type { CategoryId, CustomCampaign, CustomCampaignInput } from '../../shared/types.ts'
 import { pool } from './db.ts'
 
 export class CampaignError extends Error {}
 
-const CAT_IDS = new Set<string>(CATEGORIES.map((c) => c.id))
 const MAX_FLYER_BYTES = 20_000
 
 const COLUMNS = `id, category, title, offer, target, channels, date_from AS "dateFrom", date_to AS "dateTo",
@@ -44,7 +43,7 @@ const text = (v: unknown, field: string, max: number, required = false): string 
 export function parseInput(body: unknown): CustomCampaignInput {
   const b = (body ?? {}) as Record<string, unknown>
   const category = String(b.category ?? '')
-  if (!CAT_IDS.has(category)) throw new CampaignError('Categoria non valida')
+  if (!CATEGORY_BY_ID[category]) throw new CampaignError('Categoria non valida')
   const dateFrom = String(b.dateFrom ?? '')
   const dateTo = String(b.dateTo ?? '')
   if (!isValidISO(dateFrom) || !isValidISO(dateTo)) throw new CampaignError('Periodo non valido')

@@ -2,7 +2,8 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
 import { appointmentEventText } from '../../shared/appointments.ts'
 import { buildIcs, zonedToUtc } from '../../shared/calendar.ts'
-import { CATEGORIES } from '../../shared/catalog.ts'
+import { CATEGORY_BY_ID } from '../../shared/catalog.ts'
+import { slugify } from '../../shared/slug.ts'
 import { addDays, isValidISO, today } from '../../shared/dates.ts'
 import type { CategoryId, ImportResult, PublicAppointment, ScheduledAppointment } from '../../shared/types.ts'
 import { deleteLogo, getLogo, LOGO_TYPES, LogoError, logoVersion, migrateBranding, saveLogo, type LogoType } from './branding.ts'
@@ -36,6 +37,7 @@ import {
   saveCustomFlyer,
   updateCustomCampaign,
 } from './customCampaigns.ts'
+import { migrateCategories, registerCategories } from './categories.ts'
 import { DataKeyError, initDataCrypto } from './dataCrypto.ts'
 import { migrateGiftCards, registerGiftCards } from './giftCards.ts'
 import { getSetting, listAppointmentRecords, listRecords, listServices, listStatRecords, migrate, pool, setSetting, writeDays } from './db.ts'
@@ -46,7 +48,6 @@ import { authenticate, countUsers, getUserById, migrateUsers, type User } from '
 
 const PORT = Number(process.env.PORT ?? 3000)
 const SESSION_DAYS = 30
-const CAT_IDS = new Set<string>(CATEGORIES.map((c) => c.id))
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'warn' }, bodyLimit: 10 * 1024 * 1024 })
@@ -209,17 +210,6 @@ function assertQty(v: unknown): number {
   return n
 }
 
-function slugify(s: string) {
-  return (
-    s
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 40) || 'prestazione'
-  )
-}
 
 // ---------- Impostazioni ----------
 
@@ -421,7 +411,7 @@ interface ServiceBody {
 function parseServiceBody(b: ServiceBody) {
   const name = String(b.name ?? '').trim().slice(0, 80)
   if (!name) throw new HttpError(400, 'Nome prestazione obbligatorio')
-  if (!b.category || !CAT_IDS.has(b.category)) throw new HttpError(400, 'Categoria non valida')
+  if (!b.category || !CATEGORY_BY_ID[b.category]) throw new HttpError(400, 'Categoria non valida')
   const price = b.price === null || b.price === undefined || b.price === '' ? null : Number(b.price)
   if (price !== null && (!Number.isFinite(price) || price < 0)) throw new HttpError(400, 'Prezzo non valido')
   const color = b.color === null || b.color === undefined || b.color === '' ? null : String(b.color).toLowerCase()
@@ -431,9 +421,9 @@ function parseServiceBody(b: ServiceBody) {
 
 app.post('/api/services', async (req) => {
   const s = parseServiceBody((req.body ?? {}) as ServiceBody)
-  let id = slugify(s.name)
+  let id = slugify(s.name, 'prestazione')
   const existing = new Set((await listServices()).map((x) => x.id))
-  for (let i = 2; existing.has(id); i++) id = `${slugify(s.name)}-${i}`
+  for (let i = 2; existing.has(id); i++) id = `${slugify(s.name, 'prestazione')}-${i}`
   try {
     await pool.query(
       `INSERT INTO services (id, name, category, price, active, color, sort)
@@ -722,6 +712,7 @@ app.post('/api/demo', async () => {
 
 // ---------- Gift card (modulo isolato, vedi giftCards.ts) ----------
 
+registerCategories(app)
 registerGiftCards(app, async (req) => (await sessionUser(req))?.username ?? null)
 
 // ---------- Avvio ----------
@@ -730,6 +721,7 @@ async function start() {
   for (let attempt = 1; ; attempt++) {
     try {
       await migrate()
+      await migrateCategories()
       await migrateUsers()
       await migrateCustomCampaigns()
       await migrateBranding()

@@ -1,6 +1,6 @@
 import { CalendarRange, Copy, CopyPlus, ImagePlus, Info, Lightbulb, Loader2, Megaphone, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { CATEGORY_BY_ID } from '../../../shared/catalog.ts'
+import { categoryInfo } from '../../../shared/catalog.ts'
 import { daysInMonth, formatMonth, fromISO, MONTHS, MONTHS_SHORT, monthIndex, monthKey } from '../../../shared/dates.ts'
 import type {
   CampaignResponse,
@@ -240,7 +240,7 @@ export default function Campagne({ data }: { data: AppDataState }) {
             {m.campaigns[0] && (
               <span
                 className="dot"
-                style={{ background: CATEGORY_BY_ID[m.campaigns[0].category].color }}
+                style={{ background: categoryInfo(m.campaigns[0].category).color }}
                 title={m.campaigns[0].title}
               />
             )}
@@ -277,7 +277,7 @@ export default function Campagne({ data }: { data: AppDataState }) {
           {customs
             .filter((c) => inMonth(c, plan.month))
             .map((c) => {
-              const cat = CATEGORY_BY_ID[c.category]
+              const cat = categoryInfo(c.category)
               return (
                 <article className="campaign campaign-custom" key={`custom-${c.id}`}>
                   <div className="campaign-top">
@@ -359,7 +359,7 @@ export default function Campagne({ data }: { data: AppDataState }) {
           )}
 
           {plan.campaigns.map((c, i) => {
-            const cat = CATEGORY_BY_ID[c.category]
+            const cat = categoryInfo(c.category)
             const t = TYPE_LABEL[c.type]
             return (
               <article className="campaign" key={c.id}>
@@ -423,7 +423,7 @@ export default function Campagne({ data }: { data: AppDataState }) {
               {plan.forecast
                 .filter((f) => f.average > 0 || f.expected > 0)
                 .map((f) => {
-                  const cat = CATEGORY_BY_ID[f.category]
+                  const cat = categoryInfo(f.category)
                   const diff = f.average ? f.expected / f.average - 1 : 0
                   return (
                     <div key={f.category}>
@@ -518,8 +518,8 @@ export default function Campagne({ data }: { data: AppDataState }) {
                   <tr key={s.category}>
                     <th className="cat">
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <span className="dot" style={{ background: CATEGORY_BY_ID[s.category].color }} />
-                        {CATEGORY_BY_ID[s.category].label}
+                        <span className="dot" style={{ background: categoryInfo(s.category).color }} />
+                        {categoryInfo(s.category).label}
                       </span>
                     </th>
                     {s.index.map((v, m) => (

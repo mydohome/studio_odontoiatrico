@@ -2,7 +2,7 @@ import { Activity, BarChart3, CalendarCheck, ChevronLeft, ChevronRight, Euro, Tr
 import { useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from 'recharts'
 import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
-import { CATEGORIES, CATEGORY_BY_ID } from '../../../shared/catalog.ts'
+import { categoryInfo, CATEGORIES } from '../../../shared/catalog.ts'
 import { today } from '../../../shared/dates.ts'
 import {
   aggregate,
@@ -252,7 +252,7 @@ export default function Dashboard({ data, onGoRegistra }: { data: AppDataState; 
                             <div className="track">
                               <div
                                 className="fill"
-                                style={{ width: `${(q / maxService) * 100}%`, background: CATEGORY_BY_ID[s.category].color }}
+                                style={{ width: `${(q / maxService) * 100}%`, background: categoryInfo(s.category).color }}
                               />
                             </div>
                             <strong className="num" style={{ minWidth: 28, textAlign: 'right' }}>

@@ -1,8 +1,8 @@
 import { addDays, fromISO } from '../../shared/dates.ts'
-import type { CategoryId, Service } from '../../shared/types.ts'
+import type { Service } from '../../shared/types.ts'
 
 // Stagionalità indicativa (moltiplicatori per mese) usata solo per i dati dimostrativi.
-const SEASON: Record<CategoryId, number[]> = {
+const SEASON: Record<string, number[]> = {
   prevenzione: [1.2, 1.1, 1.0, 1.0, 1.0, 1.1, 0.9, 0.4, 1.2, 1.3, 1.1, 0.8],
   diagnostica: [1.1, 1.0, 1.0, 1.0, 1.0, 0.9, 0.8, 0.4, 1.1, 1.2, 1.1, 0.8],
   conservativa: [1.0, 1.1, 1.1, 1.0, 1.0, 0.9, 0.8, 0.5, 1.0, 1.1, 1.2, 1.0],
@@ -12,6 +12,8 @@ const SEASON: Record<CategoryId, number[]> = {
   protesi: [1.1, 1.0, 1.0, 1.0, 0.9, 0.8, 0.7, 0.3, 1.0, 1.1, 1.3, 1.2],
   pedodonzia: [0.9, 0.9, 0.9, 0.9, 0.9, 1.2, 1.1, 0.4, 1.6, 1.3, 1.0, 0.8],
 }
+
+const FLAT = Array(12).fill(1)
 
 // Media giornaliera per prestazione (giornata piena).
 const BASE: Record<string, number> = {
@@ -54,7 +56,7 @@ export function generateDemo(services: Service[], from: string, to: string) {
     const items = new Map<string, number>()
     for (const s of services) {
       const base = BASE[s.id] ?? 0.5
-      const q = poisson(base * dayFactor * SEASON[s.category][month], rand)
+      const q = poisson(base * dayFactor * (SEASON[s.category] ?? FLAT)[month], rand)
       if (q > 0) items.set(s.id, q)
     }
     days.set(d, items)

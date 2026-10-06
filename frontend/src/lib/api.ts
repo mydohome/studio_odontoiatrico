@@ -10,6 +10,7 @@ import type {
   RecordRow,
   Service,
 } from '../../../shared/types.ts'
+import type { Category } from '../../../shared/catalog.ts'
 
 export interface AppSettings {
   studioName: string
@@ -91,6 +92,11 @@ export const api = {
     request<AppSettings>('PUT', '/api/logo', undefined, file, /^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type) ? file.type : 'image/png'),
   deleteLogo: () => request<AppSettings>('DELETE', '/api/logo'),
 
+  categories: () => request<Category[]>('GET', '/api/categories'),
+  createCategory: (c: { label: string; badge: string }) => request<Category[]>('POST', '/api/categories', c),
+  updateCategory: (id: string, c: { label: string; badge: string }) => request<Category[]>('PUT', `/api/categories/${encodeURIComponent(id)}`, c),
+  reorderCategories: (ids: string[]) => request<Category[]>('PUT', '/api/categories-order', { ids }),
+  deleteCategory: (id: string) => request<Category[]>('DELETE', `/api/categories/${encodeURIComponent(id)}`),
   services: () => request<Service[]>('GET', '/api/services'),
   createService: (s: Partial<Service>) => request<Service>('POST', '/api/services', s),
   updateService: (id: string, s: Partial<Service>) => request<Service>('PUT', `/api/services/${encodeURIComponent(id)}`, s),

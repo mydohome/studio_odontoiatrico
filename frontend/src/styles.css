@@ -2574,3 +2574,50 @@ a.public-line {
 .badge-color-reset {
   padding: 4px;
 }
+
+/* Categorie delle prestazioni (Impostazioni). */
+.cat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-move {
+  display: flex;
+  flex: none;
+}
+
+.cat-move .btn {
+  padding: 4px;
+}
+
+.cat-color {
+  flex: none;
+  width: 34px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.cat-count {
+  flex: none;
+  min-width: 82px;
+  text-align: right;
+}
+
+@media (max-width: 560px) {
+  .cat-count {
+    display: none;
+  }
+}

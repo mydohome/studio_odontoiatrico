@@ -107,6 +107,16 @@ export type CustomCampaignInput = Pick<
 /** Stato della conferma di un appuntamento. */
 export type AppointmentStatus = 'da-inviare' | 'inviato' | 'confermato-link' | 'confermato-manuale' | 'non-presentato' | 'da-riprogrammare'
 
+/** Medico dello studio: ha un colore che contraddistingue i suoi appuntamenti nell'agenda. */
+export interface Doctor {
+  id: number
+  name: string
+  /** Colore del badge (#rrggbb). */
+  color: string
+  active: boolean
+  sort: number
+}
+
 export interface Appointment {
   id: number
   /** Giorno (YYYY-MM-DD) e ora di inizio (HH:MM), ora locale dello studio. Vuoti se da riprogrammare. */
@@ -122,6 +132,10 @@ export interface Appointment {
   /** Categoria e colore del badge della prestazione (null se non specificata o eliminata). */
   serviceCategory: string | null
   serviceColor: string | null
+  /** Medico che esegue la prestazione (null se non assegnato) e colore del suo badge. */
+  doctorId: number | null
+  doctorName: string | null
+  doctorColor: string | null
   /** Da riprogrammare: data e ora che aveva e da quando aspetta una nuova data. */
   prevDay: string | null
   prevTime: string | null
@@ -145,7 +159,7 @@ export interface Appointment {
   updatedAt: string
 }
 
-export type AppointmentInput = Pick<Appointment, 'duration' | 'patientName' | 'patientPhone' | 'serviceId' | 'notes'> & { day: string; time: string }
+export type AppointmentInput = Pick<Appointment, 'duration' | 'patientName' | 'patientPhone' | 'serviceId' | 'doctorId' | 'notes'> & { day: string; time: string }
 
 /** Appuntamento con data e ora (tutti tranne quelli da riprogrammare). */
 export type ScheduledAppointment = Appointment & { day: string; time: string }

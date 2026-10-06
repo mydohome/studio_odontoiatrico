@@ -38,6 +38,7 @@ import {
   updateCustomCampaign,
 } from './customCampaigns.ts'
 import { migrateCategories, registerCategories } from './categories.ts'
+import { migrateDoctors, registerDoctors } from './doctors.ts'
 import { DataKeyError, initDataCrypto } from './dataCrypto.ts'
 import { migrateGiftCards, registerGiftCards } from './giftCards.ts'
 import { getSetting, listAppointmentRecords, listRecords, listServices, listStatRecords, migrate, pool, setSetting, writeDays } from './db.ts'
@@ -713,6 +714,7 @@ app.post('/api/demo', async () => {
 // ---------- Gift card (modulo isolato, vedi giftCards.ts) ----------
 
 registerCategories(app)
+registerDoctors(app)
 registerGiftCards(app, async (req) => (await sessionUser(req))?.username ?? null)
 
 // ---------- Avvio ----------
@@ -725,6 +727,7 @@ async function start() {
       await migrateUsers()
       await migrateCustomCampaigns()
       await migrateBranding()
+      await migrateDoctors()
       await migrateAppointments()
       await migrateGiftCards()
       break

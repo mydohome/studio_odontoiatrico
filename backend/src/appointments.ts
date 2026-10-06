@@ -6,6 +6,7 @@ import { addDays, isValidISO, today } from '../../shared/dates.ts'
 import type { Appointment, AppointmentInput, AppointmentStatus, ScheduledAppointment } from '../../shared/types.ts'
 import { decrypt, encrypt } from './dataCrypto.ts'
 import { pool } from './db.ts'
+import { checkDoctor } from './doctors.ts'
 
 export class AppointmentError extends Error {}
 
@@ -15,13 +16,14 @@ const MAX_RANGE_DAYS = 62
 const COLUMNS = `a.id, a.day, to_char(a.start_time, 'HH24:MI') AS time, a.duration_min AS duration,
   a.patient_name AS "patientName", a.patient_phone AS "patientPhone", a.service_id AS "serviceId",
   coalesce(s.name, a.service_name) AS "serviceName", s.category AS "serviceCategory", s.color AS "serviceColor",
+  a.doctor_id AS "doctorId", d.name AS "doctorName", d.color AS "doctorColor",
   a.prev_day AS "prevDay", to_char(a.prev_time, 'HH24:MI') AS "prevTime", a.reschedule_at AS "rescheduleAt",
   a.notes, a.token,
   a.sent_at AS "sentAt", a.send_count AS "sendCount", a.last_sent_at AS "lastSentAt",
   a.call_count AS "callCount", a.last_call_at AS "lastCallAt",
   a.confirmed_at AS "confirmedAt", a.confirmed_via AS "confirmedVia", a.no_show_at AS "noShowAt",
   a.created_by AS "createdBy", a.created_at AS "createdAt", a.updated_at AS "updatedAt"`
-const FROM = 'appointments a LEFT JOIN services s ON s.id = a.service_id'
+const FROM = 'appointments a LEFT JOIN services s ON s.id = a.service_id LEFT JOIN doctors d ON d.id = a.doctor_id'
 
 export async function migrateAppointments(): Promise<void> {
   await pool.query(`
@@ -59,6 +61,8 @@ export async function migrateAppointments(): Promise<void> {
     CREATE INDEX IF NOT EXISTS appointments_reschedule ON appointments (reschedule_at) WHERE day IS NULL;
     -- Non presentato: segnato dallo studio dal giorno dell'appuntamento.
     ALTER TABLE appointments ADD COLUMN IF NOT EXISTS no_show_at timestamptz;
+    -- Medico che esegue la prestazione.
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_id integer REFERENCES doctors(id) ON DELETE SET NULL;
   `)
 }
 
@@ -110,6 +114,8 @@ export function parseAppointment(body: unknown): AppointmentInput {
     throw new AppointmentError('Numero di telefono non valido')
   }
   const serviceId = b.serviceId === null || b.serviceId === undefined || b.serviceId === '' ? null : String(b.serviceId)
+  const doctorId = b.doctorId === null || b.doctorId === undefined || b.doctorId === '' ? null : Number(b.doctorId)
+  if (doctorId !== null && !Number.isInteger(doctorId)) throw new AppointmentError('Medico non valido')
   // Note interne su più righe: si mantengono gli a capo.
   const notes = String(b.notes ?? '').trim()
   if (notes.length > 1000) throw new AppointmentError('Note troppo lunghe (massimo 1000 caratteri)')
@@ -120,6 +126,7 @@ export function parseAppointment(body: unknown): AppointmentInput {
     patientName: text(b.patientName, 'Nome del paziente', 80, true),
     patientPhone,
     serviceId,
+    doctorId,
     notes,
   }
 }
@@ -171,11 +178,12 @@ export async function listPatients(): Promise<{ name: string; phone: string }[]>
 
 export async function createAppointment(input: AppointmentInput, user: string | null): Promise<Appointment> {
   const name = await serviceName(input.serviceId)
+  await checkDoctor(input.doctorId)
   const [pn, pp, notes] = sealed(input)
   const { rows } = await pool.query(
-    `INSERT INTO appointments (day, start_time, duration_min, patient_name, patient_phone, service_id, service_name, notes, token, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [input.day, input.time, input.duration, pn, pp, input.serviceId, name, notes, newToken(), user],
+    `INSERT INTO appointments (day, start_time, duration_min, patient_name, patient_phone, service_id, service_name, notes, token, created_by, doctor_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+    [input.day, input.time, input.duration, pn, pp, input.serviceId, name, notes, newToken(), user, input.doctorId],
   )
   return getById(rows[0].id)
 }
@@ -191,7 +199,9 @@ const CHANGED = `${MOVED} OR $10::boolean`
 
 export async function updateAppointment(id: number, input: AppointmentInput): Promise<Appointment> {
   const name = await serviceName(input.serviceId)
-  const phoneChanged = (await getById(id)).patientPhone !== input.patientPhone
+  const before = await getById(id)
+  const phoneChanged = before.patientPhone !== input.patientPhone
+  await checkDoctor(input.doctorId, before.doctorId)
   const [pn, pp, notes] = sealed(input)
   const { rowCount } = await pool.query(
     `UPDATE appointments SET
@@ -204,10 +214,10 @@ export async function updateAppointment(id: number, input: AppointmentInput): Pr
        confirmed_via = CASE WHEN ${MOVED} THEN NULL ELSE confirmed_via END,
        no_show_at = CASE WHEN ${MOVED} THEN NULL ELSE no_show_at END,
        day = $2, start_time = $3, duration_min = $4, patient_name = $5, patient_phone = $6,
-       service_id = $7, service_name = $8, notes = $9, updated_at = now(),
+       service_id = $7, service_name = $8, notes = $9, doctor_id = $11, updated_at = now(),
        prev_day = NULL, prev_time = NULL, reschedule_at = NULL
      WHERE id = $1`,
-    [id, input.day, input.time, input.duration, pn, pp, input.serviceId, name, notes, phoneChanged],
+    [id, input.day, input.time, input.duration, pn, pp, input.serviceId, name, notes, phoneChanged, input.doctorId],
   )
   if (!rowCount) throw new AppointmentError('Appuntamento non trovato')
   return getById(id)

@@ -170,3 +170,13 @@ test('Da confermare: oggi più i 2 giorni lavorativi successivi', () => {
   assert.equal(confirmUntil('2026-10-02'), '2026-10-06') // venerdì → martedì
   assert.equal(confirmUntil('2026-10-03'), '2026-10-06') // sabato → martedì
 })
+
+test('medico dell\'appuntamento: facoltativo e numerico', () => {
+  const base = { day: '2026-10-06', time: '09:00', duration: 30, patientName: 'Mario Rossi', patientPhone: '333 1234567' }
+  assert.equal(parseAppointment(base).doctorId, null)
+  assert.equal(parseAppointment({ ...base, doctorId: '' }).doctorId, null)
+  assert.equal(parseAppointment({ ...base, doctorId: 2 }).doctorId, 2)
+  assert.equal(parseAppointment({ ...base, doctorId: '3' }).doctorId, 3)
+  assert.throws(() => parseAppointment({ ...base, doctorId: 'x' }), /Medico non valido/)
+  assert.throws(() => parseAppointment({ ...base, doctorId: 1.5 }), /Medico non valido/)
+})

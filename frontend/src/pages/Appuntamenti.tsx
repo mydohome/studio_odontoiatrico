@@ -5,6 +5,7 @@ import { addDays, formatDay, formatLongDay, formatWeek, fromISO, isValidISO, sta
 import type { Appointment, AppointmentInput, AppointmentStatus, ScheduledAppointment } from '../../../shared/types.ts'
 import AppointmentDetail from '../components/AppointmentDetail.tsx'
 import AppointmentForm from '../components/AppointmentForm.tsx'
+import { DoctorBadge, DoctorTag } from '../components/DoctorBadge.tsx'
 import { ServiceBadge, ServiceDot } from '../components/ServiceBadge.tsx'
 import { useToast } from '../components/Toast.tsx'
 import { api } from '../lib/api.ts'
@@ -165,6 +166,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
         patientName: a.patientName,
         patientPhone: a.patientPhone,
         serviceId: a.serviceId,
+        doctorId: a.doctorId,
         notes: a.notes,
       },
     })
@@ -187,7 +189,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
       const n = new Date()
       tm = d === t ? fromMinutes(Math.min(23 * 60 + 45, Math.ceil((n.getHours() * 60 + n.getMinutes()) / 15) * 15)) : '09:00'
     }
-    setForm({ initial: { day: d, time: tm, duration: 30, patientName: '', patientPhone: '', serviceId: null, notes: '' } })
+    setForm({ initial: { day: d, time: tm, duration: 30, patientName: '', patientPhone: '', serviceId: null, doctorId: null, notes: '' } })
   }
 
   const submitForm = async (value: AppointmentInput, prepare: boolean) => {
@@ -340,6 +342,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
           editingId={form.id}
           wasConfirmed={form.wasConfirmed}
           services={data.services}
+          doctors={data.doctors}
           previous={form.previous}
           onSubmit={submitForm}
           onReschedule={
@@ -491,24 +494,27 @@ function TimeGrid({
                   return (
                     <button
                       key={a.id}
-                      className={`cal-ev ${STATUS[a.status].cls} ${h < 40 ? 'is-short' : ''} ${!detailed && pos.lanes > 1 ? 'is-narrow' : ''}`}
+                      className={`cal-ev ${STATUS[a.status].cls} ${h < 40 ? 'is-short' : ''} ${!detailed && pos.lanes > 1 ? 'is-narrow' : ''} ${a.doctorColor ? 'has-doc' : ''}`}
                       style={{
+                        ...(a.doctorColor ? ({ '--doc': a.doctorColor } as CSSProperties) : null),
                         top,
                         height: h,
                         left: `calc(${(pos.lane / pos.lanes) * 100}% + 2px)`,
                         width: `calc(${100 / pos.lanes}% - 4px)`,
                       }}
                       onClick={() => onOpen(a.id)}
-                      title={`${a.time}–${endTime(a.time, a.duration)} · ${a.patientName}${a.serviceName ? ` · ${a.serviceName}` : ''} · ${STATUS[a.status].label}`}
+                      title={`${a.time}–${endTime(a.time, a.duration)} · ${a.patientName}${a.serviceName ? ` · ${a.serviceName}` : ''}${a.doctorName ? ` · ${a.doctorName}` : ''} · ${STATUS[a.status].label}`}
                     >
                       <span className="cal-ev-line">
                         <Icon size={13} className="cal-ev-icon" />
                         <span className="cal-ev-time">{a.time}</span>
                         {h < 40 && <ServiceDot appointment={a} />}
+                        {h < 40 && (a.doctorName ? <DoctorTag appointment={a} compact={!detailed && pos.lanes > 1} /> : null)}
                         <span className="cal-ev-name">{a.patientName}</span>
                       </span>
-                      {h >= 40 && a.serviceName && (
+                      {h >= 40 && (a.serviceName || a.doctorName) && (
                         <span className="cal-ev-badge">
+                          <DoctorBadge appointment={a} size="sm" />
                           <ServiceBadge appointment={a} size="sm" />
                         </span>
                       )}
@@ -564,6 +570,7 @@ function Agenda({
                     </span>
                     <span className="agenda-main">
                       <strong>{a.patientName}</strong>
+                      <DoctorBadge appointment={a} size="sm" />
                       <ServiceBadge appointment={a} size="sm" />
                       <span className={`appt-tag ${STATUS[a.status].cls}`}>
                         <Icon size={13} /> {STATUS[a.status].short}
@@ -642,6 +649,7 @@ function ToConfirm({
                       <strong className="side-row-name">{a.patientName}</strong>
                     </button>
                     <div className="side-row-sub small">
+                      <DoctorBadge appointment={a} size="sm" />
                       <ServiceBadge appointment={a} size="sm" />
                       <span className={`appt-tag ${STATUS[a.status].cls}`} title={a.lastSentAt ? `Ultimo invio ${ago(a.lastSentAt)}` : undefined}>
                         <Icon size={12} />
@@ -700,6 +708,7 @@ function ToReschedule({ list, onOpen, onPlan }: { list: Appointment[]; onOpen: (
             <strong className="side-row-name">{a.patientName}</strong>
           </button>
           <div className="side-row-sub small">
+            <DoctorBadge appointment={a} size="sm" />
             <ServiceBadge appointment={a} size="sm" />
             {a.prevDay && a.prevTime && (
               <span className="muted" title={a.rescheduleAt ? `Da riprogrammare dal ${ago(a.rescheduleAt)}` : undefined}>

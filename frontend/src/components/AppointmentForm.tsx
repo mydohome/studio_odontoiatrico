@@ -1,9 +1,9 @@
 import { AlertTriangle, CalendarX2, Save, X } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { CATEGORIES } from '../../../shared/catalog.ts'
 import { endTime } from '../../../shared/appointments.ts'
 import { formatDay } from '../../../shared/dates.ts'
-import type { AppointmentInput, ScheduledAppointment, Service } from '../../../shared/types.ts'
+import type { AppointmentInput, Doctor, ScheduledAppointment, Service } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { overlapping } from '../lib/appointments.ts'
 
@@ -17,6 +17,7 @@ interface Props {
   /** Se cambiano data o ora di un appuntamento già confermato, la conferma va richiesta di nuovo. */
   wasConfirmed?: boolean
   services: Service[]
+  doctors: Doctor[]
   /** Da riprogrammare: data e ora che aveva (si sceglie la nuova). */
   previous?: { day: string; time: string } | null
   onSubmit: (value: AppointmentInput, prepareMessage: boolean) => Promise<void>
@@ -25,7 +26,7 @@ interface Props {
   onClose: () => void
 }
 
-export default function AppointmentForm({ title, initial, editingId, wasConfirmed, services, previous, onSubmit, onReschedule, onClose }: Props) {
+export default function AppointmentForm({ title, initial, editingId, wasConfirmed, services, doctors, previous, onSubmit, onReschedule, onClose }: Props) {
   const [v, setV] = useState<AppointmentInput>(initial)
   // Nuovo appuntamento o nuova data dopo una riprogrammazione: il messaggio va inviato.
   const [prepare, setPrepare] = useState(editingId === undefined || !!previous)
@@ -76,6 +77,9 @@ export default function AppointmentForm({ title, initial, editingId, wasConfirme
       })).filter((g) => g.items.length),
     [services, initial.serviceId],
   )
+
+  // Medici attivi (più quello già assegnato, se nel frattempo è stato disattivato).
+  const choosable = doctors.filter((d) => d.active || d.id === initial.doctorId)
 
   const reschedule = async () => {
     if (!onReschedule) return
@@ -191,6 +195,30 @@ export default function AppointmentForm({ title, initial, editingId, wasConfirme
               ))}
             </select>
           </label>
+
+          {choosable.length > 0 && (
+            <div className="span-2 doctor-pick" role="group" aria-label="Medico">
+              <span className="doctor-pick-label">Medico</span>
+              <div className="doctor-chips">
+                <button type="button" className="doctor-chip" aria-pressed={v.doctorId === null} onClick={() => set('doctorId', null)}>
+                  Nessuno
+                </button>
+                {choosable.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    className="doctor-chip"
+                    aria-pressed={v.doctorId === d.id}
+                    style={{ '--doc': d.color } as CSSProperties}
+                    onClick={() => set('doctorId', d.id)}
+                  >
+                    <span className="doctor-chip-dot" /> {d.name}
+                    {!d.active && ' (non attivo)'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <label className="span-2">
             Note interne (non compaiono nel messaggio)

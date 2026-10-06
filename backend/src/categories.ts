@@ -3,9 +3,9 @@
 // campagne e volantini; quelle aggiunte dallo studio usano testi generici.
 
 import type { FastifyInstance } from 'fastify'
-import { DEFAULT_CATEGORIES, freeSlot, setCategories, type Category } from '../../shared/catalog.ts'
+import { DEFAULT_CATEGORIES, freeSlot, OLD_BADGE_COLORS, setCategories, type Category } from '../../shared/catalog.ts'
 import { slugify } from '../../shared/slug.ts'
-import { pool } from './db.ts'
+import { getSetting, pool, setSetting } from './db.ts'
 
 class CategoryError extends Error {
   status: number
@@ -32,6 +32,15 @@ export async function migrateCategories(): Promise<void> {
         c.id, c.label, c.badge, c.slot, c.sort,
       ])
     }
+  }
+  // Nuovi colori delle categorie (rosso, verde e viola sono dei medici): una volta sola e senza
+  // toccare quelle che lo studio ha già personalizzato.
+  if (!(await getSetting('categoryColorsV2'))) {
+    for (const c of DEFAULT_CATEGORIES) {
+      const old = OLD_BADGE_COLORS[c.id]
+      if (old) await pool.query('UPDATE categories SET badge = $2 WHERE id = $1 AND badge = $3', [c.id, c.badge, old])
+    }
+    await setSetting('categoryColorsV2', '1')
   }
   await loadCategories()
 }

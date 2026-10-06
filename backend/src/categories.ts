@@ -103,11 +103,21 @@ export function registerCategories(app: FastifyInstance) {
   app.put('/api/categories/:id', async (req) => {
     const { id } = req.params as { id: string }
     const c = parseBody((req.body ?? {}) as Record<string, unknown>)
+    const client = await pool.connect()
     try {
-      const r = await pool.query('UPDATE categories SET label = $2, badge = $3 WHERE id = $1', [id, c.label, c.badge])
-      if (!r.rowCount) throw new CategoryError('Categoria non trovata', 404)
+      await client.query('BEGIN')
+      const old = await client.query('SELECT badge FROM categories WHERE id = $1 FOR UPDATE', [id])
+      if (!old.rows[0]) throw new CategoryError('Categoria non trovata', 404)
+      await client.query('UPDATE categories SET label = $2, badge = $3 WHERE id = $1', [id, c.label, c.badge])
+      // Cambiando il colore della categoria lo prendono anche le sue prestazioni: quelle con un
+      // colore proprio tornano a seguire la categoria.
+      if (old.rows[0].badge !== c.badge) await client.query('UPDATE services SET color = NULL WHERE category = $1', [id])
+      await client.query('COMMIT')
     } catch (e) {
+      await client.query('ROLLBACK').catch(() => {})
       throw duplicate(e)
+    } finally {
+      client.release()
     }
     return loadCategories()
   })

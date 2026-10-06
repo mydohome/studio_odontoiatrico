@@ -2,6 +2,17 @@ import type { Appointment, AppointmentStatus, ScheduledAppointment } from '../..
 import { whatsAppMessage } from '../../../shared/appointments.ts'
 import { today } from '../../../shared/dates.ts'
 import type { AppSettings } from './api.ts'
+import { CalendarX2, Check, CheckCheck, Clock, Send, UserX } from 'lucide-react'
+
+/** Icona di ogni stato. */
+export const STATUS_ICON: Record<AppointmentStatus, typeof Check> = {
+  'confermato-link': CheckCheck,
+  'confermato-manuale': Check,
+  inviato: Clock,
+  'da-inviare': Send,
+  'non-presentato': UserX,
+  'da-riprogrammare': CalendarX2,
+}
 
 export const STATUS: Record<AppointmentStatus, { label: string; short: string; cls: string }> = {
   'confermato-link': { label: 'Confermato dal paziente (link)', short: 'Confermato · link', cls: 'st-link' },

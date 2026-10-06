@@ -1,15 +1,16 @@
-import { AlertTriangle, CalendarClock, CalendarDays, CalendarX2, Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Loader2, MessageCircle, Phone, PhoneMissed, Plus, Send, UserX } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CalendarDays, CalendarX2, Check, CheckCheck, ChevronLeft, ChevronRight, Loader2, MessageCircle, Phone, PhoneMissed, Plus } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { confirmUntil, endTime } from '../../../shared/appointments.ts'
 import { addDays, formatDay, formatLongDay, formatWeek, fromISO, isValidISO, startOfWeek, today, WEEKDAYS_SHORT } from '../../../shared/dates.ts'
 import type { Appointment, AppointmentInput, AppointmentStatus, ScheduledAppointment } from '../../../shared/types.ts'
 import AppointmentDetail from '../components/AppointmentDetail.tsx'
 import AppointmentForm from '../components/AppointmentForm.tsx'
+import AppointmentSearch from '../components/AppointmentSearch.tsx'
 import { DoctorBadge, DoctorDot } from '../components/DoctorBadge.tsx'
 import { ServiceBadge, ServiceDot } from '../components/ServiceBadge.tsx'
 import { useToast } from '../components/Toast.tsx'
 import { api } from '../lib/api.ts'
-import { fromMinutes, isScheduled, layoutLanes, STATUS, STATUS_ORDER, toMinutes } from '../lib/appointments.ts'
+import { fromMinutes, isScheduled, layoutLanes, STATUS, STATUS_ICON, STATUS_ORDER, toMinutes } from '../lib/appointments.ts'
 import type { AppDataState } from '../lib/useData.ts'
 
 type View = 'giorno' | 'settimana'
@@ -21,15 +22,6 @@ const PX_PER_MIN_MIN = 0.6
 const FIT_FROM = 9 * 60
 const FIT_TO = 19 * 60
 const POLL_MS = 60_000
-
-const STATUS_ICON: Record<AppointmentStatus, typeof Check> = {
-  'confermato-link': CheckCheck,
-  'confermato-manuale': Check,
-  inviato: Clock,
-  'da-inviare': Send,
-  'non-presentato': UserX,
-  'da-riprogrammare': CalendarX2,
-}
 
 function loadView(): View {
   try {
@@ -75,6 +67,8 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
   const [toResched, setToResched] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [openId, setOpenId] = useState<number | null>(null)
+  // Appuntamento aperto dalla ricerca: può non essere tra quelli caricati per il periodo mostrato.
+  const [found, setFound] = useState<Appointment | null>(null)
   const [form, setForm] = useState<FormState>(null)
   const known = useRef<Map<number, AppointmentStatus>>(new Map())
 
@@ -139,6 +133,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
   /** Aggiorna un appuntamento in tutte le liste (calendario, da confermare, da riprogrammare). */
   const replace = (a: Appointment) => {
     known.current.set(a.id, a.status)
+    setFound((f) => (f && f.id === a.id ? a : f))
     const upsert = (l: ScheduledAppointment[], inRange: (d: string) => boolean) => {
       const others = l.filter((x) => x.id !== a.id)
       return isScheduled(a) && inRange(a.day) ? [...others, a].sort(byTime) : others
@@ -150,7 +145,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
   }
 
   const opened: Appointment | null =
-    openId !== null ? list.find((a) => a.id === openId) ?? pending.find((a) => a.id === openId) ?? toResched.find((a) => a.id === openId) ?? null : null
+    openId !== null ? list.find((a) => a.id === openId) ?? pending.find((a) => a.id === openId) ?? toResched.find((a) => a.id === openId) ?? (found?.id === openId ? found : null) : null
 
   /** Modulo di modifica; per un appuntamento da riprogrammare, la scelta della nuova data. */
   const editForm = (a: Appointment) =>
@@ -266,6 +261,14 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
               <CalendarDays size={18} />
               <input type="date" value={anchor} onChange={(e) => isValidISO(e.target.value) && setAnchor(e.target.value)} aria-label="Vai a una data" />
             </label>
+            <AppointmentSearch
+              onPick={(a) => {
+                // Il calendario si porta sul giorno dell'appuntamento e se ne apre la scheda.
+                if (isScheduled(a)) setAnchor(a.day)
+                setFound(a)
+                setOpenId(a.id)
+              }}
+            />
             <button className="btn btn-primary cal-new" onClick={() => newAppointment()}>
               <Plus size={16} /> <span className="cal-new-label">Nuovo appuntamento</span>
             </button>

@@ -20,6 +20,7 @@ import {
   markSent,
   migrateAppointments,
   parseAppointment,
+  searchAppointments,
   setManualConfirmation,
   setNoShow,
   setToReschedule,
@@ -573,6 +574,11 @@ async function appointmentCall<T>(fn: () => Promise<T>): Promise<T> {
 app.get('/api/appointments', async (req) => {
   const q = req.query as { from?: string; to?: string }
   return appointmentCall(() => listAppointments(assertDate(q.from, 'from'), assertDate(q.to, 'to')))
+})
+
+app.get('/api/appointments/search', async (req) => {
+  const q = String((req.query as { q?: string }).q ?? '').slice(0, 80)
+  return appointmentCall(() => searchAppointments(q))
 })
 
 app.get('/api/appointments/patients', async () => listPatients())

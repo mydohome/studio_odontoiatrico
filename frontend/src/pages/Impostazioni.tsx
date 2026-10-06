@@ -1,7 +1,8 @@
 import { ArrowDown, ArrowUp, CalendarDays, Check, Database, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { badgeColor, CATEGORIES, type Category } from '../../../shared/catalog.ts'
-import type { CategoryId, ImportResult, Service } from '../../../shared/types.ts'
+import { ColorInput, useColorPick } from '../components/ColorInput.tsx'
+import type { CategoryId, Doctor, ImportResult, Service } from '../../../shared/types.ts'
 import { useToast } from '../components/Toast.tsx'
 import { api, EXPORT_URL, TEMPLATE_URL, type SessionUser } from '../lib/api.ts'
 import type { AppDataState } from '../lib/useData.ts'
@@ -46,6 +47,7 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
           <StudioCard data={data} />
           <DataCard data={data} />
         </div>
+        {data.settings.modules.appointments && <DoctorsCard data={data} />}
         <CategoriesCard data={data} />
         <ServicesCard data={data} />
       </div>
@@ -710,6 +712,94 @@ function DeleteAllDialog({ days, total, onCancel, onConfirm }: { days: number; t
   )
 }
 
+function DoctorsCard({ data }: { data: AppDataState }) {
+  const notify = useToast()
+  const [draft, setDraft] = useState({ name: '', color: '#2563eb' })
+
+  const run = async (fn: () => Promise<unknown>, ok?: string) => {
+    try {
+      await fn()
+      if (ok) notify(ok)
+      data.reload()
+    } catch (e) {
+      notify((e as Error).message, 'error')
+    }
+  }
+
+  const remove = (d: Doctor) => {
+    if (!window.confirm(`Eliminare "${d.name}"? Se ha appuntamenti verrà solo disattivato.`)) return
+    return run(async () => {
+      const r = await api.deleteDoctor(d.id)
+      notify(r.deleted ? 'Medico eliminato' : 'Medico disattivato (ha appuntamenti)')
+    })
+  }
+
+  return (
+    <div className="card">
+      <h2>Medici</h2>
+      <p className="sub">
+        Chi esegue le prestazioni. Ogni medico ha un colore: nell'agenda gli appuntamenti mostrano il suo badge e una striscia colorata, e nel modulo dell'appuntamento si sceglie il medico.
+      </p>
+      {data.doctors.length === 0 && <p className="small muted">Nessun medico: aggiungine uno qui sotto.</p>}
+      <ul className="cat-list">
+        {data.doctors.map((d) => (
+          <DoctorRow key={d.id} d={d} onSave={(patch) => run(() => api.updateDoctor(d.id, { name: d.name, color: d.color, active: d.active, ...patch }))} onRemove={() => remove(d)} />
+        ))}
+      </ul>
+      <form
+        className="settings-row"
+        style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}
+        onSubmit={(e) => {
+          e.preventDefault()
+          run(async () => {
+            await api.createDoctor(draft)
+            setDraft({ ...draft, name: '' })
+          }, 'Medico aggiunto')
+        }}
+      >
+        <input className="input" style={{ flex: '2 1 160px' }} placeholder="Nuovo medico (es. Dott. Bianchi)" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={60} />
+        <ColorInput value={draft.color} onCommit={(color) => setDraft((x) => ({ ...x, color }))} label="Colore del nuovo medico" />
+        <button className="btn btn-primary" disabled={!draft.name.trim()}>
+          <Plus size={16} /> Aggiungi
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function DoctorRow({ d, onSave, onRemove }: { d: Doctor; onSave: (patch: Partial<Pick<Doctor, 'name' | 'color' | 'active'>>) => void; onRemove: () => void }) {
+  const [name, setName] = useState(d.name)
+  useEffect(() => setName(d.name), [d.name])
+  const commitName = () => {
+    const n = name.trim()
+    if (n && n !== d.name) onSave({ name: n })
+    else setName(d.name)
+  }
+  return (
+    <li className="cat-row" style={{ opacity: d.active ? 1 : 0.55 }}>
+      <span className="doc-swatch" style={{ background: d.color }} aria-hidden />
+      <input
+        className="input"
+        style={{ flex: 1, minWidth: 0, padding: '5px 8px' }}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commitName}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        maxLength={60}
+        aria-label="Nome del medico"
+      />
+      <ColorInput value={d.color} onCommit={(color) => onSave({ color })} label={`Colore di ${d.name}`} />
+      <label className="switch" title={d.active ? 'Attivo' : 'Disattivato: non si può scegliere nei nuovi appuntamenti'}>
+        <input type="checkbox" checked={d.active} onChange={(e) => onSave({ active: e.target.checked })} aria-label={`${d.name} attivo`} />
+        <span />
+      </label>
+      <button className="btn btn-icon btn-ghost btn-danger" onClick={onRemove} aria-label={`Elimina ${d.name}`}>
+        <Trash2 size={16} />
+      </button>
+    </li>
+  )
+}
+
 function CategoriesCard({ data }: { data: AppDataState }) {
   const notify = useToast()
   const [draft, setDraft] = useState({ label: '', badge: '#0e7490' })
@@ -753,7 +843,7 @@ function CategoriesCard({ data }: { data: AppDataState }) {
       <ul className="cat-list">
         {data.categories.map((c, i) => (
           <CategoryRow
-            key={`${c.id}-${data.version}`}
+            key={c.id}
             c={c}
             count={used.get(c.id) ?? 0}
             showBadge={data.settings.modules.appointments}
@@ -775,7 +865,7 @@ function CategoriesCard({ data }: { data: AppDataState }) {
       >
         <input className="input" style={{ flex: '2 1 160px' }} placeholder="Nuova categoria" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} maxLength={60} />
         {data.settings.modules.appointments && (
-          <input type="color" className="cat-color" value={draft.badge} onChange={(e) => setDraft({ ...draft, badge: e.target.value })} aria-label="Colore del badge della nuova categoria" />
+          <ColorInput value={draft.badge} onCommit={(badge) => setDraft((d) => ({ ...d, badge }))} label="Colore del badge della nuova categoria" />
         )}
         <button className="btn btn-primary" disabled={!draft.label.trim()}>
           <Plus size={16} /> Aggiungi
@@ -806,20 +896,12 @@ function CategoryRow({
   onRemove: () => void
 }) {
   const [label, setLabel] = useState(c.label)
-  const [badge, setBadge] = useState(c.badge)
-  const timer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(timer.current), [])
+  useEffect(() => setLabel(c.label), [c.label])
 
   const commitLabel = () => {
     const l = label.trim()
-    if (l && l !== c.label) onSave(l, badge)
+    if (l && l !== c.label) onSave(l, c.badge)
     else setLabel(c.label)
-  }
-  // Il selettore cambia colore di continuo mentre si trascina: si salva quando si ferma.
-  const pick = (value: string) => {
-    setBadge(value)
-    window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => onSave(label.trim() || c.label, value), 500)
   }
 
   return (
@@ -842,7 +924,7 @@ function CategoryRow({
         maxLength={60}
         aria-label="Nome categoria"
       />
-      {showBadge && <input type="color" className="cat-color" value={badge} onChange={(e) => pick(e.target.value)} aria-label={`Colore del badge di ${c.label}`} title="Colore del badge delle prestazioni negli appuntamenti" />}
+      {showBadge && <ColorInput value={c.badge} onCommit={(color) => onSave(label.trim() || c.label, color)} label={`Colore del badge di ${c.label}`} title="Colore del badge delle prestazioni negli appuntamenti" />}
       <span className="small muted cat-count">{count === 1 ? '1 prestazione' : `${count} prestazioni`}</span>
       <button
         className="btn btn-icon btn-ghost btn-danger"
@@ -917,7 +999,7 @@ function ServicesCard({ data }: { data: AppDataState }) {
           </thead>
           <tbody>
             {data.services.map((s) => (
-              <ServiceRow key={`${s.id}-${data.version}`} s={s} showPrice={showPrices} showBadge={data.settings.modules.appointments} onUpdate={update} onRemove={remove} />
+              <ServiceRow key={s.id} s={s} showPrice={showPrices} showBadge={data.settings.modules.appointments} onUpdate={update} onRemove={remove} />
             ))}
           </tbody>
         </table>
@@ -987,6 +1069,8 @@ function ServiceRow({
 }) {
   const [name, setName] = useState(s.name)
   const [price, setPrice] = useState(s.price === null ? '' : String(s.price))
+  useEffect(() => setName(s.name), [s.name])
+  useEffect(() => setPrice(s.price === null ? '' : String(s.price)), [s.price])
 
   const commitName = () => {
     if (name.trim() && name !== s.name) onUpdate(s, { name: name.trim() })
@@ -1058,21 +1142,13 @@ function ServiceRow({
 
 /** Colore del badge della prestazione negli appuntamenti: anteprima, scelta e ritorno al colore della categoria. */
 function BadgeColor({ s, onChange }: { s: Service; onChange: (color: string | null) => void }) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const timer = useRef<number | undefined>(undefined)
-  const color = draft ?? badgeColor(s.category, s.color)
-  // Il selettore cambia colore di continuo mentre si trascina: si salva quando si ferma.
-  const pick = (value: string) => {
-    setDraft(value)
-    window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => onChange(value), 500)
-  }
-  useEffect(() => () => window.clearTimeout(timer.current), [])
+  // Si salva a scelta finita (non a ogni valore digitato: ricaricando la pagina il selettore si chiuderebbe).
+  const { draft, inputProps } = useColorPick(badgeColor(s.category, s.color), (color) => onChange(color))
   return (
     <span className="badge-color">
-      <label className="svc-badge svc-badge-sm badge-color-preview" style={{ background: color }} title="Colore del badge negli appuntamenti: clicca per cambiarlo">
+      <label className="svc-badge svc-badge-sm badge-color-preview" style={{ background: draft }} title="Colore del badge negli appuntamenti: clicca per cambiarlo">
         Badge
-        <input type="color" value={color} onChange={(e) => pick(e.target.value)} aria-label={`Colore del badge di ${s.name}`} />
+        <input {...inputProps} aria-label={`Colore del badge di ${s.name}`} />
       </label>
       {s.color && (
         <button type="button" className="btn btn-ghost btn-icon badge-color-reset" onClick={() => onChange(null)} title="Usa il colore della categoria">

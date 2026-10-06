@@ -5,6 +5,7 @@ import { formatDay, formatLongDay, today } from '../../../shared/dates.ts'
 import type { Appointment, ScheduledAppointment } from '../../../shared/types.ts'
 import { api, type AppSettings } from '../lib/api.ts'
 import { confirmUrl, isScheduled, linkWarning, messageFor, needsReminder, STATUS } from '../lib/appointments.ts'
+import { DoctorBadge } from './DoctorBadge.tsx'
 import { ServiceBadge } from './ServiceBadge.tsx'
 import { useToast } from './Toast.tsx'
 
@@ -138,8 +139,9 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
                 </span>
               </div>
             )}
-            {a.serviceName && (
-              <div>
+            {(a.serviceName || a.doctorName) && (
+              <div className="appt-badges">
+                <DoctorBadge appointment={a} />
                 <ServiceBadge appointment={a} />
               </div>
             )}

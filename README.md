@@ -248,6 +248,11 @@ studio.
   categoria (es. Ortodonzia fucsia) oppure quello della singola prestazione (Igiene orale verde scuro). Si cambia in
   **Impostazioni → Prestazioni** cliccando sul badge accanto alla categoria (il colore di default di ogni categoria si cambia in **Impostazioni → Categorie**) (la freccia circolare torna al colore della
   categoria). Negli appuntamenti più corti di mezz'ora il badge diventa un pallino colorato.
+- **Medici**: in **Impostazioni → Medici** si inseriscono i medici dello studio (nome, colore, attivo/disattivo; all'inizio
+  ce ne sono tre di esempio, viola, verde e rosso, da rinominare). Nel modulo dell'appuntamento si sceglie il medico;
+  nell'agenda l'appuntamento mostra il suo **badge colorato** con il nome e una **striscia** dello stesso colore sul bordo
+  destro. Un medico con appuntamenti non si elimina ma si disattiva (non si può scegliere nei nuovi, lo storico resta).
+  I colori delle categorie evitano rosso, verde e viola per non confondersi con i medici.
 - Ogni appuntamento ha anche un'**etichetta di stato**:
 
   | Etichetta | Significato |

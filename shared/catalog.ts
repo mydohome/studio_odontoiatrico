@@ -23,14 +23,28 @@ export const SERIES_SLOTS = 8
  * Categorie iniziali. Per queste esistono testi pronti di campagne e volantini (scelti dall'id, quindi
  * validi anche se la categoria viene rinominata); le categorie aggiunte dallo studio usano testi generici.
  */
+/**
+ * Colori dei badge delle categorie fino alla prima versione: serve a riconoscere, negli studi già
+ * avviati, quelle che non sono mai state personalizzate (da aggiornare ai colori nuovi, che lasciano
+ * rosso, verde e viola ai medici).
+ */
+export const OLD_BADGE_COLORS: Record<string, string> = {
+  prevenzione: '#0e7490',
+  diagnostica: '#4b5563',
+  conservativa: '#1d4ed8',
+  ortodonzia: '#c0168c',
+  chirurgia: '#b91c1c',
+  protesi: '#4d7c0f',
+}
+
 export const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'prevenzione', label: 'Prevenzione e igiene', badge: '#0e7490', slot: 1, sort: 1 },
-  { id: 'diagnostica', label: 'Diagnostica', badge: '#4b5563', slot: 2, sort: 2 },
-  { id: 'conservativa', label: 'Conservativa ed endodonzia', badge: '#1d4ed8', slot: 3, sort: 3 },
+  { id: 'prevenzione', label: 'Prevenzione e igiene', badge: '#0284c7', slot: 1, sort: 1 },
+  { id: 'diagnostica', label: 'Diagnostica', badge: '#475569', slot: 2, sort: 2 },
+  { id: 'conservativa', label: 'Conservativa ed endodonzia', badge: '#1e3a8a', slot: 3, sort: 3 },
   { id: 'estetica', label: 'Estetica', badge: '#a16207', slot: 4, sort: 4 },
-  { id: 'ortodonzia', label: 'Ortodonzia', badge: '#c0168c', slot: 5, sort: 5 },
-  { id: 'chirurgia', label: 'Chirurgia e implantologia', badge: '#b91c1c', slot: 6, sort: 6 },
-  { id: 'protesi', label: 'Protesi', badge: '#4d7c0f', slot: 7, sort: 7 },
+  { id: 'ortodonzia', label: 'Ortodonzia', badge: '#be185d', slot: 5, sort: 5 },
+  { id: 'chirurgia', label: 'Chirurgia e implantologia', badge: '#78350f', slot: 6, sort: 6 },
+  { id: 'protesi', label: 'Protesi', badge: '#0f766e', slot: 7, sort: 7 },
   { id: 'pedodonzia', label: 'Pedodonzia', badge: '#c2410c', slot: 8, sort: 8 },
 ]
 

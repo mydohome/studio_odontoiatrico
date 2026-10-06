@@ -9,6 +9,7 @@ import type {
   PublicAppointment,
   RecordRow,
   Service,
+  Doctor,
 } from '../../../shared/types.ts'
 import type { Category } from '../../../shared/catalog.ts'
 
@@ -92,6 +93,10 @@ export const api = {
     request<AppSettings>('PUT', '/api/logo', undefined, file, /^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type) ? file.type : 'image/png'),
   deleteLogo: () => request<AppSettings>('DELETE', '/api/logo'),
 
+  doctors: () => request<Doctor[]>('GET', '/api/doctors'),
+  createDoctor: (d: { name: string; color: string }) => request<Doctor[]>('POST', '/api/doctors', d),
+  updateDoctor: (id: number, d: { name: string; color: string; active: boolean }) => request<Doctor[]>('PUT', `/api/doctors/${id}`, d),
+  deleteDoctor: (id: number) => request<{ deleted: boolean; deactivated: boolean; doctors: Doctor[] }>('DELETE', `/api/doctors/${id}`),
   categories: () => request<Category[]>('GET', '/api/categories'),
   createCategory: (c: { label: string; badge: string }) => request<Category[]>('POST', '/api/categories', c),
   updateCategory: (id: string, c: { label: string; badge: string }) => request<Category[]>('PUT', `/api/categories/${encodeURIComponent(id)}`, c),

@@ -253,6 +253,11 @@ studio.
   nell'agenda l'appuntamento mostra il suo **badge colorato** con il nome e una **striscia** dello stesso colore sul bordo
   destro. Un medico con appuntamenti non si elimina ma si disattiva (non si può scegliere nei nuovi, lo storico resta).
   I colori delle categorie evitano rosso, verde e viola per non confondersi con i medici.
+- Nell'agenda gli appuntamenti di mezz'ora (o meno) stanno su una riga: **ora, paziente, medico, prestazione, nota**;
+  quello che non entra si tronca da destra, partendo dalla nota. Quelli di un'ora hanno il nome sopra e, sotto, medico,
+  prestazione e nota. Nella settimana, con appuntamenti affiancati, i badge si riducono a chip colorati.
+- Nel modulo la **prestazione** si sceglie dall'elenco per categoria (clic sul campo) oppure si cerca scrivendo, con
+  completamento automatico (nome o categoria, anche una parte; frecce e Invio da tastiera).
 - Ogni appuntamento ha anche un'**etichetta di stato**:
 
   | Etichetta | Significato |

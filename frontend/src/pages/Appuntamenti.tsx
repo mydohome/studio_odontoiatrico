@@ -5,7 +5,7 @@ import { addDays, formatDay, formatLongDay, formatWeek, fromISO, isValidISO, sta
 import type { Appointment, AppointmentInput, AppointmentStatus, ScheduledAppointment } from '../../../shared/types.ts'
 import AppointmentDetail from '../components/AppointmentDetail.tsx'
 import AppointmentForm from '../components/AppointmentForm.tsx'
-import { DoctorBadge, DoctorTag } from '../components/DoctorBadge.tsx'
+import { DoctorBadge, DoctorDot } from '../components/DoctorBadge.tsx'
 import { ServiceBadge, ServiceDot } from '../components/ServiceBadge.tsx'
 import { useToast } from '../components/Toast.tsx'
 import { api } from '../lib/api.ts'
@@ -505,19 +505,47 @@ function TimeGrid({
                       onClick={() => onOpen(a.id)}
                       title={`${a.time}–${endTime(a.time, a.duration)} · ${a.patientName}${a.serviceName ? ` · ${a.serviceName}` : ''}${a.doctorName ? ` · ${a.doctorName}` : ''} · ${STATUS[a.status].label}`}
                     >
-                      <span className="cal-ev-line">
-                        <Icon size={13} className="cal-ev-icon" />
-                        <span className="cal-ev-time">{a.time}</span>
-                        {h < 40 && <ServiceDot appointment={a} />}
-                        {h < 40 && (a.doctorName ? <DoctorTag appointment={a} compact={!detailed && pos.lanes > 1} /> : null)}
-                        <span className="cal-ev-name">{a.patientName}</span>
-                      </span>
-                      {h >= 40 && (a.serviceName || a.doctorName) && (
-                        <span className="cal-ev-badge">
-                          <DoctorBadge appointment={a} size="sm" />
-                          <ServiceBadge appointment={a} size="sm" />
-                        </span>
-                      )}
+                      {(() => {
+                        // Affiancati nella settimana: poco posto, i badge diventano pallini e la nota si omette.
+                        const tight = !detailed && pos.lanes > 1
+                        const note = tight ? '' : a.notes.replace(/\s+/g, ' ')
+                        const badges = tight ? (
+                          <>
+                            <ServiceDot appointment={a} />
+                            <DoctorDot appointment={a} />
+                          </>
+                        ) : (
+                          <>
+                            <DoctorBadge appointment={a} size="sm" />
+                            <ServiceBadge appointment={a} size="sm" />
+                          </>
+                        )
+                        // Fino a mezz'ora una riga sola: ora, paziente, medico, prestazione, nota (tronca
+                        // quanto non entra, partendo dalla nota). Oltre: nome sopra; sotto medico, prestazione e nota.
+                        return h < 40 ? (
+                          <span className="cal-ev-line">
+                            <Icon size={13} className="cal-ev-icon" />
+                            <span className="cal-ev-time">{a.time}</span>
+                            <span className="cal-ev-name">{a.patientName}</span>
+                            {badges}
+                            {note && <span className="cal-ev-note">{note}</span>}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="cal-ev-line">
+                              <Icon size={13} className="cal-ev-icon" />
+                              <span className="cal-ev-time">{a.time}</span>
+                              <span className="cal-ev-name">{a.patientName}</span>
+                            </span>
+                            {(a.serviceName || a.doctorName || note) && (
+                              <span className="cal-ev-badge">
+                                {badges}
+                                {note && <span className="cal-ev-note">{note}</span>}
+                              </span>
+                            )}
+                          </>
+                        )
+                      })()}
                       {detailed && h >= 60 && <span className="cal-ev-sub">{STATUS[a.status].label}</span>}
                     </button>
                   )

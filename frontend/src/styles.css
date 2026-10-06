@@ -2733,3 +2733,132 @@ a.public-line {
   border-radius: 6px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
+
+/* Appuntamento in agenda: nome, medico, prestazione e nota sulla stessa riga; si tronca da destra (prima la nota). */
+.cal-ev-line > .svc-badge,
+.cal-ev-badge > .svc-badge {
+  /* Con poco posto si stringono prima i badge (restano visibili come chip colorati), poi il nome. */
+  flex: 0 8 auto;
+  min-width: 14px;
+}
+
+.cal-ev-line > .cal-ev-name {
+  flex: 0 1 auto;
+  min-width: 3ch;
+  white-space: nowrap;
+}
+
+.cal-ev-note {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-size: 0.72rem;
+}
+
+.cal-ev-badge {
+  align-items: center;
+  white-space: nowrap;
+}
+
+/* Scelta della prestazione con ricerca */
+.combo-label {
+  display: grid;
+  gap: 6px;
+}
+
+.combo {
+  position: relative;
+}
+
+.combo-field {
+  position: relative;
+}
+
+.combo-field .input {
+  width: 100%;
+  padding-right: 36px;
+}
+
+.combo-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.combo-btn:hover {
+  background: var(--surface-2);
+}
+
+.combo-list {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.combo-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.combo-group {
+  padding: 6px 8px 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.combo-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.combo-opt.is-active {
+  background: var(--accent-soft);
+}
+
+.combo-opt.is-selected {
+  font-weight: 700;
+}
+
+.combo-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.combo-empty {
+  padding: 10px 8px;
+}

@@ -1,5 +1,6 @@
-import { Info, Lock } from 'lucide-react'
+import { ArrowLeft, Info, KeyRound, Lock, ShieldCheck } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
+import TwoFactorSetup from '../components/TwoFactorSetup.tsx'
 import { Tooth } from '../components/Tooth.tsx'
 import { LOGO_PREVIEWS } from '../flyer/logoPreview.ts'
 import { StudioLogo } from '../flyer/shapes.tsx'
@@ -33,6 +34,13 @@ export default function Login({
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Dopo la password: secondo passaggio (codice dell'app) o, se obbligatoria, associazione dell'app.
+  const [second, setSecond] = useState<{ step: 'totp' | 'enroll'; ticket: string } | null>(null)
+  const [code, setCode] = useState('')
+  const [useRecovery, setUseRecovery] = useState(false)
+  const [remember, setRemember] = useState(true)
+  // Dopo l'associazione l'utente è già dentro, ma prima deve salvare i codici di recupero.
+  const [enrolledUser, setEnrolledUser] = useState<SessionUser | null>(null)
 
   // Il nome dello studio anche nella scheda del browser: con più studi aperti si distinguono subito.
   useEffect(() => {
@@ -45,12 +53,126 @@ export default function Login({
     setError(null)
     try {
       const r = await api.login(username, password)
-      onLogin(r.user)
+      if (r.ok) onLogin(r.user)
+      else {
+        setSecond({ step: r.step, ticket: r.ticket })
+        setCode('')
+        setUseRecovery(false)
+        setPassword('')
+      }
     } catch (err) {
       setError((err as Error).message)
     } finally {
       setBusy(false)
     }
+  }
+
+  const submitCode = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!second) return
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await api.login2fa(second.ticket, code, remember)
+      onLogin(r.user)
+    } catch (err) {
+      const msg = (err as Error).message
+      setError(msg)
+      // Biglietto scaduto (5 minuti): si riparte dalla password.
+      if (/scaduto/i.test(msg)) setSecond(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const brand = studio ? (
+    <div className="login-brand">
+      <StudioMark studio={studio} />
+      <div className="login-studio">{studio.name}</div>
+    </div>
+  ) : (
+    <div className="brand">
+      <span className="brand-logo">
+        <Tooth size={20} />
+      </span>
+      Accesso allo studio
+    </div>
+  )
+
+  if (second?.step === 'totp') {
+    return (
+      <div className="login">
+        <form className="card" onSubmit={submitCode}>
+          {brand}
+          <h2 className="tfa-title">
+            <ShieldCheck size={18} /> Verifica in due passaggi
+          </h2>
+          <label className="small muted" htmlFor="otp">
+            {useRecovery ? 'Codice di recupero' : "Codice a 6 cifre dell'app di verifica"}
+          </label>
+          <input
+            id="otp"
+            className="input tfa-code-input"
+            inputMode={useRecovery ? 'text' : 'numeric'}
+            autoComplete="one-time-code"
+            autoCapitalize="characters"
+            spellCheck={false}
+            autoFocus
+            maxLength={useRecovery ? 16 : 7}
+            placeholder={useRecovery ? 'XXXX-XXXX-XXXX' : '000000'}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <label className="small tfa-remember">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Ricorda questo dispositivo per 30 giorni
+          </label>
+          {error && <div className="alert alert-danger">{error}</div>}
+          <button className="btn btn-primary" disabled={busy || !code.trim()}>
+            <Lock size={16} /> Entra
+          </button>
+          <div className="tfa-links">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setUseRecovery((v) => !v)
+                setCode('')
+                setError(null)
+              }}
+            >
+              <KeyRound size={14} /> {useRecovery ? "Usa il codice dell'app" : 'Ho perso il telefono: codice di recupero'}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setSecond(null); setError(null) }}>
+              <ArrowLeft size={14} /> Indietro
+            </button>
+          </div>
+        </form>
+      </div>
+    )
+  }
+
+  if (second?.step === 'enroll') {
+    return (
+      <div className="login">
+        <div className="card">
+          {brand}
+          <h2 className="tfa-title">
+            <ShieldCheck size={18} /> Attiva la verifica in due passaggi
+          </h2>
+          <p className="small muted">Lo studio richiede un secondo passaggio per entrare. Si associa una volta sola, poi basta il codice dell'app.</p>
+          <TwoFactorSetup
+            start={() => api.enrollSetup(second.ticket)}
+            confirm={async (c) => {
+              const r = await api.enrollEnable(second.ticket, c)
+              setEnrolledUser(r.user)
+              return r.recoveryCodes
+            }}
+            onFinished={() => enrolledUser && onLogin(enrolledUser)}
+            finishLabel="Entra"
+          />
+        </div>
+      </div>
+    )
   }
 
   return (

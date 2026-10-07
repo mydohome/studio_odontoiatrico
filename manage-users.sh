@@ -7,6 +7,11 @@
 #   ./manage-users.sh edit   [utente]          cambia nome utente e/o email
 #   ./manage-users.sh passwd [utente]          cambia password (chiude le sessioni aperte)
 #   ./manage-users.sh delete [utente]
+#   ./manage-users.sh 2fa [utente]             attiva la verifica in due passaggi (mostra il QR code da inquadrare)
+#   ./manage-users.sh 2fa-reset [utente]       toglie la verifica in due passaggi a chi ha perso telefono e codici
+#   ./manage-users.sh 2fa-require on|off       la rende obbligatoria per tutti (o no)
+#   ./manage-users.sh logout [utente]          disconnette l'utente da tutti i dispositivi
+#   ./manage-users.sh logout-all               disconnette tutti gli utenti da tutti i dispositivi
 #
 # Le password vengono chieste due volte senza mostrarle; in alternativa si possono passare
 # sullo standard input (es. da uno script): echo 'password' | ./manage-users.sh create mario
@@ -195,6 +200,54 @@ cmd_delete() {
   cli delete "$user"
 }
 
+# Verifica in due passaggi per un utente: mostra il QR code (da inquadrare con l'app, anche dal terminale),
+# poi chiede il primo codice dell'app per confermare e mostra i codici di recupero da consegnare.
+cmd_2fa() {
+  local user code
+  user=$(pick_user "${1:-}")
+  cli 2fa-start "$user"
+  echo
+  if [ "$INTERACTIVE" -eq 1 ]; then
+    read -r -p "Scrivi il codice a 6 cifre che mostra l'app per confermare: " code </dev/tty
+  else
+    IFS= read -r code || true
+  fi
+  [ -n "$code" ] || die "Nessun codice: l'associazione non è confermata (rilancia il comando per un nuovo QR)."
+  cli_pw "$code" 2fa-confirm "$user"
+}
+
+cmd_2fa_reset() {
+  local user confirm
+  user=$(pick_user "${1:-}")
+  if [ "$INTERACTIVE" -eq 1 ]; then
+    read -r -p "Togliere la verifica in due passaggi a \"$user\"? Scrivi il nome utente per confermare: " confirm </dev/tty
+    [ "$confirm" = "$user" ] || die "Annullato."
+  fi
+  cli 2fa-reset "$user"
+}
+
+cmd_2fa_require() {
+  case "${1:-}" in
+    on | off) cli 2fa-require "$1" ;;
+    *) die "Usa: 2fa-require on | off" ;;
+  esac
+}
+
+cmd_logout() {
+  local user
+  user=$(pick_user "${1:-}")
+  cli logout "$user"
+}
+
+cmd_logout_all() {
+  local confirm
+  if [ "$INTERACTIVE" -eq 1 ]; then
+    read -r -p "Disconnettere TUTTI gli utenti da tutti i dispositivi? (s/N): " confirm </dev/tty
+    case "${confirm:-n}" in s | S | si | y) ;; *) die "Annullato." ;; esac
+  fi
+  cli logout-all
+}
+
 menu() {
   while :; do
     echo
@@ -204,6 +257,10 @@ menu() {
     echo "  3) Modifica nome utente / email"
     echo "  4) Cambia password"
     echo "  5) Elimina utente"
+    echo "  6) Attiva la verifica in due passaggi (QR code)"
+    echo "  7) Togli la verifica in due passaggi (telefono perso)"
+    echo "  8) Disconnetti un utente da tutti i dispositivi"
+    echo "  9) Disconnetti tutti gli utenti"
     echo "  0) Esci"
     read -r -p "Scelta: " c </dev/tty
     echo
@@ -214,6 +271,10 @@ menu() {
       3) (cmd_edit) || true ;;
       4) (cmd_passwd) || true ;;
       5) (cmd_delete) || true ;;
+      6) (cmd_2fa) || true ;;
+      7) (cmd_2fa_reset) || true ;;
+      8) (cmd_logout) || true ;;
+      9) (cmd_logout_all) || true ;;
       0 | q | '') exit 0 ;;
       *) warn "Scelta non valida." ;;
     esac
@@ -227,6 +288,11 @@ case "${1:-}" in
   edit | update) shift && cmd_edit "$@" ;;
   passwd | password) shift && cmd_passwd "$@" ;;
   delete | del | rm) shift && cmd_delete "$@" ;;
-  -h | --help | help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+  2fa) shift && cmd_2fa "$@" ;;
+  2fa-reset) shift && cmd_2fa_reset "$@" ;;
+  2fa-require) shift && cmd_2fa_require "$@" ;;
+  logout) shift && cmd_logout "$@" ;;
+  logout-all) cmd_logout_all ;;
+  -h | --help | help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "Comando sconosciuto: $1 (usa --help)" ;;
 esac

@@ -42,6 +42,27 @@ export type StudioBrand = { name: string } & Pick<AppSettings, 'logoType' | 'log
 export interface SessionUser {
   username: string
   email: string | null
+  /** Verifica in due passaggi attiva. */
+  totp?: boolean
+}
+
+/** Esito della password: accesso, oppure un secondo passaggio (codice dell'app o associazione dell'app). */
+export type LoginResult = { ok: true; user: SessionUser } | { ok: false; step: 'totp' | 'enroll'; ticket: string }
+
+export interface SecurityState {
+  totpEnabled: boolean
+  recoveryLeft: number
+  require2fa: boolean
+  /** Giorni di durata della sessione (0 = nessuna scadenza). */
+  sessionDays: number
+  sessionChoices: number[]
+  /** Utenti che non hanno ancora la verifica in due passaggi. */
+  withoutTotp: number
+}
+
+export interface TotpSetup {
+  secret: string
+  otpauth: string
 }
 
 export class ApiError extends Error {
@@ -76,7 +97,7 @@ export async function request<T>(method: string, url: string, body?: unknown, ra
     } catch {
       /* risposta non JSON */
     }
-    if (res.status === 401 && !url.endsWith('/login')) onUnauthorized()
+    if (res.status === 401 && !url.includes('/api/login')) onUnauthorized()
     throw new ApiError(res.status, msg)
   }
   return res.json() as Promise<T>
@@ -84,8 +105,19 @@ export async function request<T>(method: string, url: string, body?: unknown, ra
 
 export const api = {
   me: () => request<{ authenticated: boolean; user: SessionUser | null; hasUsers: boolean; studio?: StudioBrand }>('GET', '/api/me'),
-  login: (username: string, password: string) =>
-    request<{ ok: boolean; user: SessionUser }>('POST', '/api/login', { username, password }),
+  login: (username: string, password: string) => request<LoginResult>('POST', '/api/login', { username, password }),
+  login2fa: (ticket: string, code: string, remember: boolean) =>
+    request<{ ok: true; user: SessionUser; recoveryLeft?: number }>('POST', '/api/login/2fa', { ticket, code, remember }),
+  enrollSetup: (ticket: string) => request<TotpSetup>('POST', '/api/login/2fa/setup', { ticket }),
+  enrollEnable: (ticket: string, code: string) =>
+    request<{ ok: true; user: SessionUser; recoveryCodes: string[] }>('POST', '/api/login/2fa/enable', { ticket, code }),
+  security: () => request<SecurityState>('GET', '/api/security'),
+  securitySetup: (password: string) => request<TotpSetup>('POST', '/api/security/2fa/setup', { password }),
+  securityEnable: (code: string) => request<SecurityState & { recoveryCodes: string[] }>('POST', '/api/security/2fa/enable', { code }),
+  securityRecovery: (password: string) => request<{ recoveryCodes: string[] }>('POST', '/api/security/2fa/recovery', { password }),
+  securityDisable: (password: string, code: string) => request<SecurityState>('POST', '/api/security/2fa/disable', { password, code }),
+  securityLogoutOthers: () => request<{ ok: boolean }>('POST', '/api/security/logout-others', {}),
+  securitySettings: (s: { require2fa?: boolean; sessionDays?: number }) => request<SecurityState>('PUT', '/api/security/settings', s),
   logout: () => request<{ ok: boolean }>('POST', '/api/logout', {}),
 
   settings: () => request<AppSettings>('GET', '/api/settings'),

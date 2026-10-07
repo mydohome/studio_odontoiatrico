@@ -8,7 +8,7 @@
 #   ./studio backup [--list | --install-cron [HH:MM] | --remove-cron]
 #   ./studio restore [--latest | --file PERCORSO | --list]
 #   ./studio update [--check | --yes | --rebuild | --install-cron [HH:MM] | --remove-cron]
-#   ./studio user [list | create | edit | passwd | delete] [utente]
+#   ./studio user [list | create | edit | passwd | delete | 2fa | 2fa-reset | 2fa-require | logout | logout-all] [utente]
 #   ./studio key [show | verify]              chiave dei dati dei pazienti (DATA_KEY)
 #   ./studio cron                              attività pianificate (backup e aggiornamento)
 #   ./studio db                                console SQL del database (psql)

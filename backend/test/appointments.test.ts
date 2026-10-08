@@ -130,20 +130,20 @@ test('calendario: link di Google Calendar', () => {
 })
 
 const msgInput = {
-  studioName: 'Family Smile',
-  studioPhone: '328 12345678',
-  address: 'Via Augusto Pierantoni 16',
+  studioName: 'Studio Dentistico Sorriso',
+  studioPhone: '02 1234567',
+  address: 'Via Roma 1, 20100 Milano',
   patientName: 'Mario Rossi',
   day: '2026-10-05',
   time: '12:30',
   serviceName: 'Visita di controllo',
-  confirmUrl: 'https://studio.pwdnet.it/c/abc',
+  confirmUrl: 'https://studio.esempio.it/c/abc',
 }
 
 test('messaggio senza icone: solo lettere (anche accentate) e asterischi', () => {
   const msg = whatsAppMessage({ ...msgInput, day: '2026-10-02' }, { icons: false })
-  assert.match(msg, /^\*Family Smile\* - Promemoria appuntamento\n/)
-  assert.match(msg, /\*Data:\* Venerdì 2 ottobre 2026\n\*Ora:\* 12:30\n\*Prestazione:\* Visita di controllo\n\*Indirizzo:\* Via Augusto Pierantoni 16/)
+  assert.match(msg, /^\*Studio Dentistico Sorriso\* - Promemoria appuntamento\n/)
+  assert.match(msg, /\*Data:\* Venerdì 2 ottobre 2026\n\*Ora:\* 12:30\n\*Prestazione:\* Visita di controllo\n\*Indirizzo:\* Via Roma 1, 20100 Milano/)
   // Niente caratteri oltre il Latin-1: arrivano intatti anche dal computer.
   for (const c of msg) assert.ok(c.codePointAt(0)! <= 0xff, `carattere ${c} (U+${c.codePointAt(0)!.toString(16)})`)
 })
@@ -154,7 +154,7 @@ test('sollecito: "di domani", "di oggi" o il giorno', () => {
   assert.match(r('2026-10-02'), /appuntamento di oggi:/)
   assert.match(r('2026-10-05'), /appuntamento di lunedì 5 ottobre:/)
   assert.match(r('2026-10-05'), /\*La preghiamo di confermare\* da questo link:/)
-  assert.match(r('2026-10-05'), /^\*Family Smile\*\nConferma appuntamento\n/)
+  assert.match(r('2026-10-05'), /^\*Studio Dentistico Sorriso\*\nConferma appuntamento\n/)
 })
 
 test('prossimo giorno lavorativo: il venerdì e il fine settimana portano al lunedì', () => {

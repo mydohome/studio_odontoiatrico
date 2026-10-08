@@ -484,6 +484,11 @@ Microsoft Authenticator, Authy, 2FAS, Aegis…): standard TOTP, funziona senza i
 - **Furto o smarrimento di un dispositivo**: da **Sicurezza → Disconnetti gli altri dispositivi** (resta collegato quello
   in uso) oppure dal server `./studio user logout mario` (un utente) o `./studio user logout-all` (tutti). Si chiudono anche i
   dispositivi «ricordati»; cambiare la password fa lo stesso.
+- **Aggiornamento**: dopo `./studio update` la verifica **non è obbligatoria** (è facoltativa finché non la si impone) e nessuno
+  deve riconfigurare nulla; le sessioni già aperte restano valide. Ordine consigliato: aggiornare, attivare la verifica sul
+  proprio account (e controllare che il codice dell'app sia accettato), farla attivare agli altri utenti (da Sicurezza o con
+  `./studio user 2fa <utente>`) e solo alla fine accendere l'obbligo con `./studio user 2fa-require on`. Dal server l'obbligo si
+  accende anche se il proprio account non l'ha ancora: in quel caso si associa l'app al prossimo accesso.
 - Il segreto della verifica è salvato **cifrato con `DATA_KEY`** (come i dati dei pazienti) e i codici di recupero solo come
   impronta: un backup non li rivela. Come per i dati dei pazienti, senza la chiave originale i segreti non si leggono: dopo un
   ripristino con chiave diversa gli utenti vanno riconfigurati con `./studio user 2fa-reset`.

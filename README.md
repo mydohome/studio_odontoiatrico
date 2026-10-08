@@ -333,7 +333,7 @@ Quando tutti hanno confermato il riquadro lo dice in verde. Spostando un appunta
 Aprendo un appuntamento si vede il messaggio già pronto (modificabile prima dell'invio), per esempio:
 
 ```
-*Family Smile*
+*Studio Dentistico Sorriso*
 Promemoria appuntamento
 
 Gentile Mario Rossi,
@@ -342,13 +342,13 @@ le ricordiamo il suo prossimo appuntamento:
 📅 Mercoledì 7 ottobre 2026
 ⏰ Ore 12:30
 📋 Visita di controllo
-📍 Via Augusto Pierantoni 16
+📍 Via Roma 1, 20100 Milano
 
 👉 *Confermi la sua presenza* da questo link:
 https://studio.esempio.it/c/Xy3…
 Dalla stessa pagina può aggiungere l'appuntamento al calendario del telefono.
 
-📞 Per spostarlo o annullarlo risponda a questo messaggio o chiami lo 328 1234567.
+📞 Per spostarlo o annullarlo risponda a questo messaggio o chiami lo 02 1234567.
 
 A presto!
 ```

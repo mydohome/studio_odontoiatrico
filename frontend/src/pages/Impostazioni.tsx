@@ -1,5 +1,6 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Building2, CalendarDays, Check, ChevronRight, Database, LayoutGrid, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Building2, CalendarDays, Check, ChevronRight, Database, LayoutGrid, ShieldCheck, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
+import Sicurezza from './Sicurezza.tsx'
 import { badgeColor, CATEGORIES, type Category } from '../../../shared/catalog.ts'
 import { ColorInput, useColorPick } from '../components/ColorInput.tsx'
 import type { CategoryId, Doctor, ImportResult, Service } from '../../../shared/types.ts'
@@ -17,7 +18,7 @@ interface Props {
   onLogout: () => void
 }
 
-type Section = 'studio' | 'dati' | 'moduli'
+type Section = 'studio' | 'dati' | 'moduli' | 'sicurezza'
 
 /** Account e logout, nella testata della pagina. */
 function AccountBar({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
@@ -49,6 +50,7 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
   const SECTIONS: { id: Section; label: string; text: string; icon: ReactNode }[] = [
     { id: 'studio', label: 'Studio', text: 'Nome, indirizzi, logo e modello dei volantini, prezzi', icon: <Building2 size={22} /> },
     { id: 'dati', label: 'Dati', text: `Importazione ed esportazione Excel, eliminazione · ${manualDays} giornate registrate`, icon: <Database size={22} /> },
+    { id: 'sicurezza', label: 'Sicurezza', text: 'Verifica in due passaggi, durata della sessione, dispositivi collegati', icon: <ShieldCheck size={22} /> },
     { id: 'moduli', label: 'Moduli', text: `Appuntamenti, campagne, gift card · ${activeModules} di 3 attivi`, icon: <LayoutGrid size={22} /> },
   ]
 
@@ -76,6 +78,7 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
             <DataCard data={data} />
           </div>
         )}
+        {section === 'sicurezza' && <Sicurezza />}
         {section === 'moduli' && (
           <div className="settings-narrow">
             <ModulesCard data={data} />

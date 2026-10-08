@@ -46,10 +46,11 @@ import { getSetting, listAppointmentRecords, listDoctorRecords, listRecords, lis
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
 import { LoginLimiter } from './loginLimiter.ts'
-import { authenticate, countUsers, getUserById, migrateUsers, type User } from './users.ts'
+import { registerSecurity } from './security.ts'
+import { authenticate, checkTotp, countUsers, enableTotp, getUserById, migrateUsers, pendingSecret, recoveryLeft, startTotpSetup, useRecoveryCode, UserError, type User } from './users.ts'
+import { normalizeRecovery, otpauthUrl } from './totp.ts'
 
 const PORT = Number(process.env.PORT ?? 3000)
-const SESSION_DAYS = 30
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'warn' }, bodyLimit: 10 * 1024 * 1024 })
@@ -69,7 +70,7 @@ class HttpError extends Error {
 }
 
 app.setErrorHandler((err: Error & { status?: number; statusCode?: number }, _req, reply) => {
-  const status = err.status ?? err.statusCode ?? 500
+  const status = err instanceof UserError ? 400 : (err.status ?? err.statusCode ?? 500)
   if (status >= 500) app.log.error(err)
   reply.status(status).send({ error: status >= 500 ? 'Errore interno del server' : err.message })
 })
@@ -105,7 +106,42 @@ function readCookie(req: FastifyRequest, name: string): string | null {
   return null
 }
 
-async function sessionUser(req: FastifyRequest): Promise<User | null> {
+/** Durata della sessione: 30 giorni se non scelta diversamente; «nessuna scadenza» = 400 giorni (il massimo dei browser), rinnovati a ogni uso. */
+const NEVER_DAYS = 400
+const DAY_MS = 86400000
+
+interface SecuritySettings {
+  /** Verifica in due passaggi obbligatoria per tutti. */
+  require2fa: boolean
+  /** Giorni di durata della sessione (0 = nessuna scadenza). */
+  sessionDays: number
+}
+
+// Le impostazioni si rileggono al massimo ogni 10 secondi (le può cambiare anche la riga di comando).
+let secCache: { at: number; value: SecuritySettings } | null = null
+
+async function securitySettings(): Promise<SecuritySettings> {
+  if (secCache && Date.now() - secCache.at < 10_000) return secCache.value
+  const [req, days] = await Promise.all([getSetting('require2fa'), getSetting('sessionDays')])
+  const n = Number(days)
+  const value = { require2fa: req === 'true', sessionDays: Number.isInteger(n) && n >= 0 && n <= 365 && days !== null ? n : 30 }
+  secCache = { at: Date.now(), value }
+  return value
+}
+
+const forgetSecuritySettings = () => {
+  secCache = null
+}
+
+const lifetimeMs = (s: SecuritySettings) => (s.sessionDays === 0 ? NEVER_DAYS : s.sessionDays) * DAY_MS
+
+interface Session {
+  user: User
+  /** Scadenza del cookie (millisecondi). */
+  exp: number
+}
+
+async function readSession(req: FastifyRequest): Promise<Session | null> {
   const token = readCookie(req, 'sid')
   if (!token) return null
   const parts = token.split('.')
@@ -116,20 +152,73 @@ async function sessionUser(req: FastifyRequest): Promise<User | null> {
   const b = Buffer.from(sign(`${uid}.${ver}.${exp}`))
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null
   const user = await getUserById(Number(uid))
-  return user && user.sessionVersion === Number(ver) ? user : null
+  return user && user.sessionVersion === Number(ver) ? { user, exp: Number(exp) } : null
 }
 
-function setSession(reply: FastifyReply, req: FastifyRequest, user: User) {
-  const exp = String(Date.now() + SESSION_DAYS * 86400000)
+async function sessionUser(req: FastifyRequest): Promise<User | null> {
+  return (await readSession(req))?.user ?? null
+}
+
+/** Aggiunge un cookie alla risposta (senza togliere quelli già impostati). */
+function addCookie(reply: FastifyReply, cookie: string) {
+  const prev = reply.getHeader('set-cookie')
+  reply.header('set-cookie', prev ? [...(Array.isArray(prev) ? prev : [String(prev)]), cookie] : cookie)
+}
+
+const secureFlag = (req: FastifyRequest) => (req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '')
+
+async function setSession(reply: FastifyReply, req: FastifyRequest, user: User) {
+  const life = lifetimeMs(await securitySettings())
+  const exp = String(Date.now() + life)
   const payload = `${user.id}.${user.sessionVersion}.${exp}`
-  const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''
-  reply.header(
-    'set-cookie',
-    `sid=${payload}.${sign(payload)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}${secure}`,
-  )
+  addCookie(reply, `sid=${payload}.${sign(payload)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.floor(life / 1000)}${secureFlag(req)}`)
 }
 
-const publicUser = (u: User) => ({ username: u.username, email: u.email })
+// «Ricorda questo dispositivo»: dopo la verifica in due passaggi l'accesso con la sola password vale
+// 30 giorni da quel dispositivo. Il cookie è legato alla sessione dell'utente e all'attivazione della
+// verifica: chiudere le sessioni o rifare l'associazione lo annulla.
+const TRUST_DAYS = 30
+const trustPayload = (u: User) => `${u.id}.${u.sessionVersion}.${Date.parse(u.totpEnabledAt ?? '') || 0}`
+
+function trustDevice(reply: FastifyReply, req: FastifyRequest, user: User) {
+  const payload = `${trustPayload(user)}.${Date.now() + TRUST_DAYS * DAY_MS}`
+  addCookie(reply, `tdev=${payload}.${sign('trusted.' + payload)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${TRUST_DAYS * 86400}${secureFlag(req)}`)
+}
+
+function isTrusted(req: FastifyRequest, user: User): boolean {
+  const token = readCookie(req, 'tdev')
+  const parts = token?.split('.') ?? []
+  if (parts.length !== 5) return false
+  const payload = parts.slice(0, 4).join('.')
+  if (Number(parts[3]) < Date.now() || payload.slice(0, payload.lastIndexOf('.')) !== trustPayload(user)) return false
+  const a = Buffer.from(parts[4])
+  const b = Buffer.from(sign('trusted.' + payload))
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+// Biglietto dopo la password giusta: vale 5 minuti e serve solo per il secondo passaggio (o per
+// associare l'app); da solo non dà accesso a nulla.
+const TICKET_MS = 5 * 60000
+
+function newTicket(u: User): string {
+  const payload = `${u.id}.${u.sessionVersion}.${Date.now() + TICKET_MS}`
+  return `${payload}.${sign('ticket.' + payload)}`
+}
+
+async function ticketUser(ticket: unknown): Promise<User> {
+  const parts = String(ticket ?? '').split('.')
+  const expired = new HttpError(401, 'Accesso scaduto: inserisci di nuovo nome utente e password.')
+  if (parts.length !== 4 || Number(parts[2]) < Date.now()) throw expired
+  const payload = parts.slice(0, 3).join('.')
+  const a = Buffer.from(parts[3])
+  const b = Buffer.from(sign('ticket.' + payload))
+  if (a.length !== b.length || !timingSafeEqual(a, b)) throw expired
+  const user = await getUserById(Number(parts[0]))
+  if (!user || user.sessionVersion !== Number(parts[1])) throw expired
+  return user
+}
+
+const publicUser = (u: User) => ({ username: u.username, email: u.email, totp: !!u.totpEnabledAt })
 
 // Tentativi di accesso ogni 15 minuti: 10 per nome utente dallo stesso IP, 30 errori per IP e
 // 50 per nome utente da IP nuovi (gli IP da cui l'utente è già entrato non hanno questo tetto).
@@ -137,6 +226,15 @@ const limiter = new LoginLimiter({ windowMs: 15 * 60000, perUserIp: 10, perIp: 3
 
 /** IP del client: X-Real-IP lo imposta il Nginx dell'app (l'unico che raggiunge le API). */
 const clientIp = (req: FastifyRequest) => String(req.headers['x-real-ip'] ?? req.ip)
+
+// Codici della verifica in due passaggi: 6 cifre si possono indovinare con tanti tentativi, quindi
+// ogni utente ne ha pochi ogni 15 minuti (anche dopo aver indovinato la password).
+const totpLimiter = new LoginLimiter({ windowMs: 15 * 60000, perUserIp: 8, perIp: 30, perUser: 15 })
+
+function throttle(reply: FastifyReply, wait: number): never {
+  reply.header('retry-after', String(wait))
+  throw new HttpError(429, `Troppi tentativi: riprova tra ${Math.ceil(wait / 60)} minuti.`)
+}
 
 app.post('/api/login', async (req, reply) => {
   const { username, password } = (req.body ?? {}) as { username?: string; password?: string }
@@ -150,8 +248,52 @@ app.post('/api/login', async (req, reply) => {
   const user = await authenticate(name, String(password ?? ''))
   if (!user) throw new HttpError(401, 'Nome utente o password errati')
   limiter.success(name, ip)
-  setSession(reply, req, user)
+  // Con la verifica in due passaggi la password non basta (salvo dispositivo ricordato); se è
+  // obbligatoria e l'utente non l'ha ancora, deve associare l'app prima di entrare.
+  if (user.totpEnabledAt && !isTrusted(req, user)) return { ok: false, step: 'totp', ticket: newTicket(user) }
+  if (!user.totpEnabledAt && (await securitySettings()).require2fa) return { ok: false, step: 'enroll', ticket: newTicket(user) }
+  await setSession(reply, req, user)
   return { ok: true, user: publicUser(user) }
+})
+
+// Secondo passaggio: codice dell'app (6 cifre) oppure codice di recupero monouso.
+app.post('/api/login/2fa', async (req, reply) => {
+  const b = (req.body ?? {}) as { ticket?: string; code?: string; remember?: boolean }
+  const user = await ticketUser(b.ticket)
+  if (!user.totpEnabledAt) throw new HttpError(400, 'La verifica in due passaggi non è attiva.')
+  const wait = totpLimiter.attempt(user.username, clientIp(req))
+  if (wait) throttle(reply, wait)
+  const code = String(b.code ?? '').trim()
+  const isRecovery = !/^[\d\s]{6,7}$/.test(code)
+  const ok = isRecovery ? normalizeRecovery(code).length === 12 && (await useRecoveryCode(user.id, code)) : await checkTotp(user.id, code)
+  if (!ok) throw new HttpError(401, isRecovery ? 'Codice di recupero non valido o già usato.' : 'Codice non corretto.')
+  totpLimiter.success(user.username, clientIp(req))
+  await setSession(reply, req, user)
+  if (b.remember) trustDevice(reply, req, user)
+  return { ok: true, user: publicUser(user), recoveryLeft: isRecovery ? await recoveryLeft(user.id) : undefined }
+})
+
+// Associazione dell'app al primo accesso (quando la verifica è obbligatoria).
+app.post('/api/login/2fa/setup', async (req) => {
+  const user = await ticketUser(((req.body ?? {}) as { ticket?: string }).ticket)
+  if (user.totpEnabledAt) throw new HttpError(400, 'La verifica in due passaggi è già attiva.')
+  const secret = await startTotpSetup(user.id)
+  const { studioName } = await readSettings()
+  return { secret, otpauth: otpauthUrl(user.username, studioName, secret) }
+})
+
+app.post('/api/login/2fa/enable', async (req, reply) => {
+  const b = (req.body ?? {}) as { ticket?: string; code?: string }
+  const user = await ticketUser(b.ticket)
+  if (user.totpEnabledAt) throw new HttpError(400, 'La verifica in due passaggi è già attiva.')
+  const wait = totpLimiter.attempt(user.username, clientIp(req))
+  if (wait) throttle(reply, wait)
+  if (!(await pendingSecret(user.id))) throw new HttpError(400, 'Ricomincia: genera di nuovo il QR code.')
+  const codes = await enableTotp(user.id, String(b.code ?? ''))
+  totpLimiter.success(user.username, clientIp(req))
+  const fresh = (await getUserById(user.id))!
+  await setSession(reply, req, fresh)
+  return { ok: true, user: publicUser(fresh), recoveryCodes: codes }
 })
 
 app.post('/api/logout', async (_req, reply) => {
@@ -177,7 +319,7 @@ app.get('/api/me', async (req) => {
   }
 })
 
-app.addHook('onRequest', async (req) => {
+app.addHook('onRequest', async (req, reply) => {
   const path = req.url.split('?')[0]
   // Richieste arrivate dal server delle conferme (porta 8081, dominio pubblico dei link): solo le
   // rotte pubbliche e il logo. Nginx lo garantisce già; qui è la seconda protezione.
@@ -187,12 +329,18 @@ app.addHook('onRequest', async (req) => {
     return
   }
   const open = ['/api/login', '/api/logout', '/api/health', '/api/me']
-  if (open.includes(path)) return
+  // Secondo passaggio dell'accesso: si autorizza con il biglietto, non con la sessione.
+  if (open.includes(path) || path.startsWith('/api/login/2fa')) return
   // Pagina di conferma degli appuntamenti: il paziente non ha un account, il codice nel link basta.
   if (path.startsWith('/api/public/')) return
   // Il logo si può leggere senza accesso (pagina di login); caricarlo o eliminarlo no.
   if (path === '/api/logo' && (req.method === 'GET' || req.method === 'HEAD')) return
-  if (!(await sessionUser(req))) throw new HttpError(401, 'Accesso richiesto')
+  const session = await readSession(req)
+  if (!session) throw new HttpError(401, 'Accesso richiesto')
+  // Sessione «a scorrimento»: usandola si rinnova (al massimo una volta al giorno), e scade solo
+  // dopo la durata scelta senza essere usata.
+  const life = lifetimeMs(await securitySettings())
+  if (session.exp - Date.now() < life - DAY_MS) await setSession(reply, req, session.user)
 })
 
 // ---------- Validazione ----------
@@ -726,6 +874,16 @@ app.post('/api/demo', async () => {
 
 registerCategories(app)
 registerDoctors(app)
+registerSecurity(app, {
+  sessionUser,
+  setSession,
+  securitySettings,
+  forgetSecuritySettings,
+  clientIp,
+  limiter,
+  totpLimiter,
+  studioName: async () => (await readSettings()).studioName,
+})
 registerGiftCards(app, async (req) => (await sessionUser(req))?.username ?? null)
 
 // ---------- Avvio ----------

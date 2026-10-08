@@ -2866,7 +2866,7 @@ a.public-line {
 /* Impostazioni: voci che aprono un menu a parte */
 .settings-tiles {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 12px;
 }
 
@@ -3052,4 +3052,110 @@ a.public-line {
   .appt-search-when {
     width: 92px;
   }
+}
+
+/* Verifica in due passaggi */
+.tfa-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 1.05rem;
+}
+
+.tfa-code-input {
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.4rem;
+  letter-spacing: 0.25em;
+}
+
+.tfa-remember,
+.tfa-saved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tfa-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.tfa-setup,
+.tfa-recovery {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.tfa-setup > *,
+.tfa-recovery > * {
+  max-width: 100%;
+}
+
+.tfa-steps {
+  margin: 0;
+  padding-left: 20px;
+  justify-self: stretch;
+  display: grid;
+  gap: 4px;
+}
+
+.tfa-qr {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.tfa-secret {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+.tfa-codes {
+  list-style: none;
+  margin: 0;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 18px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.tfa-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tfa-setup .btn-primary,
+.tfa-recovery .btn-primary {
+  justify-self: stretch;
+}
+
+.sec-confirm {
+  display: grid;
+  gap: 10px;
+  max-width: 420px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.sec-confirm label {
+  display: grid;
+  gap: 4px;
 }

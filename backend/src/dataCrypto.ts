@@ -43,6 +43,11 @@ export function decryptWith(key: Buffer, value: string, field: string): string {
   return Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8')
 }
 
+/** Solo la chiave dal .env, senza controlli sul database: per gli strumenti da riga di comando. */
+export function loadDataKey(): void {
+  KEY = parseDataKey(process.env.DATA_KEY)
+}
+
 /** Senza chiave i dati restano in chiaro (installazioni non ancora aggiornate). */
 export const encrypt = (plain: string, field: string) => (KEY ? encryptWith(KEY, plain, field) : plain)
 

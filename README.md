@@ -9,7 +9,7 @@ proposte di **campagne marketing** mese per mese calcolate sui dati raccolti.
 | **Appuntamenti** | Agenda del giorno o della settimana, promemoria WhatsApp già formattato con **link di conferma** personale per il paziente e stato di ogni appuntamento (da inviare, in attesa, confermato dal paziente, confermato dallo studio). |
 | **Dashboard** | Riepilogo per giorno, settimana o mese: totale prestazioni, fatturato stimato, media per giorno lavorato, andamento per categoria (grafico a colonne), dettaglio per prestazione con confronto sul periodo precedente. Con il modulo Appuntamenti, anche le **statistiche per medico**: prestazioni, quota, fatturato stimato, variazione sul periodo precedente, prestazioni più eseguite e andamento (le registrazioni a mano non hanno un medico e vanno in «Senza medico»). |
 | **Campagne** | Per i prossimi 12 mesi propone le campagne più convenienti con punteggio, offerta, target, canali e motivazioni. Mostra la previsione per categoria e la mappa della stagionalità. |
-| **Impostazioni** | Tre voci che aprono un menu a parte: **Studio** (nome, telefono, indirizzi, logo, modello dei volantini, prezzi), **Dati** (importazione da Excel con template, esportazione completa, dati dimostrativi, eliminazione) e **Moduli** (attiva/disattiva Appuntamenti, Campagne, Gift card). Nella pagina restano **medici**, **categorie** (rinomina, riordina, colore del badge, aggiunta) e **prestazioni** (nome, categoria, prezzo medio, attiva/disattiva). Cambiando il colore di una categoria lo prendono anche le sue prestazioni (quelle con un colore proprio tornano a seguire la categoria). |
+| **Impostazioni** | Voci che aprono un menu a parte: **Sicurezza** (verifica in due passaggi, durata della sessione, dispositivi collegati), **Studio** (nome, telefono, indirizzi, logo, modello dei volantini, prezzi), **Dati** (importazione da Excel con template, esportazione completa, dati dimostrativi, eliminazione) e **Moduli** (attiva/disattiva Appuntamenti, Campagne, Gift card). Nella pagina restano **medici**, **categorie** (rinomina, riordina, colore del badge, aggiunta) e **prestazioni** (nome, categoria, prezzo medio, attiva/disattiva). Cambiando il colore di una categoria lo prendono anche le sue prestazioni (quelle con un colore proprio tornano a seguire la categoria). |
 
 ## Architettura
 
@@ -453,10 +453,45 @@ nome utente vengono rallentati sempre di più (fino a 5 secondi).
 ./manage-users.sh edit mario      # cambia nome utente e/o email ("-" rimuove l'email)
 ./manage-users.sh passwd mario    # cambia password
 ./manage-users.sh delete mario    # chiede di riscrivere il nome per conferma
+./manage-users.sh 2fa mario       # verifica in due passaggi (QR code), vedi sotto
+./manage-users.sh logout mario    # disconnette da tutti i dispositivi
 ```
 
 Le password vengono chieste due volte senza mostrarle; da uno script si possono passare sullo standard input
 (`echo 'password' | ./manage-users.sh create mario`). Non è possibile eliminare l'ultimo utente rimasto.
+
+### Verifica in due passaggi (2FA) e sessioni
+
+Oltre alla password si può chiedere un **codice a 6 cifre** generato da un'app sul telefono (Google Authenticator,
+Microsoft Authenticator, Authy, 2FAS, Aegis…): standard TOTP, funziona senza internet né SMS.
+
+- **Attivazione** (ognuno per sé): **Impostazioni → Sicurezza → Attiva la verifica in due passaggi**. Si conferma la
+  password, si inquadra il **QR code** con l'app (o si digita la chiave) e si scrive il primo codice: solo allora la verifica
+  si attiva, quindi un QR inquadrato male non chiude fuori nessuno. Subito dopo compaiono **10 codici di recupero**
+  monouso, da salvare (non vengono mostrati di nuovo; se ne generano di nuovi dalla stessa pagina).
+- **Accesso**: nome utente e password, poi il codice dell'app. «Ricorda questo dispositivo per 30 giorni» evita di
+  riscriverlo ogni volta da quel computer o telefono; se si è perso il telefono si usa un codice di recupero. Lo stesso codice
+  non vale due volte e i codici sbagliati hanno un limite (come le password).
+- **Obbligo per tutti**: in **Sicurezza** l'interruttore «Richiedi la verifica a tutti» (si può accendere solo con la
+  verifica attiva sul proprio account). Chi non l'ha ancora la configura al **primo accesso**: dopo la password compare il
+  QR code e non entra finché non finisce. In emergenza si toglie dal server: `./studio user 2fa-require off`.
+- **Dal server** (amministratore): `./studio user 2fa mario` mostra il QR code nel terminale (da inquadrare o da leggere
+  all'utente), chiede il primo codice e stampa i codici di recupero; `./studio user 2fa-reset mario` toglie la verifica a chi
+  ha perso telefono e codici (se l'obbligo è attivo la riconfigura al prossimo accesso).
+- **Sessioni**: restano aperte per **30 giorni** dall'ultimo uso (si rinnovano usando l'app). In **Sicurezza → Durata della
+  sessione** si sceglie da 1 giorno a **Nessuna scadenza** (il dispositivo resta collegato finché non esce o non resta
+  inutilizzato per oltre 400 giorni). Con una sessione lunga conviene tenere attiva la verifica in due passaggi.
+- **Furto o smarrimento di un dispositivo**: da **Sicurezza → Disconnetti gli altri dispositivi** (resta collegato quello
+  in uso) oppure dal server `./studio user logout mario` (un utente) o `./studio user logout-all` (tutti). Si chiudono anche i
+  dispositivi «ricordati»; cambiare la password fa lo stesso.
+- **Aggiornamento**: dopo `./studio update` la verifica **non è obbligatoria** (è facoltativa finché non la si impone) e nessuno
+  deve riconfigurare nulla; le sessioni già aperte restano valide. Ordine consigliato: aggiornare, attivare la verifica sul
+  proprio account (e controllare che il codice dell'app sia accettato), farla attivare agli altri utenti (da Sicurezza o con
+  `./studio user 2fa <utente>`) e solo alla fine accendere l'obbligo con `./studio user 2fa-require on`. Dal server l'obbligo si
+  accende anche se il proprio account non l'ha ancora: in quel caso si associa l'app al prossimo accesso.
+- Il segreto della verifica è salvato **cifrato con `DATA_KEY`** (come i dati dei pazienti) e i codici di recupero solo come
+  impronta: un backup non li rivela. Come per i dati dei pazienti, senza la chiave originale i segreti non si leggono: dopo un
+  ripristino con chiave diversa gli utenti vanno riconfigurati con `./studio user 2fa-reset`.
 
 ### Variabili (`.env`)
 

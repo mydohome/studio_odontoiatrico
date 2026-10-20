@@ -13,6 +13,7 @@ import type {
   DoctorRecordRow,
 } from '../../../shared/types.ts'
 import type { Category } from '../../../shared/catalog.ts'
+import type { PublicLoyaltyCard } from '../../../shared/loyalty.ts'
 
 export interface AppSettings {
   studioName: string
@@ -182,6 +183,7 @@ export const api = {
   appointmentNoShow: (id: number, noShow: boolean) => request<Appointment>('POST', `/api/appointments/${id}/no-show`, { noShow }),
   appointmentConfirmation: (id: number, confirmed: boolean) =>
     request<Appointment>('POST', `/api/appointments/${id}/confirmation`, { confirmed }),
+  publicCard: (token: string) => request<PublicLoyaltyCard>('GET', `/api/public/cards/${encodeURIComponent(token)}`),
   publicAppointment: (token: string) => request<PublicAppointment>('GET', `/api/public/appointments/${encodeURIComponent(token)}`),
   confirmAppointment: (token: string) =>
     request<PublicAppointment>('POST', `/api/public/appointments/${encodeURIComponent(token)}/confirm`),

@@ -577,8 +577,9 @@ export function registerLoyalty(app: FastifyInstance, d: LoyaltyDeps) {
       scope: CARD_PATH,
       display: 'standalone',
       orientation: 'portrait',
-      background_color: '#fff5fa',
-      theme_color: '#e6007e',
+      // Colori del modello grafico scelto dallo studio (Smile rosa, Mint blu).
+      background_color: card.studio.flyerStyle === 'mint' ? '#eef4fb' : '#fff0f7',
+      theme_color: card.studio.flyerStyle === 'mint' ? '#3868bd' : '#ee1f80',
       icons: [
         { src: '/loyalty/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
         { src: '/loyalty/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

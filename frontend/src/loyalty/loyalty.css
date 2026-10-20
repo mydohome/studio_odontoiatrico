@@ -1,0 +1,167 @@
+/* Modulo Fidelity card (stili propri: si elimina insieme al modulo). */
+
+.lc-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lc-slot {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.lc-prize {
+  border: 2px dashed;
+  border-radius: 50%;
+}
+
+.lc-prize.is-on {
+  border-style: solid;
+}
+
+/* ---------- Pagina pubblica ---------- */
+
+.carta {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  padding: 18px 16px 32px;
+  background: var(--bg);
+}
+
+.carta-col {
+  width: 100%;
+  max-width: 440px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.carta-brand {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.carta-brand .login-logo-tile {
+  padding: 8px 14px;
+}
+
+.carta-studio {
+  font-size: 1.15rem;
+  font-weight: 750;
+}
+
+.carta-card {
+  border-radius: 24px;
+  padding: 22px 20px 20px;
+  display: grid;
+  gap: 14px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.16);
+}
+
+.carta-kind {
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.carta-hello {
+  font-size: 1.35rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.carta-count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.carta-count strong {
+  font-size: 2.8rem;
+  line-height: 1;
+}
+
+.carta-reward {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.18);
+  font-weight: 600;
+}
+
+.carta-reward.is-mint {
+  background: rgba(56, 104, 189, 0.1);
+}
+
+.carta-done {
+  font-size: 1.05rem;
+  font-weight: 750;
+}
+
+.carta-info {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.carta-info div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.95rem;
+}
+
+.carta-qr {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 18px 16px;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid var(--border);
+  color: #111;
+  text-align: center;
+}
+
+.carta-qr img {
+  width: min(240px, 70vw);
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.carta-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.carta-foot {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+
+.carta-install {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.carta-error {
+  margin-top: 18vh;
+  text-align: center;
+  display: grid;
+  gap: 8px;
+}

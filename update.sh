@@ -290,6 +290,17 @@ if grep -q 'CONFIRM_PORT' docker-compose.yml && [ -z "$(env_get CONFIRM_PORT)" ]
   done
 fi
 
+# Porta delle fidelity card (solo con NPM su un altro server): come per le conferme, una libera tra 8200 e 8219.
+if grep -q 'CARD_PORT' docker-compose.yml && [ -z "$(env_get CARD_PORT)" ]; then
+  for p in $(seq 8200 8219); do
+    if ! port_busy "$p"; then
+      printf '\n# Porta pubblicata per le fidelity card (aggiunta da update.sh)\nCARD_PORT=%s\n' "$p" >>.env
+      ok "Porta per le fidelity card: $p (CARD_PORT nel .env)."
+      break
+    fi
+  done
+fi
+
 # Chiave che cifra i dati dei pazienti: si genera una volta sola e poi non va più cambiata.
 if [ -z "$(env_get DATA_KEY)" ]; then
   if grep -q 'DATA_KEY' docker-compose.yml; then

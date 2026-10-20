@@ -158,6 +158,12 @@ cmd_status() {
     [ -n "$db_url" ] && curl_=$db_url
   fi
   printf '  %-16s %s\n' "Link conferma" "${curl_:-stesso indirizzo del gestionale}"
+  local card_url
+  card_url=$(env_get CARD_BASE_URL)
+  if running db && [ "$(sql "SELECT value FROM settings WHERE key='moduleLoyalty'" || true)" = true ]; then
+    printf '  %-16s %s\n' "Fidelity card" "${card_url:-dominio non impostato}"
+    [ -n "$card_url" ] || warnings+=("Fidelity card attive ma senza dominio: imposta CARD_BASE_URL nel .env (es. https://carte.dominio.it) e ./studio restart")
+  fi
 
   # Dati.
   if running db; then

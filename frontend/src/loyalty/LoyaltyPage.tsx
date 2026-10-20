@@ -1,8 +1,8 @@
 // Pagina del modulo Fidelity card: elenco e dettaglio delle carte, programma e nuova carta.
 // Lo scanner per lo staff e l'invio al cliente sono in file a parte.
 
-import { Ban, Check, Copy, Pencil, Plus, RefreshCw, RotateCcw, Search, Settings2, Stamp, Undo2, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Ban, Check, Copy, Pencil, Plus, RefreshCw, RotateCcw, ScanLine, Search, Settings2, Stamp, Undo2, X } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { LOYALTY_STATUS_LABEL, type LoyaltyCard, type LoyaltyCardDetail, type LoyaltyProgram, type LoyaltyStatus } from '../../../shared/loyalty.ts'
 import { useToast } from '../components/Toast.tsx'
 import { ApiError, api } from '../lib/api.ts'
@@ -11,6 +11,9 @@ import { loyaltyApi } from './api.ts'
 import StampGrid from './StampGrid.tsx'
 import { loyaltyTheme } from './theme.ts'
 import './loyalty.css'
+
+// La lettura del QR (fotocamera e jsQR) si carica solo quando si apre lo scanner.
+const Scanner = lazy(() => import('./Scanner.tsx'))
 
 const when = (iso: string) => new Date(iso).toLocaleString('it-IT', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 const day = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -59,6 +62,7 @@ export default function LoyaltyPage({ data }: { data: AppDataState }) {
   const [detail, setDetail] = useState<LoyaltyCardDetail | null>(null)
   const [creating, setCreating] = useState(false)
   const [editingProgram, setEditingProgram] = useState(false)
+  const [scanning, setScanning] = useState(false)
 
   const loadList = useCallback(async () => {
     try {
@@ -115,15 +119,24 @@ export default function LoyaltyPage({ data }: { data: AppDataState }) {
         )}
         {cards && filter === 'attiva' && !q && <span className="badge">{active} attive</span>}
         <span style={{ flex: 1 }} />
+        <button className="btn btn-primary" onClick={() => setScanning((s) => !s)} aria-pressed={scanning}>
+          <ScanLine size={16} /> Scanner
+        </button>
         <button className="btn" onClick={() => setEditingProgram(true)}>
           <Settings2 size={16} /> Programma
         </button>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}>
+        <button className="btn" onClick={() => setCreating(true)}>
           <Plus size={16} /> Nuova carta
         </button>
       </div>
 
-      <div className="lc-layout">
+      {scanning && (
+        <Suspense fallback={<div className="empty">Caricamento…</div>}>
+          <Scanner flyerStyle={data.settings.flyerStyle} onClose={() => setScanning(false)} onStamped={loadList} />
+        </Suspense>
+      )}
+
+      <div className="lc-layout" style={scanning ? { marginTop: 16 } : undefined}>
         <section className="card lc-list">
           <div className="lc-list-head">
             <div className="segmented" role="group" aria-label="Stato">

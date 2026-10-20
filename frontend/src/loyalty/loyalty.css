@@ -389,3 +389,144 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+
+/* ---------- Scanner ---------- */
+
+.lc-scanner {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.lc-scanner-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.lc-scanner-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.lc-scanner-view {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #101418;
+  display: grid;
+  place-items: center;
+}
+
+.lc-scanner-view video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lc-scanner-view video.is-hidden {
+  display: none;
+}
+
+.lc-scanner-frame {
+  position: absolute;
+  inset: 18%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 18px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.lc-scanner-msg {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 20px;
+  color: #e8edf2;
+  text-align: center;
+}
+
+.lc-scanner-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+
+.lc-scanner-hint {
+  margin: 0;
+  text-align: center;
+}
+
+.lc-result {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+  padding: 16px;
+  border-radius: 16px;
+}
+
+.lc-result.is-ok {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.lc-result.is-done {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.lc-result.is-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.lc-result-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+
+.lc-result-name {
+  font-size: 1.5rem;
+  font-weight: 750;
+  color: var(--text);
+}
+
+.lc-result-count {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.lc-result-visual {
+  width: min(100%, 340px);
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.lc-result-visual .lc-grid {
+  gap: 6px;
+}
+
+.lc-result-prize {
+  font-weight: 750;
+  color: var(--text);
+}
+
+.lc-result .lc-actions {
+  justify-content: center;
+}
+
+.lc-manual {
+  display: grid;
+  gap: 6px;
+}

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Building2, CalendarDays, Check, ChevronRight, Database, LayoutGrid, ShieldCheck, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Building2, CalendarDays, Check, ChevronRight, Database, LayoutGrid, ShieldCheck, Stamp, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import Sicurezza from './Sicurezza.tsx'
 import { badgeColor, CATEGORIES, type Category } from '../../../shared/catalog.ts'
@@ -44,14 +44,14 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
   // Studio, Dati e Moduli si aprono in un menu a parte; medici, categorie e prestazioni restano qui.
   const [section, setSection] = useState<Section | null>(null)
   const m = data.settings.modules
-  const activeModules = [m.appointments, m.campaigns, m.giftcards].filter(Boolean).length
+  const activeModules = [m.appointments, m.campaigns, m.giftcards, m.loyalty].filter(Boolean).length
   const manualDays = new Set(data.records.filter((r) => r.q - (r.a ?? 0) > 0).map((r) => r.d)).size
 
   const SECTIONS: { id: Section; label: string; text: string; icon: ReactNode }[] = [
     { id: 'studio', label: 'Studio', text: 'Nome, indirizzi, logo e modello dei volantini, prezzi', icon: <Building2 size={22} /> },
     { id: 'dati', label: 'Dati', text: `Importazione ed esportazione Excel, eliminazione · ${manualDays} giornate registrate`, icon: <Database size={22} /> },
     { id: 'sicurezza', label: 'Sicurezza', text: 'Verifica in due passaggi, durata della sessione, dispositivi collegati', icon: <ShieldCheck size={22} /> },
-    { id: 'moduli', label: 'Moduli', text: `Appuntamenti, campagne, gift card · ${activeModules} di 3 attivi`, icon: <LayoutGrid size={22} /> },
+    { id: 'moduli', label: 'Moduli', text: `Appuntamenti, campagne, gift card, fidelity · ${activeModules} di 4 attivi`, icon: <LayoutGrid size={22} /> },
   ]
 
   if (section) {
@@ -120,7 +120,7 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
   )
 }
 
-const MODULES: { id: 'appointments' | 'campaigns' | 'giftcards'; label: string; text: string; icon: ReactNode }[] = [
+const MODULES: { id: 'appointments' | 'campaigns' | 'giftcards' | 'loyalty'; label: string; text: string; icon: ReactNode }[] = [
   {
     id: 'appointments',
     label: 'Appuntamenti',
@@ -139,6 +139,12 @@ const MODULES: { id: 'appointments' | 'campaigns' | 'giftcards'; label: string; 
     text: 'Gift card a credito o a prestazioni (anche da pacchetti) con codice a barre, da verificare e scalare in studio. Spento: la scheda sparisce, ma le gift card restano salvate.',
     icon: <Gift size={17} />,
   },
+  {
+    id: 'loyalty',
+    label: 'Fidelity card',
+    text: 'Carta a timbri digitale: ogni visita un timbro, al traguardo un premio. Pagina pubblica sul dominio delle carte, scanner QR per lo staff. Spento: la scheda sparisce, ma le carte restano salvate.',
+    icon: <Stamp size={17} />,
+  },
 ]
 
 /** Moduli dell'app: si possono nascondere senza perdere i dati, e riattivare quando servono. */
@@ -147,7 +153,7 @@ function ModulesCard({ data }: { data: AppDataState }) {
   const [saving, setSaving] = useState(false)
   const modules = data.settings.modules
 
-  const toggle = async (id: 'appointments' | 'campaigns' | 'giftcards', value: boolean) => {
+  const toggle = async (id: 'appointments' | 'campaigns' | 'giftcards' | 'loyalty', value: boolean) => {
     setSaving(true)
     try {
       data.setSettings(await api.saveSettings({ modules: { ...modules, [id]: value } }))

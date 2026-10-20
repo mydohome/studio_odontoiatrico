@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, ClipboardPlus, Gift, Loader2, Megaphone, Settings } from 'lucide-react'
+import { BarChart3, CalendarDays, ClipboardPlus, Gift, Loader2, Megaphone, Settings, Stamp } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from './components/Toast.tsx'
 import { Tooth } from './components/Tooth.tsx'
@@ -15,16 +15,18 @@ import Registra from './pages/Registra.tsx'
 const Dashboard = lazy(() => import('./pages/Dashboard.tsx'))
 // Modulo Gift card: caricato solo se attivo e aperto.
 const GiftCards = lazy(() => import('./giftcards/GiftCardsPage.tsx'))
+const Loyalty = lazy(() => import('./loyalty/LoyaltyPage.tsx'))
 
-type TabId = 'appuntamenti' | 'registra' | 'dashboard' | 'campagne' | 'giftcard' | 'impostazioni'
+type TabId = 'appuntamenti' | 'registra' | 'dashboard' | 'campagne' | 'giftcard' | 'fidelity' | 'impostazioni'
 
 // "module": la scheda si può nascondere da Impostazioni → Moduli.
-const TABS: { id: TabId; label: string; icon: ReactNode; module?: 'appointments' | 'campaigns' | 'giftcards' }[] = [
+const TABS: { id: TabId; label: string; icon: ReactNode; module?: 'appointments' | 'campaigns' | 'giftcards' | 'loyalty' }[] = [
   { id: 'appuntamenti', label: 'Appuntamenti', icon: <CalendarDays size={17} />, module: 'appointments' },
   { id: 'registra', label: 'Registra', icon: <ClipboardPlus size={17} /> },
   { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={17} /> },
   { id: 'campagne', label: 'Campagne', icon: <Megaphone size={17} />, module: 'campaigns' },
   { id: 'giftcard', label: 'Gift card', icon: <Gift size={17} />, module: 'giftcards' },
+  { id: 'fidelity', label: 'Fidelity', icon: <Stamp size={17} />, module: 'loyalty' },
   { id: 'impostazioni', label: 'Impostazioni', icon: <Settings size={17} /> },
 ]
 
@@ -137,6 +139,11 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
             {tab === 'giftcard' && (
               <Suspense fallback={<div className="empty">Caricamento…</div>}>
                 <GiftCards data={data} />
+              </Suspense>
+            )}
+            {tab === 'fidelity' && (
+              <Suspense fallback={<div className="empty">Caricamento…</div>}>
+                <Loyalty data={data} />
               </Suspense>
             )}
             {tab === 'impostazioni' && <Impostazioni data={data} user={user} onLogout={onLogout} />}

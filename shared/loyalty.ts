@@ -6,6 +6,13 @@ import { CODE_ALPHABET, checkChar } from './codes.ts'
 
 export type LoyaltyStatus = 'attiva' | 'completata' | 'scaduta' | 'disattivata'
 
+export const LOYALTY_STATUS_LABEL: Record<LoyaltyStatus, string> = {
+  attiva: 'Attiva',
+  completata: 'Completata',
+  scaduta: 'Scaduta',
+  disattivata: 'Disattivata',
+}
+
 export interface LoyaltyProgram {
   id: number
   name: string

@@ -42,6 +42,7 @@ import { migrateCategories, registerCategories } from './categories.ts'
 import { migrateDoctors, registerDoctors } from './doctors.ts'
 import { DataKeyError, initDataCrypto } from './dataCrypto.ts'
 import { migrateGiftCards, registerGiftCards } from './giftCards.ts'
+import { migrateLoyalty, registerLoyalty } from './loyalty.ts'
 import { getSetting, listAppointmentRecords, listDoctorRecords, listRecords, listServices, listStatRecords, migrate, pool, setSetting, writeDays } from './db.ts'
 import { generateDemo } from './demo.ts'
 import { buildExport, buildTemplate, parseImport } from './excel.ts'
@@ -323,8 +324,12 @@ app.addHook('onRequest', async (req, reply) => {
   const path = req.url.split('?')[0]
   // Richieste arrivate dal server delle conferme (porta 8081, dominio pubblico dei link): solo le
   // rotte pubbliche e il logo. Nginx lo garantisce già; qui è la seconda protezione.
-  if (req.headers['x-public-gateway']) {
-    const allowed = path.startsWith('/api/public/') || (path === '/api/logo' && (req.method === 'GET' || req.method === 'HEAD'))
+  // Ogni dominio pubblico ha il suo gateway: «1» = conferme (8081), «cards» = fidelity card (8082).
+  // Da ciascuno si raggiunge solo il proprio gruppo di rotte pubbliche (e il logo).
+  const gateway = req.headers['x-public-gateway']
+  if (gateway) {
+    const prefix = gateway === 'cards' ? '/api/public/cards/' : gateway === '1' ? '/api/public/appointments/' : null
+    const allowed = (prefix !== null && path.startsWith(prefix)) || (path === '/api/logo' && (req.method === 'GET' || req.method === 'HEAD'))
     if (!allowed) throw new HttpError(404, 'Non trovato')
     return
   }
@@ -389,9 +394,10 @@ interface Modules {
   appointments: boolean
   campaigns: boolean
   giftcards: boolean
+  loyalty: boolean
 }
 
-const MODULE_KEYS: Record<keyof Modules, string> = { appointments: 'moduleAppointments', campaigns: 'moduleCampaigns', giftcards: 'moduleGiftcards' }
+const MODULE_KEYS: Record<keyof Modules, string> = { appointments: 'moduleAppointments', campaigns: 'moduleCampaigns', giftcards: 'moduleGiftcards', loyalty: 'moduleLoyalty' }
 
 const FLYER_STYLES = ['smile', 'mint'] as const
 type FlyerStyle = (typeof FLYER_STYLES)[number]
@@ -449,6 +455,7 @@ async function readSettings(): Promise<Settings> {
       campaigns: (await getSetting(MODULE_KEYS.campaigns)) !== 'false',
       // Modulo nuovo: spento finché non lo si attiva.
       giftcards: (await getSetting(MODULE_KEYS.giftcards)) === 'true',
+      loyalty: (await getSetting(MODULE_KEYS.loyalty)) === 'true',
     },
   }
 }
@@ -884,6 +891,14 @@ registerSecurity(app, {
   totpLimiter,
   studioName: async () => (await readSettings()).studioName,
 })
+registerLoyalty(app, {
+  currentUser: async (req) => (await sessionUser(req))?.username ?? null,
+  studio: async () => {
+    const { studioName, phone, address, logoType, logoVersion, flyerStyle } = await readSettings()
+    return { name: studioName, phone, address, logoType, logoVersion, flyerStyle }
+  },
+  clientIp,
+})
 registerGiftCards(app, async (req) => (await sessionUser(req))?.username ?? null)
 
 // ---------- Avvio ----------
@@ -899,6 +914,7 @@ async function start() {
       await migrateDoctors()
       await migrateAppointments()
       await migrateGiftCards()
+      await migrateLoyalty()
       break
     } catch (e) {
       if (attempt >= 30) throw e

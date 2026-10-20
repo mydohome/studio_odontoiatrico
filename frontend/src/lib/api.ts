@@ -31,7 +31,7 @@ export interface AppSettings {
   /** Modello grafico dei volantini: "Smile" (colorato) o "Mint" (pulito, tecnologico). */
   flyerStyle: 'smile' | 'mint'
   /** Moduli visibili (disattivato = nascosto, i dati restano). */
-  modules: { appointments: boolean; campaigns: boolean; giftcards: boolean }
+  modules: { appointments: boolean; campaigns: boolean; giftcards: boolean; loyalty: boolean }
   /** Indirizzo pubblico dell'app per i link di conferma (vuoto = quello del browser). */
   publicUrl: string
 }

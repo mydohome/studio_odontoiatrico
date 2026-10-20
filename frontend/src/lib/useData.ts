@@ -10,7 +10,7 @@ export function useAppData() {
   const [doctors, setDoctors] = useState<Doctor[]>([])
   const [doctorRecords, setDoctorRecords] = useState<DoctorRecordRow[]>([])
   const [records, setRecords] = useState<RecordRow[]>([])
-  const [settings, setSettings] = useState<AppSettings>({ studioName: 'Studio Odontoiatrico', showPrices: true, phone: '', address: '', doctorName: '', logoType: 'famiglia', logoVersion: 0, flyerStyle: 'smile', publicUrl: '', modules: { appointments: true, campaigns: true, giftcards: false } })
+  const [settings, setSettings] = useState<AppSettings>({ studioName: 'Studio Odontoiatrico', showPrices: true, phone: '', address: '', doctorName: '', logoType: 'famiglia', logoVersion: 0, flyerStyle: 'smile', publicUrl: '', modules: { appointments: true, campaigns: true, giftcards: false, loyalty: false } })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [version, setVersion] = useState(0)

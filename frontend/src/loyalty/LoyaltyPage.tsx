@@ -1,11 +1,12 @@
 // Pagina del modulo Fidelity card: elenco e dettaglio delle carte, programma e nuova carta.
 // Lo scanner per lo staff e l'invio al cliente sono in file a parte.
 
-import { Ban, Check, Copy, Pencil, Plus, RefreshCw, RotateCcw, ScanLine, Search, Settings2, Stamp, Undo2, X } from 'lucide-react'
+import { Ban, Check, Copy, MessageCircle, Pencil, Plus, Printer, RefreshCw, RotateCcw, ScanLine, Search, Settings2, Stamp, Undo2, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { LOYALTY_STATUS_LABEL, type LoyaltyCard, type LoyaltyCardDetail, type LoyaltyProgram, type LoyaltyStatus } from '../../../shared/loyalty.ts'
+import { loyaltyMessage, LOYALTY_STATUS_LABEL, type LoyaltyCard, type LoyaltyCardDetail, type LoyaltyProgram, type LoyaltyStatus } from '../../../shared/loyalty.ts'
 import { useToast } from '../components/Toast.tsx'
 import { ApiError, api } from '../lib/api.ts'
+import { whatsAppLink, whatsAppWebLink } from '../../../shared/appointments.ts'
 import type { AppDataState } from '../lib/useData.ts'
 import { loyaltyApi } from './api.ts'
 import StampGrid from './StampGrid.tsx'
@@ -14,6 +15,7 @@ import './loyalty.css'
 
 // La lettura del QR (fotocamera e jsQR) si carica solo quando si apre lo scanner.
 const Scanner = lazy(() => import('./Scanner.tsx'))
+const CardPrint = lazy(() => import('./CardPrint.tsx'))
 
 const when = (iso: string) => new Date(iso).toLocaleString('it-IT', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 const day = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -181,7 +183,7 @@ export default function LoyaltyPage({ data }: { data: AppDataState }) {
 
         <section className="card lc-detail">
           {detail ? (
-            <CardDetail key={detail.id} card={detail} flyerStyle={data.settings.flyerStyle} onChange={applyDetail} />
+            <CardDetail key={detail.id} card={detail} data={data} onChange={applyDetail} />
           ) : (
             <p className="small muted">Scegli una carta dall'elenco per vedere i timbri, aggiungerne o inviarla al cliente.</p>
           )}
@@ -219,12 +221,14 @@ export default function LoyaltyPage({ data }: { data: AppDataState }) {
 
 // ---------- Dettaglio ----------
 
-function CardDetail({ card: c, flyerStyle, onChange }: { card: LoyaltyCardDetail; flyerStyle: 'smile' | 'mint'; onChange: (d: LoyaltyCardDetail) => void }) {
+function CardDetail({ card: c, data, onChange }: { card: LoyaltyCardDetail; data: AppDataState; onChange: (d: LoyaltyCardDetail) => void }) {
+  const flyerStyle = data.settings.flyerStyle
   const notify = useToast()
   const [busy, setBusy] = useState(false)
   // Timbro rifiutato per l'attesa: si può comunque aggiungere (correzione) dopo conferma.
   const [blocked, setBlocked] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
+  const [panel, setPanel] = useState<'send' | 'print' | null>(null)
   const theme = loyaltyTheme(flyerStyle)
   const left = Math.max(0, c.stampsRequired - c.stamps)
 
@@ -312,6 +316,20 @@ function CardDetail({ card: c, flyerStyle, onChange }: { card: LoyaltyCardDetail
           <Pencil size={16} /> Modifica
         </button>
       </div>
+      <div className="lc-actions">
+        <button className="btn" aria-pressed={panel === 'send'} disabled={c.status === 'disattivata'} onClick={() => setPanel(panel === 'send' ? null : 'send')} title="Invia il link della carta al cliente su WhatsApp">
+          <MessageCircle size={16} /> Invia carta al cliente
+        </button>
+        <button className="btn" aria-pressed={panel === 'print'} onClick={() => setPanel(panel === 'print' ? null : 'print')} title="Carta con QR da stampare">
+          <Printer size={16} /> Stampa carta
+        </button>
+      </div>
+      {panel === 'send' && <SendPanel card={c} studioName={data.settings.studioName} />}
+      {panel === 'print' && (
+        <Suspense fallback={<p className="small muted">Caricamento…</p>}>
+          <CardPrint card={c} settings={data.settings} />
+        </Suspense>
+      )}
       {blocked && (
         <div className="alert alert-warn small">
           <span>{blocked}</span>
@@ -406,6 +424,48 @@ function CardDetail({ card: c, flyerStyle, onChange }: { card: LoyaltyCardDetail
           }}
         />
       )}
+    </div>
+  )
+}
+
+// ---------- Invio al cliente ----------
+
+/** Messaggio con il link della carta: si apre in WhatsApp (app o web) o si copia. Nessun blocco sul consenso. */
+function SendPanel({ card: c, studioName }: { card: LoyaltyCardDetail; studioName: string }) {
+  const notify = useToast()
+  const initial = c.url ? loyaltyMessage({ studioName, holderName: c.holderName, stampsRequired: c.stampsRequired, reward: c.reward, url: c.url }) : ''
+  const [text, setText] = useState(initial)
+  const appLink = whatsAppLink(c.holderPhone, text)
+  const webLink = whatsAppWebLink(c.holderPhone, text)
+
+  if (!c.url) return <div className="alert alert-warn small">Per inviare la carta serve il dominio delle carte (<code>CARD_BASE_URL</code> nel <code>.env</code>).</div>
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      notify('Messaggio copiato')
+    } catch {
+      notify('Copia non riuscita: seleziona e copia il testo a mano', 'error')
+    }
+  }
+
+  return (
+    <div className="lc-send">
+      <div className="field-label">Messaggio</div>
+      <textarea className="input" rows={9} value={text} onChange={(e) => setText(e.target.value)} aria-label="Messaggio per il cliente" />
+      {!c.holderPhone && <div className="alert alert-warn small">Manca il telefono del cliente: aggiungilo con «Modifica» oppure copia il messaggio.</div>}
+      {!c.consentAt && <p className="small muted">Il consenso alle comunicazioni non risulta registrato su questa carta.</p>}
+      <div className="lc-actions">
+        <a className={`btn btn-sm btn-primary ${appLink ? '' : 'is-disabled'}`} href={appLink ?? undefined} target="_blank" rel="noreferrer" aria-disabled={!appLink}>
+          <MessageCircle size={15} /> App WhatsApp
+        </a>
+        <a className={`btn btn-sm ${webLink ? '' : 'is-disabled'}`} href={webLink ?? undefined} target="_blank" rel="noreferrer" aria-disabled={!webLink}>
+          WhatsApp Web
+        </a>
+        <button className="btn btn-sm" onClick={copy}>
+          <Copy size={15} /> Copia messaggio
+        </button>
+      </div>
     </div>
   )
 }

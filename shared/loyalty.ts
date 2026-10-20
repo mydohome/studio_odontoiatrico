@@ -174,3 +174,25 @@ export function checkStamp(
 
 /** Solo il nome di battesimo («Maria Grazia Rossi» → «Maria»). */
 export const firstName = (full: string) => full.trim().split(/\s+/)[0] ?? ''
+
+// ---------- Messaggio al cliente ----------
+
+/**
+ * Testo da inviare con il link della carta. Solo ciò che serve: nome di battesimo, premio e link
+ * (nessun dato sanitario né di appuntamenti). Senza icone: arriva intatto anche da WhatsApp Web.
+ */
+export function loyaltyMessage(m: { studioName: string; holderName: string; stampsRequired: number; reward: string; url: string }): string {
+  const name = firstName(m.holderName)
+  return [
+    `*${m.studioName}* - La tua carta fedeltà`,
+    '',
+    name ? `Gentile ${name},` : 'Gentile cliente,',
+    `ecco la tua carta a timbri: a ogni visita in studio ricevi un timbro e con ${m.stampsRequired} timbri ottieni: ${m.reward}.`,
+    '',
+    '*Apri la tua carta* e mostrala in studio:',
+    m.url,
+    'Puoi aggiungerla alla schermata Home del telefono, così l\'hai sempre a portata di mano.',
+    '',
+    'A presto!',
+  ].join('\n')
+}

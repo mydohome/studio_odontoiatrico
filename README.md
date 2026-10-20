@@ -78,6 +78,8 @@ gestionale e, consigliato, uno per i **link di conferma** degli appuntamenti su 
 | | NPM su un altro host | `http` | IP di questo server | `HTTP_PORT` (predefinita 80) |
 | conferme (es. `conferma.dominio.it`) | NPM sullo stesso host (`proxy-net`) | `http` | `<istanza>-app` | `8081` |
 | | NPM su un altro host | `http` | IP di questo server | `CONFIRM_PORT` (predefinita 8180) |
+| fidelity card (es. `carte.dominio.it`, solo se usi il modulo) | NPM sullo stesso host (`proxy-net`) | `http` | `<istanza>-app` | `8082` |
+| | NPM su un altro host | `http` | IP di questo server | `CARD_PORT` (predefinita 8200) |
 
 **Perché un dominio separato per le conferme.** Sulla porta delle conferme il container risponde **solo** alla pagina
 `/c/<codice>`, alle API pubbliche dell'appuntamento e al logo: niente gestionale, niente pagina di accesso, tutto il resto
@@ -194,6 +196,103 @@ Per nasconderlo basta spegnerlo in *Impostazioni → Moduli* (i dati restano). P
    DROP TABLE gift_card_movements, gift_card_items, gift_cards, gift_packages;
    DELETE FROM settings WHERE key = 'moduleGiftcards';
    ```
+
+## Fidelity card
+
+Modulo facoltativo, **spento all'installazione**: si attiva in **Impostazioni → Moduli → Fidelity card** e compare la
+scheda *Fidelity*. È una **carta a timbri digitale**: a ogni visita il cliente riceve un timbro (un dentino pieno) e al
+traguardo (di base 10 timbri) ottiene un premio (di base «Igiene professionale gratuita»).
+
+### Come si usa
+
+- **Programma** (pulsante *Programma*): timbri per il premio, descrizione del premio, validità della carta in giorni
+  (facoltativa) e **ore da attendere tra due timbri** sulla stessa carta (12). Le modifiche valgono per le carte create da
+  ora: quelle già emesse tengono numero di timbri e premio di quando sono state create.
+- **Nuova carta**: nome e telefono del cliente (si può scegliere un paziente già noto: il telefono si compila da solo). Ogni
+  carta ha un **link personale**, un **QR code** e un **codice breve** leggibile (es. `K7QM-X2PD`, con carattere di controllo).
+  Nome e telefono sono cifrati nel database con `DATA_KEY` come i dati dei pazienti.
+- **Dettaglio**: dentini, **Aggiungi timbro**, storico con **chi e quando** per ogni timbro, **Annulla** (il timbro resta
+  nello storico), disattivazione/riattivazione, modifica dei dati, link con **Copia** e **Rigenera il link** (il vecchio
+  smette subito di funzionare).
+- **Invia carta al cliente**: prepara il messaggio con il link (app WhatsApp, WhatsApp Web o *Copia messaggio*, come per gli
+  appuntamenti: l'app non invia nulla da sola). Il messaggio contiene solo nome di battesimo, premio e link.
+  Il consenso alle comunicazioni oggi non è gestito dal portale: sulla carta c'è una casella facoltativa che lo **registra**
+  (data) senza bloccare nulla; si potrà usare in seguito per vincolare l'invio.
+- **Stampa carta**: la carta a formato carta di credito (logo, nome dello studio, QR e codice) si scarica in **PNG** o
+  **PDF** a grandezza reale (85,6 × 54 mm) o si stampa su A4 da ritagliare; il QR è letto dallo scanner come quello sul telefono.
+- **Scanner** (pulsante *Scanner*): la fotocamera legge il QR della carta e registra il timbro, con conferma di cliente e
+  conteggio e **Annulla timbro**. Serve l'https (come per qualsiasi fotocamera nel browser); senza fotocamera si scrive il
+  **codice breve**. **Anti-abuso**: un solo timbro per carta ogni 12 ore (configurabile), con messaggio chiaro se è troppo
+  presto; dal dettaglio (non dallo scanner) lo staff può aggiungere un timbro *comunque*, per correggere. Una carta
+  disattivata, scaduta o già completa non riceve timbri.
+
+### La pagina del cliente
+
+Il link apre una pagina pensata per il telefono, **senza accesso**: carta con i dentini (pieni = timbri ottenuti,
+tratteggiati = mancanti, l'ultimo posto è il premio) nei colori del modello grafico dello studio (Smile o Mint), «X di N
+timbri», data dell'ultimo timbro, premio, **QR code** e codice breve, messaggio di **premio raggiunto**. Si può installare
+come app sulla schermata Home (Android: pulsante *Aggiungi alla schermata Home*; iPhone: Condividi → Aggiungi alla
+schermata Home) e si riapre anche senza rete con l'ultimo stato visto. Mostra **solo il nome di battesimo**: nessun dato
+sanitario, nessun dettaglio degli appuntamenti. Intestazioni `noindex, nofollow`, `Referrer-Policy: no-referrer`,
+`Cache-Control: no-store`.
+
+### Dominio dedicato (richiesto)
+
+I link delle carte stanno su un **dominio diverso da quello del gestionale** (es. `https://carte.dominio.it`), servito da
+una porta propria del container `app`: sulla **8082** risponde **soltanto** la pagina `/f/<token>` con le sue risorse
+(script, icone, service worker), le API pubbliche della carta e il logo. Il gestionale, le altre API, la pagina di accesso e
+le conferme degli appuntamenti **non sono raggiungibili** da quel dominio (404; il controllo è in Nginx e, con
+l'intestazione `X-Public-Gateway: cards`, anche nel backend).
+
+1. **DNS**: un record `carte.dominio.it` che punta al server (o all'IP del NPM).
+2. **`.env`**: `CARD_BASE_URL=https://carte.dominio.it` (senza `/` finale), poi `./studio restart`. `./studio status` segnala
+   le carte attive senza dominio.
+3. **NPM**: un Proxy Host per `carte.dominio.it` come nella tabella sopra (porta `8082` del container `app`, oppure
+   `CARD_PORT` di questo server se NPM è su un altro host), con certificato Let's Encrypt e *Force SSL*. Con NPM su un altro
+   host apri `CARD_PORT` nel firewall solo verso l'IP di NPM.
+
+`setup.sh` chiede l'indirizzo e, con NPM su un altro host, la porta; `update.sh` assegna `CARD_PORT` (una libera tra 8200 e 8219)
+alle installazioni esistenti.
+
+| Variabile | Significato |
+|---|---|
+| `CARD_BASE_URL` | Dominio delle carte (`https://carte.dominio.it`): compare nei link, nei QR e nelle stampe. Senza, le carte si gestiscono ma non si possono inviare né stampare. |
+| `CARD_PORT` | Porta pubblicata per le carte, solo con `_deploy_network_example.yml` (predefinita 8200). |
+
+### Token e sicurezza
+
+- Il **token** del link è di **192 bit** (24 byte da `crypto.randomBytes`, 32 caratteri base64url), mai derivato da nome,
+  ID, telefono o email. Nel database ci sono solo la sua **impronta SHA-256** (con indice univoco, per cercare la carta)
+  e il token **cifrato** con `DATA_KEY` (per poter rimandare lo stesso link): un dump non contiene link utilizzabili.
+- Token inesistente, malformato o carta disattivata → **stessa risposta 404**. Frenata sulle richieste pubbliche: limite di
+  Nginx (come per le conferme) più un tetto di token sbagliati per indirizzo IP nel backend (30 ogni 15 minuti).
+- Area staff: serve l'accesso (come il resto del portale; non esistono ruoli, ogni utente può fare tutto). Il cookie è
+  `SameSite=Strict`, quindi le azioni non partono da altri siti. I timbri si registrano con la carta bloccata nel database:
+  due scansioni insieme danno un solo timbro.
+- **Wallet** (Apple/Google): non c'è nulla ora; token, codice breve e modello dati sono pronti per aggiungerlo in seguito.
+
+### Eliminare il modulo
+
+Per nasconderlo basta spegnerlo in *Impostazioni → Moduli* (le carte restano). Per toglierlo del tutto:
+
+1. su GitHub, nella pull request che ha introdotto il modulo, **Revert** e unisci la pull request di annullamento,
+   poi `./studio update` su ogni server;
+2. cancella i dati (irreversibile: prima `./studio backup`):
+   ```bash
+   ./studio db
+   DROP TABLE loyalty_stamps, loyalty_cards, loyalty_programs;
+   DELETE FROM settings WHERE key IN ('moduleLoyalty', 'loyaltyInit');
+   ```
+
+### Test
+
+I test del modulo (token, codice breve, lettura del QR, regole dei timbri, messaggio) girano con `npm test` nella cartella
+`backend`. La prova completa su PostgreSQL (creazione, cifratura, attesa tra due timbri, completamento, annullamento,
+pagina pubblica, 404 identici, rigenerazione del link, scanner) parte con un database di prova:
+
+```bash
+TEST_DATABASE_URL=postgres://studio:studio@localhost:5432/prova npm test   # cancella le carte fidelity di quel database
+```
 
 ## Amministrazione: il comando `./studio`
 
@@ -503,6 +602,8 @@ Microsoft Authenticator, Authy, 2FAS, Aegis…): standard TOTP, funziona senza i
 | `DATA_KEY` | Chiave che cifra nome, telefono e note dei pazienti (generata; **non cambiarla e conservane una copia fuori dal server**). |
 | `HTTP_PORT` | Porta pubblicata sull'host, solo con `_deploy_network_example.yml` (predefinita 80). |
 | `CONFIRM_URL` | Indirizzo dei link di conferma su un dominio separato, es. `https://conferma.dominio.it` (facoltativo; vale se non è impostato in Impostazioni). |
+| `CARD_BASE_URL` | Dominio delle fidelity card (`https://carte.dominio.it`), vedi la sezione *Fidelity card*. |
+| `CARD_PORT` | Porta pubblicata per le carte, solo con `_deploy_network_example.yml` (predefinita 8200; `update.sh` ne assegna una libera se manca). |
 | `CONFIRM_PORT` | Porta pubblicata per le conferme, solo con `_deploy_network_example.yml` (predefinita 8180; `update.sh` ne assegna una libera se manca). |
 | `TZ` | Fuso orario, determina il "giorno di oggi" (predefinito `Europe/Rome`). |
 

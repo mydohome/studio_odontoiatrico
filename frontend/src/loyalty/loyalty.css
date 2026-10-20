@@ -530,3 +530,123 @@
   display: grid;
   gap: 6px;
 }
+
+/* ---------- Carta stampabile (856 × 540, ridotta per lo schermo) ---------- */
+
+.lc-print-wrap {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.lc-print-preview {
+  width: min(100%, 560px);
+  aspect-ratio: 856 / 540;
+  overflow: hidden;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+
+.lc-print-card {
+  box-sizing: border-box;
+  padding: 34px 40px 26px;
+  border-radius: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: 'Fredoka', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.lc-print-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.lc-print-studio {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.lc-print-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.lc-print-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lc-print-kind {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.lc-print-title {
+  font-family: 'Lobster', cursive;
+  font-size: 64px;
+  line-height: 1.05;
+}
+
+.lc-print-reward {
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1.2;
+  max-width: 400px;
+}
+
+.lc-print-holder {
+  margin-top: 8px;
+  font-size: 28px;
+  font-weight: 500;
+}
+
+.lc-print-qr {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 14px 14px 10px;
+  border-radius: 18px;
+  background: #fff;
+  color: #111;
+}
+
+.lc-print-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.lc-print-foot {
+  font-size: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Invio al cliente ---------- */
+
+.lc-send {
+  display: grid;
+  gap: 8px;
+}
+
+.lc-send textarea {
+  font-size: 0.9rem;
+}
+
+.btn.is-disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}

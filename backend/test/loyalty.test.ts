@@ -6,6 +6,7 @@ import {
   firstName,
   formatShortCode,
   isValidShortCode,
+  loyaltyMessage,
   normalizeShortCode,
   readCardCode,
   shortCodeFromRandom,
@@ -115,4 +116,16 @@ test('dominio delle carte da CARD_BASE_URL', () => {
     if (old === undefined) delete process.env.CARD_BASE_URL
     else process.env.CARD_BASE_URL = old
   }
+})
+
+test('messaggio al cliente: solo nome di battesimo, premio e link', () => {
+  const url = 'https://carte.studio.it/f/' + 'a'.repeat(32)
+  const msg = loyaltyMessage({ studioName: 'Studio Rossi', holderName: 'Maria Grazia Rossi', stampsRequired: 10, reward: 'Igiene gratuita', url })
+  assert.match(msg, /^\*Studio Rossi\* - La tua carta fedeltà\n\nGentile Maria,\n/)
+  assert.ok(msg.includes('con 10 timbri ottieni: Igiene gratuita.'))
+  assert.ok(msg.includes(`\n${url}\n`))
+  assert.ok(!msg.includes('Rossi,') && !msg.includes('Grazia'), 'niente cognome')
+  // Solo caratteri Latin-1: arriva intatto anche da WhatsApp Web.
+  for (const c of msg) assert.ok(c.codePointAt(0)! <= 0xff, `carattere ${c}`)
+  assert.match(loyaltyMessage({ studioName: 'S', holderName: '', stampsRequired: 5, reward: 'x', url }), /Gentile cliente,/)
 })

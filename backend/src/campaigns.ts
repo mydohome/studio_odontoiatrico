@@ -282,8 +282,8 @@ export function buildCampaigns(
   const lastComplete = addMonths(currentMonth, -1)
 
   // Totali mensili per categoria e per servizio.
-  const byCat: Record<string, Record<string, number>> = Object.fromEntries(CAT_IDS.map((c) => [c, {}]))
-  const bySvc: Record<string, Record<string, number>> = {}
+  const byCat: Record<string, Record<string, number>> = Object.assign(Object.create(null), Object.fromEntries(CAT_IDS.map((c) => [c, {}])))
+  const bySvc: Record<string, Record<string, number>> = Object.create(null)
   let firstMonth: string | null = null
   for (const r of records) {
     const ym = monthKey(r.d)

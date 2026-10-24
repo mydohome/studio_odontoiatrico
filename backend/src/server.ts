@@ -513,7 +513,7 @@ app.put('/api/settings', async (req) => {
     const m = body.modules as Record<string, unknown> | null
     if (!m || typeof m !== 'object') throw new HttpError(400, 'Moduli non validi')
     for (const [k, v] of Object.entries(m)) {
-      if (!(k in MODULE_KEYS) || typeof v !== 'boolean') throw new HttpError(400, `Modulo non valido: ${k}`)
+      if (!Object.hasOwn(MODULE_KEYS, k) || typeof v !== 'boolean') throw new HttpError(400, `Modulo non valido: ${k}`)
       await setSetting(MODULE_KEYS[k as keyof Modules], String(v))
     }
   }

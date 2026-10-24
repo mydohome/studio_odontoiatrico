@@ -31,3 +31,12 @@ test('slug da nome', () => {
   assert.equal(slugify('Perché è così!', 'x'), 'perche-e-cosi')
   assert.equal(slugify('!!!', 'categoria'), 'categoria')
 })
+
+test('id come «constructor» o «__proto__» non sono categorie (nessuna chiave ereditata dall\'oggetto)', () => {
+  for (const k of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) {
+    assert.equal(CATEGORY_BY_ID[k], undefined, k)
+    assert.equal(k in CATEGORY_BY_ID, false, k)
+    assert.equal(badgeColor(k), '#6b7280')
+  }
+  assert.ok(CATEGORY_BY_ID.prevenzione)
+})

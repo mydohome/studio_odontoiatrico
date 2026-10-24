@@ -82,3 +82,14 @@ test('parseDateCell interpreta i formati comuni', () => {
   assert.equal(parseDateCell('31/02/2026'), null)
   assert.equal(parseDateCell('ciao'), null)
 })
+
+test('una prestazione chiamata «constructor» non sporca gli oggetti globali né rompe le campagne', () => {
+  const odd = [...services, { id: 'constructor', name: 'Constructor', category: 'prevenzione', price: 10, active: true, sort: 99 }]
+  const data: RecordRow[] = []
+  for (let d = '2025-01-01'; d <= '2026-08-31'; d = addDays(d, 1)) data.push({ d, s: 'constructor', q: 2 }, { d, s: 'igiene', q: 2 })
+  const r = buildCampaigns(odd, data, '2026-09-10', 3)
+  assert.ok(r.months.length === 3)
+  // Nessuna chiave dei mesi finita sulla funzione Object (prototype pollution).
+  assert.equal((Object as unknown as Record<string, unknown>)['2025-01'], undefined)
+  assert.equal(({} as Record<string, unknown>)['2025-01'], undefined)
+})

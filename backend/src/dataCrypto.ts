@@ -48,6 +48,9 @@ export function loadDataKey(): void {
   KEY = parseDataKey(process.env.DATA_KEY)
 }
 
+/** Chiave caricata (per ricavare le chiavi della inbox delle richieste web). */
+export const loadedDataKey = (): Buffer | null => KEY
+
 /** Senza chiave i dati restano in chiaro (installazioni non ancora aggiornate). */
 export const encrypt = (plain: string, field: string) => (KEY ? encryptWith(KEY, plain, field) : plain)
 

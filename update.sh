@@ -312,6 +312,22 @@ if grep -q 'BOOKING_PORT' docker-compose.yml && [ -z "$(env_get BOOKING_PORT)" ]
   done
 fi
 
+# Container delle richieste web: chiave dei codici e password dell'utente del database (solo schema inbox).
+if grep -q 'BOOKING_DB_PASSWORD' docker-compose.yml; then
+  gen_alnum() {
+    local out=''
+    while [ "${#out}" -lt "$1" ]; do out+=$(LC_ALL=C tr -dc 'A-Za-z0-9' < <(head -c 256 /dev/urandom)); done
+    printf '%s' "${out:0:$1}"
+  }
+  for v in BOOKING_SECRET:48 BOOKING_DB_PASSWORD:32; do
+    name=${v%%:*}
+    if [ -z "$(env_get "$name")" ]; then
+      printf '\n# Container delle richieste web (aggiunta da update.sh)\n%s=%s\n' "$name" "$(gen_alnum "${v##*:}")" >>.env
+      ok "Generata $name per il container delle richieste web."
+    fi
+  done
+fi
+
 # Chiave che firma i cookie di accesso: nelle installazioni vecchie sta nel database (quindi anche nei backup
 # e nei dump: chi ne ha una copia potrebbe costruire un cookie valido). Si sposta nel .env con lo stesso valore
 # (nessuno deve rifare l'accesso) e il backend toglie la copia dal database all'avvio.

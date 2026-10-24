@@ -4,7 +4,7 @@
 #   ./studio                       stato dell'app e dei controlli (come "status")
 #   ./studio status                container, versione, backup, chiave dei dati, avvisi
 #   ./studio start | stop | restart
-#   ./studio logs [api|app|db] [-f]           ultimi log (con -f li segue)
+#   ./studio logs [api|app|booking|db] [-f]           ultimi log (con -f li segue)
 #   ./studio backup [--list | --install-cron [HH:MM] | --remove-cron]
 #   ./studio restore [--latest | --file PERCORSO | --list]
 #   ./studio update [--check | --yes | --rebuild | --install-cron [HH:MM] | --remove-cron]
@@ -118,7 +118,7 @@ cmd_status() {
   # Container.
   printf '  %-16s' "Container"
   local svc state health line all_ok=1 starting=0
-  for svc in app api db; do
+  for svc in app api $(grep -q '^  booking:' docker-compose.yml && echo booking) db; do
     line=$(docker compose ps -a --format '{{.State}}|{{.Health}}' "$svc" 2>/dev/null | head -n1) || true
     state=${line%%|*}
     health=${line#*|}
@@ -304,8 +304,8 @@ cmd_logs() {
   for a in "$@"; do
     case "$a" in
       -f | --follow) follow=(-f) ;;
-      app | api | db) svc+=("$a") ;;
-      *) die "Uso: ./studio logs [api|app|db] [-f]" ;;
+      app | api | booking | db) svc+=("$a") ;;
+      *) die "Uso: ./studio logs [api|app|booking|db] [-f]" ;;
     esac
   done
   docker compose logs --tail 100 "${follow[@]}" "${svc[@]}"

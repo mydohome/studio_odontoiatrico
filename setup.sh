@@ -326,6 +326,8 @@ if [ -f "$ENV_FILE" ]; then
   KEEP_DB_NAME=$(env_get POSTGRES_DB "$ENV_FILE")
   KEEP_SESSION=$(env_get SESSION_SECRET "$ENV_FILE")
   KEEP_DATA_KEY=$(env_get DATA_KEY "$ENV_FILE")
+  KEEP_BOOKING_SECRET=$(env_get BOOKING_SECRET "$ENV_FILE")
+  KEEP_BOOKING_DB_PASSWORD=$(env_get BOOKING_DB_PASSWORD "$ENV_FILE")
   OLD_PORT=$(env_get HTTP_PORT "$ENV_FILE")
   OLD_TZ=$(env_get TZ "$ENV_FILE")
   OLD_CONFIRM_URL=$(env_get CONFIRM_URL "$ENV_FILE")
@@ -526,6 +528,8 @@ if [ "$REWRITE_ENV" -eq 1 ]; then
   DB_PASSWORD=${KEEP_DB_PASSWORD:-$(gen_secret 32)}
   SESSION=${KEEP_SESSION:-$(gen_secret 48)}
   DATAKEY=${KEEP_DATA_KEY:-$(gen_data_key)}
+  BOOKING_SECRET=${KEEP_BOOKING_SECRET:-$(gen_secret 48)}
+  BOOKING_DB_PASSWORD=${KEEP_BOOKING_DB_PASSWORD:-$(gen_secret 32)}
   [ -n "$KEEP_DATA_KEY" ] || NEW_DATA_KEY=1
   no_quotes "$DB_PASSWORD" || die "La password del database non può contenere apici singoli."
 
@@ -566,6 +570,9 @@ CARD_PORT=$KPORT
 
 # Richieste web su un dominio dedicato (vuoto = non usate)
 BOOKING_BASE_URL=$BOOKING_LINK
+# Container delle richieste web (separato dal gestionale): chiave dei codici e password dell'utente del database che vede solo la inbox
+BOOKING_SECRET=$BOOKING_SECRET
+BOOKING_DB_PASSWORD=$BOOKING_DB_PASSWORD
 # Porta pubblicata per le richieste (solo con $TPL_NETWORK; in NPM sullo stesso host si usa la 8083 del container)
 BOOKING_PORT=$BPORT
 

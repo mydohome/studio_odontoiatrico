@@ -15,6 +15,7 @@
 #
 # Regole applicate:
 # - Solo "app" (Nginx con l'interfaccia) sta su proxy-net: e' l'unico raggiungibile da NPM.
+# - "booking" (richieste web) sta su reti interne proprie: vede "app" e il database con un utente limitato.
 # - "api" e "db" stanno SOLO sulla rete interna "backend" (internal: true), senza accesso
 #   a Internet e invisibili agli altri servizi su proxy-net.
 # - Nessuna porta pubblicata sull'host: si entra solo passando da NPM.
@@ -32,9 +33,11 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+      - booking
     networks:
       - proxy-net
       - backend
+      - booking
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -73,6 +76,8 @@ services:
       CARD_BASE_URL: ${CARD_BASE_URL:-}
       # Dominio dedicato alle richieste web (es. https://prenota.dominio.it), diverso dal gestionale.
       BOOKING_BASE_URL: ${BOOKING_BASE_URL:-}
+      # Password dell'utente del database usato dal container delle richieste web (solo schema inbox).
+      BOOKING_DB_PASSWORD: ${BOOKING_DB_PASSWORD:-}
     depends_on:
       db:
         condition: service_healthy
@@ -85,6 +90,44 @@ services:
       - ALL
     mem_limit: 224m
     cpus: 1.0
+    logging: *logging
+
+  # Richieste web (pagina pubblica del modulo): un container a parte, con una sola password del database
+  # che vede solo lo schema "inbox". Non riceve DATA_KEY, SESSION_SECRET né la password principale: se
+  # venisse violato non potrebbe leggere pazienti, utenti o agenda. Raggiungibile solo da "app" (porta 8083).
+  booking:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: ${INSTANCE:-studio-odontoiatrico}-api:latest
+    container_name: ${INSTANCE:-studio-odontoiatrico}-booking
+    restart: unless-stopped
+    command: ["node", "src/bookingServer.ts"]
+    environment:
+      BOOKING_DATABASE_URL: postgres://booking_inbox:${BOOKING_DB_PASSWORD:-}@db:5432/${POSTGRES_DB:-studio}
+      BOOKING_SECRET: ${BOOKING_SECRET:-}
+      TZ: ${TZ:-Europe/Rome}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      booking:
+        aliases: [studio-booking] # nome usato da Nginx per raggiungere il modulo
+      inbox: {}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 128m
+    cpus: 0.5
     logging: *logging
 
   db:
@@ -114,6 +157,7 @@ services:
       retries: 10
     networks:
       - backend
+      - inbox
     security_opt:
       - no-new-privileges:true
     mem_limit: 256m
@@ -124,4 +168,10 @@ networks:
   proxy-net:
     external: true
   backend:
+    internal: true
+  # Solo "app" e "booking" (richieste web).
+  booking:
+    internal: true
+  # Solo "booking" e "db": il container pubblico vede il database e nient'altro.
+  inbox:
     internal: true

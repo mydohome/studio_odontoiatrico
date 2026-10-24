@@ -944,16 +944,16 @@ async function start() {
   }
   await loadSecret()
   await initDataCrypto()
-  // Richieste web non gestite (30 giorni) e impronte IP (7 giorni): pulizia all'avvio e ogni ora.
-  const purge = () => Promise.all([purgeWebRequests(), purgeInbox()]).catch((e) => app.log.error(e))
-  await purge()
-  setInterval(purge, 3600_000).unref()
-  // Richieste web: schema e utente della inbox, poi ogni 10 secondi pubblica lo stato e importa le richieste.
+  // Richieste web: schema e utente della inbox, poi pulizia (richieste non gestite oltre 30 giorni, codici e
+  // contatori scaduti) all'avvio e ogni ora; ogni 10 secondi si pubblica lo stato e si importano le richieste.
   try {
     await migrateInbox()
   } catch (e) {
     app.log.error(e)
   }
+  const purge = () => Promise.all([purgeWebRequests(), purgeInbox()]).catch((e) => app.log.error(e))
+  await purge()
+  setInterval(purge, 3600_000).unref()
   const syncInbox = async () => {
     try {
       await publishWebRequests()

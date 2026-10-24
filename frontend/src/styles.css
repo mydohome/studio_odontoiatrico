@@ -44,6 +44,8 @@
   --whatsapp: #1fa855;
   --st-resched: #3730a3;
   --st-resched-soft: #e0e7ff;
+  --st-web: #0f6b7a;
+  --st-web-soft: #d9f1f4;
   --st-noshow: #9f1239;
   --st-noshow-soft: #fde4ea;
 }
@@ -94,6 +96,8 @@
     --whatsapp: #25c463;
     --st-resched: #a5b4fc;
     --st-resched-soft: #1e1b4b;
+    --st-web: #5fd0e0;
+    --st-web-soft: #0d2f35;
     --st-noshow: #fb7f99;
     --st-noshow-soft: #3b1420;
   }
@@ -2465,6 +2469,70 @@ a.public-line {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
 
+/* Richieste dal sito web */
+.st-web {
+  --c: var(--st-web);
+  --c-soft: var(--st-web-soft);
+}
+
+.to-web {
+  display: grid;
+  gap: 8px;
+}
+
+.to-web.has-items {
+  border-color: color-mix(in srgb, var(--st-web) 45%, var(--border));
+  box-shadow: inset 4px 0 0 var(--st-web), var(--shadow);
+}
+
+.to-web .to-confirm-head h2 svg {
+  color: var(--st-web);
+}
+
+.to-web:not(.has-items) {
+  padding-block: 12px;
+}
+
+.to-web:not(.has-items) h2 {
+  font-size: 0.95rem;
+}
+
+/* Tinta fissa (anche nel tema scuro): la scritta bianca deve restare leggibile. */
+.to-web-count {
+  background: #0f6b7a;
+}
+
+.alert-web {
+  background: var(--st-web-soft);
+  color: var(--st-web);
+  border: 1px solid color-mix(in srgb, var(--st-web) 30%, transparent);
+}
+
+.btn-web-solid {
+  background: #0f6b7a;
+  border-color: #0f6b7a;
+  color: #fff;
+}
+
+.btn-web-solid:hover {
+  background: #0b5561;
+}
+
+/* Piccolo contatore sulla scheda Appuntamenti. */
+.tab-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #0f6b7a;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 /* Da riprogrammare */
 .st-resched {
   --c: var(--st-resched);
@@ -3158,4 +3226,24 @@ a.public-line {
 .sec-confirm label {
   display: grid;
   gap: 4px;
+}
+
+/* Impostazioni → Moduli: opzioni di un modulo attivo, sotto il suo interruttore. */
+.setting-sub {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.setting-sub .row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.setting-sub .row-actions .input {
+  flex: 1;
+  min-width: 0;
 }

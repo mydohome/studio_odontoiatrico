@@ -2,7 +2,7 @@ import type { Appointment, AppointmentStatus, ScheduledAppointment } from '../..
 import { whatsAppMessage } from '../../../shared/appointments.ts'
 import { today } from '../../../shared/dates.ts'
 import type { AppSettings } from './api.ts'
-import { CalendarX2, Check, CheckCheck, Clock, Send, UserX } from 'lucide-react'
+import { CalendarX2, Check, CheckCheck, Clock, Inbox, Send, UserX } from 'lucide-react'
 
 /** Icona di ogni stato. */
 export const STATUS_ICON: Record<AppointmentStatus, typeof Check> = {
@@ -12,6 +12,7 @@ export const STATUS_ICON: Record<AppointmentStatus, typeof Check> = {
   'da-inviare': Send,
   'non-presentato': UserX,
   'da-riprogrammare': CalendarX2,
+  'richiesta-web': Inbox,
 }
 
 export const STATUS: Record<AppointmentStatus, { label: string; short: string; cls: string }> = {
@@ -21,9 +22,10 @@ export const STATUS: Record<AppointmentStatus, { label: string; short: string; c
   'da-inviare': { label: 'Messaggio non ancora inviato', short: 'Da inviare', cls: 'st-new' },
   'non-presentato': { label: 'Il paziente non si è presentato', short: 'Non presentato', cls: 'st-noshow' },
   'da-riprogrammare': { label: 'Da riprogrammare: il paziente deve spostare l\'appuntamento', short: 'Da riprogrammare', cls: 'st-resched' },
+  'richiesta-web': { label: 'Richiesta dal sito web: da richiamare e fissare', short: 'Richiesta web', cls: 'st-web' },
 }
 
-export const STATUS_ORDER: AppointmentStatus[] = ['confermato-link', 'confermato-manuale', 'inviato', 'da-inviare', 'non-presentato', 'da-riprogrammare']
+export const STATUS_ORDER: AppointmentStatus[] = ['confermato-link', 'confermato-manuale', 'inviato', 'da-inviare', 'non-presentato', 'da-riprogrammare', 'richiesta-web']
 
 /** Indirizzo da usare nei link: quello impostato, altrimenti quello con cui si usa l'app. */
 export function publicBase(settings: AppSettings): string {

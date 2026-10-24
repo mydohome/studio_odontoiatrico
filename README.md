@@ -80,6 +80,8 @@ gestionale e, consigliato, uno per i **link di conferma** degli appuntamenti su 
 | | NPM su un altro host | `http` | IP di questo server | `CONFIRM_PORT` (predefinita 8180) |
 | fidelity card (es. `carte.dominio.it`, solo se usi il modulo) | NPM sullo stesso host (`proxy-net`) | `http` | `<istanza>-app` | `8082` |
 | | NPM su un altro host | `http` | IP di questo server | `CARD_PORT` (predefinita 8200) |
+| richieste web (es. `prenota.dominio.it`, solo se usi il modulo) | NPM sullo stesso host (`proxy-net`) | `http` | `<istanza>-app` | `8083` |
+| | NPM su un altro host | `http` | IP di questo server | `BOOKING_PORT` (predefinita 8220) |
 
 **Perché un dominio separato per le conferme.** Sulla porta delle conferme il container risponde **solo** alla pagina
 `/c/<codice>`, alle API pubbliche dell'appuntamento e al logo: niente gestionale, niente pagina di accesso, tutto il resto
@@ -139,7 +141,7 @@ Le installazioni create prima dell'introduzione delle istanze continuano a usare
 
 ### Intestazioni di sicurezza, chiavi e aggiornamenti
 
-- **Politica di sicurezza dei contenuti (CSP)** su tutte le pagine dell'app (gestionale, conferme, carte): gli script si
+- **Politica di sicurezza dei contenuti (CSP)** su tutte le pagine dell'app (gestionale, conferme, carte, richieste web): gli script si
   eseguono solo dai file dell'app, quindi un testo iniettato in una pagina non può far partire codice, e le pagine non
   possono caricare risorse né inviare dati ad altri domini. È in `frontend/nginx/csp.conf`. In più `Permissions-Policy`
   (la fotocamera è consentita solo al gestionale, per lo scanner delle fidelity card), `X-Frame-Options: DENY`,
@@ -176,7 +178,7 @@ Le installazioni create prima dell'introduzione delle istanze continuano a usare
 In **Impostazioni → Moduli** si possono spegnere **Appuntamenti** e **Campagne** per uno studio che non li usa. Un
 modulo spento è solo nascosto: la sua scheda sparisce, insieme alle impostazioni che lo riguardano (indirizzo dei link di
 conferma e colori dei badge per gli appuntamenti, modello dei volantini per le campagne), ma i dati restano salvati e
-tornano visibili riattivandolo. Con gli appuntamenti spenti, i link di conferma già inviati continuano a funzionare e gli
+tornano visibili riattivandolo. I moduli **Gift card**, **Fidelity card** e **Richieste web** (sezioni dedicate più sotto) sono spenti di default. Con gli appuntamenti spenti, i link di conferma già inviati continuano a funzionare e gli
 appuntamenti confermati contano ancora nelle statistiche.
 
 ## Gift card
@@ -309,6 +311,126 @@ pagina pubblica, 404 identici, rigenerazione del link, scanner) parte con un dat
 
 ```bash
 TEST_DATABASE_URL=postgres://studio:studio@localhost:5432/prova npm test   # cancella le carte fidelity di quel database
+```
+
+## Richieste web (da WordPress o da qualsiasi sito)
+
+Il pulsante **«Prenota appuntamento»** del sito dello studio apre un modulo su un **dominio dedicato** (es.
+`https://prenota.dominio.it`). Il cliente lascia nome, cognome, telefono, una breve descrizione e la fascia oraria in cui
+preferisce essere richiamato; la richiesta arriva nell'agenda come **«Richiesta web»**: l'operatore chiama il cliente, poi
+sceglie prestazione, medico, data e ora e prosegue come per ogni appuntamento (messaggio da inviare, conferma). **Il
+cliente non vede mai l'agenda e il sito non riceve né conserva i dati**: il modulo è una pagina dell'app, non del sito.
+Nessuna notifica esterna: solo il riquadro nell'agenda, il contatore sulla scheda *Appuntamenti* e un avviso nell'app.
+Il modulo è **spento di default**: si attiva in *Impostazioni → Moduli → Richieste web* e richiede il modulo Appuntamenti.
+
+### Come funziona e come è protetto
+
+- **Codice monouso a tempo.** Aprendo la pagina il server emette un codice casuale di 192 bit **firmato** (HMAC-SHA256 con
+  la chiave dell'app) che vale **10 minuti** e **una sola volta**: all'invio il suo identificativo viene registrato con la
+  richiesta (indice univoco), quindi rinviare lo stesso modulo o riusare il codice dà errore. Mentre il cliente scrive il
+  codice si rinnova da solo (ultimi 2 minuti), fino a 30 minuti in tutto; un codice scaduto o già usato non si rinnova.
+  Il codice non sta nel database finché non viene usato: chi apre la pagina e non invia non lascia tracce.
+- **Antibot.** Campo trappola invisibile (se compilato la richiesta viene scartata senza avvisare), tempo minimo di 3 secondi
+  per compilare, al massimo **3 richieste all'ora e 8 al giorno per indirizzo IP**, limite di codici emessi e di invii
+  respinti per IP, limite di Nginx sulle API del modulo e, **davanti a tutto, la sfida di Cloudflare** (vedi sotto).
+  Oltre **200 richieste da gestire** il modulo smette di accettarne e invita a telefonare.
+- **Isolamento.** Sulla porta **8083** il container risponde **soltanto** alla pagina `/prenota`, alle sue risorse e alle
+  API `/api/public/requests/…` (controllo in Nginx e nel backend con `X-Public-Gateway: requests`). Gestionale, accesso e
+  le altre API sono 404 da quel dominio; viceversa, quelle API non rispondono dal dominio del gestionale.
+- **Dati.** Nome, telefono e testo sono **cifrati con `DATA_KEY`** come quelli dei pazienti. Si registrano data e versione
+  del **consenso** (con l'indirizzo dell'informativa mostrata) e un'**impronta** dell'IP (HMAC, non l'indirizzo) usata solo
+  per i limiti, che si azzera dopo **7 giorni**. Le richieste **non gestite si cancellano dopo 30 giorni**; quelle fissate
+  diventano appuntamenti normali. Il modulo invita a non scrivere dati sulla salute.
+- **Informativa.** Il consenso rimanda alla pagina privacy del sito, il cui indirizzo si imposta nelle Impostazioni del
+  modulo: **finché manca, il modulo online resta chiuso**. Il testo dell'informativa va redatto con chi si occupa di privacy
+  per lo studio: l'app registra solo che il cliente l'ha accettata.
+
+### Configurazione passo per passo
+
+Sostituisci `prenota.dominio.it` con il tuo dominio.
+
+**1. Sul server** (cartella dell'istanza): `./studio update`, poi nel `.env` aggiungi
+
+```
+BOOKING_BASE_URL=https://prenota.dominio.it
+```
+
+(senza `/` finale) e `./studio restart`. Con NPM su un altro host `update.sh` ha già assegnato `BOOKING_PORT` (8220–8239):
+apri quella porta nel firewall solo verso l'IP di NPM. `./studio status` segnala il modulo attivo senza dominio.
+
+**2. Cloudflare → DNS.** Record `A` (o `CNAME`) `prenota` verso l'IP del server/di NPM, con la **nuvola arancione** (proxy).
+
+**3. Cloudflare → SSL/TLS.** *Overview*: modalità **Full (strict)**. *Edge Certificates*: **Always Use HTTPS** attivo. Il
+certificato lo emette NPM (Let's Encrypt); se la richiesta fallisce con il proxy attivo, passa temporaneamente alla nuvola
+grigia, ottieni il certificato e riattiva l'arancione.
+
+**4. NPM → Proxy Host** `prenota.dominio.it`: Scheme `http`, Forward Hostname `<istanza>-app` e porta `8083` (NPM sullo
+stesso host) oppure IP del server e `BOOKING_PORT`; scheda *SSL*: certificato Let's Encrypt, **Force SSL**, **HSTS**;
+nessuna Access List (il modulo deve essere pubblico).
+
+**5. Cloudflare → Security → WAF → Custom rules → Create rule** «Prenota - sfida». *Edit expression*:
+
+```
+(http.host eq "prenota.dominio.it" and (http.request.uri.path eq "/" or http.request.uri.path eq "/prenota" or starts_with(http.request.uri.path, "/api/public/requests")))
+```
+
+Azione **Managed Challenge**. Chi apre la pagina supera la verifica (di solito invisibile) e Cloudflare gli assegna un
+cookie; una chiamata diretta alle API senza quel cookie, come fanno i programmi automatici, riceve la sfida e non arriva
+all'app. Controllo (deve rispondere `403` con `cf-mitigated: challenge`; dal browser invece la pagina si apre):
+
+```bash
+curl -sI https://prenota.dominio.it/api/public/requests/session | grep -i "HTTP\|cf-mitigated"
+```
+
+In *Security → Settings* lascia **Challenge Passage** a 30 minuti (o più): è la durata massima di un modulo.
+
+**6. Cloudflare → Security → WAF → Rate limiting rules.** Piano gratuito: una regola, finestra di 10 secondi. Espressione
+`(http.host eq "prenota.dominio.it" and http.request.method eq "POST")`, conteggio per IP, **5 richieste ogni 10 secondi**,
+azione **Block**. È solo una prima barriera: i limiti veri (orari e giornalieri) sono nell'app.
+
+**7. Cloudflare → altre impostazioni.** *Security → Bots*: **Bot Fight Mode** attivo. Per questo dominio **spegni**:
+*Speed → Optimization → Rocket Loader*, l'inserimento automatico di *Web Analytics*, *Email Address Obfuscation* e le
+minificazioni automatiche (riscrivono o aggiungono script e la CSP della pagina li blocca). Nessuna regola *Cache
+Everything* su questo dominio.
+
+**8. Nell'app.** *Impostazioni → Moduli → Richieste web*: attiva, scrivi l'**indirizzo dell'informativa** (pagina privacy del
+sito) e salva: compare il link da usare. Nel `.env` ora deve esserci `BOOKING_BASE_URL`.
+
+**9. Sul sito WordPress.** Nessun plugin né codice: il pulsante o la voce di menu «Prenota appuntamento» è un normale
+**link** a `https://prenota.dominio.it/prenota` (anche la sola radice del dominio funziona). Conviene aprirlo nella stessa
+scheda e avere nel sito la pagina con l'informativa privacy indicata al punto 8.
+
+**Prova.** Apri il link dal telefono, invia una richiesta: entro un minuto compaiono il riquadro *Richieste web* e il
+contatore sulla scheda *Appuntamenti*. Riaprire la stessa pagina e inviare di nuovo funziona (nuovo codice); rinviare il
+modulo già inviato, o attendere oltre 10 minuti senza scrivere nulla, mostra un errore e la pagina ne emette uno nuovo.
+
+Nota: con la nuvola arancione Cloudflare vede in chiaro il traffico del modulo (come per ogni sito dietro Cloudflare): è il
+prezzo della sfida antibot. Il certificato Let's Encrypt del sottodominio compare nei registri pubblici (crt.sh): il nome
+del dominio non è segreto, la protezione sta nei controlli sopra.
+
+### Eliminare il modulo
+
+Per nasconderlo basta spegnerlo in *Impostazioni → Moduli* (il modulo online smette di rispondere, le richieste già
+arrivate restano). Per toglierlo del tutto:
+
+1. su GitHub, nella pull request che ha introdotto il modulo, **Revert** e unisci la pull request di annullamento,
+   poi `./studio update` su ogni server;
+2. cancella i dati (irreversibile: prima `./studio backup`):
+   ```bash
+   ./studio db
+   DELETE FROM appointments WHERE day IS NULL AND web_request_at IS NOT NULL;
+   ALTER TABLE appointments DROP COLUMN web_request_at, DROP COLUMN web_slot, DROP COLUMN web_nonce, DROP COLUMN web_consent, DROP COLUMN web_ip_hash;
+   DELETE FROM settings WHERE key IN ('moduleRequests', 'bookingPrivacyUrl');
+   ```
+
+### Test
+
+I test del modulo (codice firmato, scadenza e rinnovi, validazione, limiti) girano con `npm test` nella cartella `backend`.
+La prova su PostgreSQL (rotte, cifratura, codice monouso, limiti per IP, trappola, stato «richiesta web», pulizia dopo 30 giorni)
+parte con un database di prova:
+
+```bash
+TEST_DATABASE_URL=postgres://studio:studio@localhost:5432/prova npm test   # cancella le richieste web di quel database
 ```
 
 ## Amministrazione: il comando `./studio`
@@ -621,6 +743,8 @@ Microsoft Authenticator, Authy, 2FAS, Aegis…): standard TOTP, funziona senza i
 | `CONFIRM_URL` | Indirizzo dei link di conferma su un dominio separato, es. `https://conferma.dominio.it` (facoltativo; vale se non è impostato in Impostazioni). |
 | `CARD_BASE_URL` | Dominio delle fidelity card (`https://carte.dominio.it`), vedi la sezione *Fidelity card*. |
 | `CARD_PORT` | Porta pubblicata per le carte, solo con `_deploy_network_example.yml` (predefinita 8200; `update.sh` ne assegna una libera se manca). |
+| `BOOKING_BASE_URL` | Dominio delle richieste web (`https://prenota.dominio.it`), vedi la sezione *Richieste web*. |
+| `BOOKING_PORT` | Porta pubblicata per le richieste web, solo con `_deploy_network_example.yml` (predefinita 8220; `update.sh` ne assegna una libera tra 8220 e 8239 se manca). |
 | `CONFIRM_PORT` | Porta pubblicata per le conferme, solo con `_deploy_network_example.yml` (predefinita 8180; `update.sh` ne assegna una libera se manca). |
 | `TZ` | Fuso orario, determina il "giorno di oggi" (predefinito `Europe/Rome`). |
 

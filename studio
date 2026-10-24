@@ -165,6 +165,13 @@ cmd_status() {
     [ -n "$card_url" ] || warnings+=("Fidelity card attive ma senza dominio: imposta CARD_BASE_URL nel .env (es. https://carte.dominio.it) e ./studio restart")
   fi
 
+  if running db && [ "$(sql "SELECT value FROM settings WHERE key='moduleRequests'" || true)" = true ]; then
+    local booking_url
+    booking_url=$(env_get BOOKING_BASE_URL)
+    printf '  %-16s %s\n' "Richieste web" "${booking_url:-dominio non impostato}"
+    [ -n "$booking_url" ] || warnings+=("Richieste web attive ma senza dominio: imposta BOOKING_BASE_URL nel .env (es. https://prenota.dominio.it) e ./studio restart")
+  fi
+
   # Dati.
   if running db; then
     local counts users appts plain

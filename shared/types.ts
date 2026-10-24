@@ -113,7 +113,7 @@ export type CustomCampaignInput = Pick<
 >
 
 /** Stato della conferma di un appuntamento. */
-export type AppointmentStatus = 'da-inviare' | 'inviato' | 'confermato-link' | 'confermato-manuale' | 'non-presentato' | 'da-riprogrammare'
+export type AppointmentStatus = 'da-inviare' | 'inviato' | 'confermato-link' | 'confermato-manuale' | 'non-presentato' | 'da-riprogrammare' | 'richiesta-web'
 
 /** Medico dello studio: ha un colore che contraddistingue i suoi appuntamenti nell'agenda. */
 export interface Doctor {
@@ -148,6 +148,9 @@ export interface Appointment {
   prevDay: string | null
   prevTime: string | null
   rescheduleAt: string | null
+  /** Richiesta arrivata dal sito (stato «richiesta-web» finché non le si dà una data): quando e fascia oraria preferita. */
+  webRequestAt: string | null
+  webSlot: 'mattina' | 'pomeriggio' | 'indifferente' | null
   notes: string
   /** Codice segreto del link di conferma. */
   token: string

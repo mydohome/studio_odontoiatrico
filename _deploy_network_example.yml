@@ -11,6 +11,7 @@
 #      gestionale (es. studio.dominio.it):  http / <IP di questo server> / HTTP_PORT
 #      conferme   (es. conferma.dominio.it): http / <IP di questo server> / CONFIRM_PORT (predefinita 8180)
 #      carte      (es. carte.dominio.it, solo se usi le fidelity card): http / <IP di questo server> / CARD_PORT (predefinita 8200)
+#      prenota    (es. prenota.dominio.it, solo se usi le richieste web): http / <IP di questo server> / BOOKING_PORT (predefinita 8220)
 #      SSL: certificato Let's Encrypt + "Force SSL"; sul gestionale conviene una Access List
 #
 # Regole applicate:
@@ -38,6 +39,8 @@ services:
       - "${CONFIRM_PORT:-8180}:8081"
       # Solo fidelity card (dominio dedicato alle carte): nessun accesso al gestionale.
       - "${CARD_PORT:-8200}:8082"
+      # Solo richieste web (dominio dedicato alle richieste): nessun accesso al gestionale.
+      - "${BOOKING_PORT:-8220}:8083"
     networks:
       - web
       - backend
@@ -77,6 +80,8 @@ services:
       CONFIRM_URL: ${CONFIRM_URL:-}
       # Dominio dedicato alle fidelity card (es. https://carte.dominio.it), diverso dal gestionale.
       CARD_BASE_URL: ${CARD_BASE_URL:-}
+      # Dominio dedicato alle richieste web (es. https://prenota.dominio.it), diverso dal gestionale.
+      BOOKING_BASE_URL: ${BOOKING_BASE_URL:-}
     depends_on:
       db:
         condition: service_healthy

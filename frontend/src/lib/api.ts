@@ -14,6 +14,7 @@ import type {
 } from '../../../shared/types.ts'
 import type { Category } from '../../../shared/catalog.ts'
 import type { PublicLoyaltyCard } from '../../../shared/loyalty.ts'
+import type { BookingInput, BookingSession } from '../../../shared/webRequests.ts'
 
 export interface AppSettings {
   studioName: string
@@ -32,7 +33,7 @@ export interface AppSettings {
   /** Modello grafico dei volantini: "Smile" (colorato) o "Mint" (pulito, tecnologico). */
   flyerStyle: 'smile' | 'mint'
   /** Moduli visibili (disattivato = nascosto, i dati restano). */
-  modules: { appointments: boolean; campaigns: boolean; giftcards: boolean; loyalty: boolean }
+  modules: { appointments: boolean; campaigns: boolean; giftcards: boolean; loyalty: boolean; requests: boolean }
   /** Indirizzo pubblico dell'app per i link di conferma (vuoto = quello del browser). */
   publicUrl: string
 }
@@ -171,6 +172,8 @@ export const api = {
   deleteCustomCampaign: (id: number) => request<{ ok: boolean }>('DELETE', `/api/custom-campaigns/${id}`),
 
   appointments: (from: string, to: string) => request<ScheduledAppointment[]>('GET', `/api/appointments?from=${from}&to=${to}`),
+  webRequests: () => request<Appointment[]>('GET', '/api/appointments/web-requests'),
+  webRequestCount: () => request<{ count: number }>('GET', '/api/web-requests/count'),
   toReschedule: () => request<Appointment[]>('GET', '/api/appointments/to-reschedule'),
   rescheduleAppointment: (id: number) => request<Appointment>('POST', `/api/appointments/${id}/reschedule`, {}),
   searchAppointments: (q: string) => request<Appointment[]>('GET', `/api/appointments/search?q=${encodeURIComponent(q)}`),
@@ -183,6 +186,11 @@ export const api = {
   appointmentNoShow: (id: number, noShow: boolean) => request<Appointment>('POST', `/api/appointments/${id}/no-show`, { noShow }),
   appointmentConfirmation: (id: number, confirmed: boolean) =>
     request<Appointment>('POST', `/api/appointments/${id}/confirmation`, { confirmed }),
+  bookingSession: () => request<BookingSession>('GET', '/api/public/requests/session'),
+  bookingRenew: (token: string) => request<BookingSession>('POST', '/api/public/requests/renew', { token }),
+  bookingSubmit: (input: BookingInput) => request<{ ok: true }>('POST', '/api/public/requests/submit', input),
+  webRequestsInfo: () => request<{ baseUrl: string | null; privacyUrl: string }>('GET', '/api/web-requests/info'),
+  saveWebRequestsInfo: (privacyUrl: string) => request<{ baseUrl: string | null; privacyUrl: string }>('PUT', '/api/web-requests/info', { privacyUrl }),
   publicCard: (token: string) => request<PublicLoyaltyCard>('GET', `/api/public/cards/${encodeURIComponent(token)}`),
   publicAppointment: (token: string) => request<PublicAppointment>('GET', `/api/public/appointments/${encodeURIComponent(token)}`),
   confirmAppointment: (token: string) =>

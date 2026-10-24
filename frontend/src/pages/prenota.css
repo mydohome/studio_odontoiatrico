@@ -1,0 +1,87 @@
+/* Pagina pubblica «richiesta di appuntamento»: riusa lo stile del modulo di accesso. */
+.booking .card {
+  max-width: 460px;
+}
+
+.booking-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .booking-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.booking label.field-label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.booking label.field-label .small {
+  font-weight: 400;
+}
+
+.booking textarea.input {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.booking-slots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.booking-slots legend {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.booking-slots label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.booking-slots label:has(input:checked) {
+  border-color: var(--primary, #3868bd);
+  background: color-mix(in srgb, var(--primary, #3868bd) 10%, transparent);
+}
+
+.booking-consent {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.85rem;
+}
+
+/* Campo trappola per i programmi automatici: fuori schermo, non nascosto con display:none. */
+.booking-trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.booking-done {
+  display: grid;
+  gap: 10px;
+  text-align: center;
+  padding: 8px 0;
+}

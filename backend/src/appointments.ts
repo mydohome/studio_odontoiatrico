@@ -18,6 +18,7 @@ const COLUMNS = `a.id, a.day, to_char(a.start_time, 'HH24:MI') AS time, a.durati
   coalesce(s.name, a.service_name) AS "serviceName", s.category AS "serviceCategory", s.color AS "serviceColor",
   a.doctor_id AS "doctorId", d.name AS "doctorName", d.color AS "doctorColor",
   a.prev_day AS "prevDay", to_char(a.prev_time, 'HH24:MI') AS "prevTime", a.reschedule_at AS "rescheduleAt",
+  a.web_request_at AS "webRequestAt", a.web_slot AS "webSlot",
   a.notes, a.token,
   a.sent_at AS "sentAt", a.send_count AS "sendCount", a.last_sent_at AS "lastSentAt",
   a.call_count AS "callCount", a.last_call_at AS "lastCallAt",
@@ -63,13 +64,21 @@ export async function migrateAppointments(): Promise<void> {
     ALTER TABLE appointments ADD COLUMN IF NOT EXISTS no_show_at timestamptz;
     -- Medico che esegue la prestazione.
     ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_id integer REFERENCES doctors(id) ON DELETE SET NULL;
+    -- Richieste web (modulo webRequests.ts): senza data finché lo studio non le categorizza.
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS web_request_at timestamptz;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS web_slot text;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS web_nonce text;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS web_consent text;
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS web_ip_hash text;
+    CREATE UNIQUE INDEX IF NOT EXISTS appointments_web_nonce ON appointments (web_nonce) WHERE web_nonce IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS appointments_web_ip ON appointments (web_ip_hash, web_request_at) WHERE web_ip_hash IS NOT NULL;
   `)
 }
 
 type Row = Omit<Appointment, 'status'> & { confirmedVia: 'link' | 'manuale' | null }
 
 function statusOf(r: Row): AppointmentStatus {
-  if (r.day === null) return 'da-riprogrammare'
+  if (r.day === null) return r.webRequestAt ? 'richiesta-web' : 'da-riprogrammare'
   if (r.noShowAt) return 'non-presentato'
   if (r.confirmedAt) return r.confirmedVia === 'manuale' ? 'confermato-manuale' : 'confermato-link'
   return r.sentAt ? 'inviato' : 'da-inviare'
@@ -253,7 +262,7 @@ export async function updateAppointment(id: number, input: AppointmentInput): Pr
        no_show_at = CASE WHEN ${MOVED} THEN NULL ELSE no_show_at END,
        day = $2, start_time = $3, duration_min = $4, patient_name = $5, patient_phone = $6,
        service_id = $7, service_name = $8, notes = $9, doctor_id = $11, updated_at = now(),
-       prev_day = NULL, prev_time = NULL, reschedule_at = NULL
+       prev_day = NULL, prev_time = NULL, reschedule_at = NULL, web_request_at = NULL
      WHERE id = $1`,
     [id, input.day, input.time, input.duration, pn, pp, input.serviceId, name, notes, phoneChanged, input.doctorId],
   )
@@ -296,7 +305,15 @@ export async function setToReschedule(id: number): Promise<Appointment> {
 
 /** Appuntamenti da riprogrammare, dal più vecchio. */
 export async function listToReschedule(): Promise<Appointment[]> {
-  const { rows } = await pool.query(`SELECT ${COLUMNS} FROM ${FROM} WHERE a.day IS NULL ORDER BY a.reschedule_at, a.id`)
+  const { rows } = await pool.query(`SELECT ${COLUMNS} FROM ${FROM} WHERE a.day IS NULL AND a.web_request_at IS NULL ORDER BY a.reschedule_at, a.id`)
+  return rows.map(toAppointment)
+}
+
+/** Richieste arrivate dal sito, dalla più vecchia. */
+export async function listWebRequests(): Promise<Appointment[]> {
+  const { rows } = await pool.query(
+    `SELECT ${COLUMNS} FROM ${FROM} WHERE a.day IS NULL AND a.web_request_at IS NOT NULL ORDER BY a.web_request_at, a.id`,
+  )
   return rows.map(toAppointment)
 }
 

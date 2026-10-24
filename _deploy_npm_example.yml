@@ -10,6 +10,7 @@
 #      gestionale (es. studio.dominio.it):  http / <INSTANCE>-app / 80    (es. studio-odontoiatrico-app)
 #      conferme   (es. conferma.dominio.it): http / <INSTANCE>-app / 8081  (solo pagina di conferma)
 #      carte      (es. carte.dominio.it, solo se usi le fidelity card): http / <INSTANCE>-app / 8082  (solo carte)
+#      prenota    (es. prenota.dominio.it, solo se usi le richieste web): http / <INSTANCE>-app / 8083  (solo richieste)
 #      SSL: certificato Let's Encrypt + "Force SSL"; sul gestionale conviene una Access List
 #
 # Regole applicate:
@@ -70,6 +71,8 @@ services:
       CONFIRM_URL: ${CONFIRM_URL:-}
       # Dominio dedicato alle fidelity card (es. https://carte.dominio.it), diverso dal gestionale.
       CARD_BASE_URL: ${CARD_BASE_URL:-}
+      # Dominio dedicato alle richieste web (es. https://prenota.dominio.it), diverso dal gestionale.
+      BOOKING_BASE_URL: ${BOOKING_BASE_URL:-}
     depends_on:
       db:
         condition: service_healthy

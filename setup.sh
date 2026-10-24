@@ -183,6 +183,15 @@ free_card_port() {
   printf '8200'
 }
 
+# Prima porta libera per le richieste web tra 8220 e 8239.
+free_booking_port() {
+  local p
+  for p in $(seq 8220 8239); do
+    [ "$p" != "${PORT:-}" ] && [ "$p" != "${CPORT:-}" ] && [ "$p" != "${KPORT:-}" ] && ! port_in_use "$p" && { printf '%s' "$p"; return; }
+  done
+  printf '8220'
+}
+
 # Indirizzo dei link di conferma: vuoto oppure http(s)://host[/percorso], senza / finale.
 normalize_url() {
   local u=$1
@@ -299,6 +308,8 @@ OLD_CONFIRM_URL=''
 OLD_CONFIRM_PORT=''
 OLD_CARD_URL=''
 OLD_CARD_PORT=''
+OLD_BOOKING_URL=''
+OLD_BOOKING_PORT=''
 OLD_INSTANCE=''
 FRESH_INSTALL=1
 REWRITE_ENV=1
@@ -321,6 +332,8 @@ if [ -f "$ENV_FILE" ]; then
   OLD_CONFIRM_PORT=$(env_get CONFIRM_PORT "$ENV_FILE")
   OLD_CARD_URL=$(env_get CARD_BASE_URL "$ENV_FILE")
   OLD_CARD_PORT=$(env_get CARD_PORT "$ENV_FILE")
+  OLD_BOOKING_URL=$(env_get BOOKING_BASE_URL "$ENV_FILE")
+  OLD_BOOKING_PORT=$(env_get BOOKING_PORT "$ENV_FILE")
   # Installazioni create prima dell'introduzione delle istanze: nome storico.
   OLD_INSTANCE=$(env_get INSTANCE "$ENV_FILE")
   OLD_INSTANCE=${OLD_INSTANCE:-studio-odontoiatrico}
@@ -356,6 +369,8 @@ CONFIRM_LINK=$OLD_CONFIRM_URL
 CPORT=${OLD_CONFIRM_PORT:-8180}
 CARD_LINK=$OLD_CARD_URL
 KPORT=${OLD_CARD_PORT:-8200}
+BOOKING_LINK=$OLD_BOOKING_URL
+BPORT=${OLD_BOOKING_PORT:-8220}
 INSTANCE_NAME=${ARG_INSTANCE:-${OLD_INSTANCE:-studio-odontoiatrico}}
 if [ "$REWRITE_ENV" -eq 1 ]; then
   # Nome dell'istanza: prefisso di container, immagini e reti. Permette più studi sullo stesso
@@ -469,6 +484,34 @@ if [ "$REWRITE_ENV" -eq 1 ]; then
     done
   fi
 
+  # Richieste web (modulo per le richieste di appuntamento dal sito): dominio dedicato (facoltativo).
+  [ "$ASSUME_YES" -eq 1 ] || info "Richieste web: il modulo che riceve le richieste di appuntamento dal sito sta su un dominio dedicato (es. prenota.dominio.it), che mostra solo quello. Invio senza indirizzo = non lo usi ancora; \"-\" toglie quello impostato. Si può aggiungere dopo nel .env (BOOKING_BASE_URL)."
+  while :; do
+    ans=$(ask "Indirizzo delle richieste web (es. https://prenota.dominio.it)" "${BOOKING_BASE_URL:-$OLD_BOOKING_URL}")
+    [ "$ans" = - ] && ans=''
+    if BOOKING_LINK=$(normalize_url "$ans"); then break; fi
+    [ "$ASSUME_YES" -eq 1 ] && die "Indirizzo delle richieste web non valido: $ans"
+    warn "Indirizzo non valido: scrivi per esempio https://prenota.dominio.it (oppure invio per nessuno)."
+  done
+  if [ "$MODE" = network ]; then
+    DEFAULT_BPORT=${BOOKING_PORT:-${OLD_BOOKING_PORT:-}}
+    [ -n "$DEFAULT_BPORT" ] || DEFAULT_BPORT=$(free_booking_port)
+    while :; do
+      BPORT=$(ask "Porta per le richieste web (solo richieste)" "$DEFAULT_BPORT")
+      if ! [[ "$BPORT" =~ ^[0-9]+$ ]] || [ "$BPORT" -lt 1 ] || [ "$BPORT" -gt 65535 ] || [ "$BPORT" = "$PORT" ] || [ "$BPORT" = "$CPORT" ] || [ "$BPORT" = "$KPORT" ]; then
+        [ "$ASSUME_YES" -eq 1 ] && die "Porta per le richieste web non valida: $BPORT"
+        warn "Inserisci un numero tra 1 e 65535 diverso dalle porte già scelte ($PORT, $CPORT, $KPORT)."
+        continue
+      fi
+      if [ "$BPORT" != "$OLD_BOOKING_PORT" ] && port_in_use "$BPORT"; then
+        [ "$ASSUME_YES" -eq 1 ] && die "La porta $BPORT è già in uso su questo server. Scegline un'altra con BOOKING_PORT=..."
+        warn "La porta $BPORT è già in uso su questo server: scegline un'altra (es. $(free_booking_port))."
+        continue
+      fi
+      break
+    done
+  fi
+
   # Fuso orario.
   DEFAULT_TZ=${TZ:-${OLD_TZ:-Europe/Rome}}
   while :; do
@@ -520,6 +563,11 @@ CONFIRM_PORT=$CPORT
 CARD_BASE_URL=$CARD_LINK
 # Porta pubblicata per le carte (solo con $TPL_NETWORK; in NPM sullo stesso host si usa la 8082 del container)
 CARD_PORT=$KPORT
+
+# Richieste web su un dominio dedicato (vuoto = non usate)
+BOOKING_BASE_URL=$BOOKING_LINK
+# Porta pubblicata per le richieste (solo con $TPL_NETWORK; in NPM sullo stesso host si usa la 8083 del container)
+BOOKING_PORT=$BPORT
 
 # Fuso orario (determina il "giorno di oggi")
 TZ=$TIMEZONE
@@ -713,6 +761,7 @@ fi
 echo "  Fuso orario:    $TIMEZONE"
 echo "  Link conferma:  ${CONFIRM_LINK:-stesso indirizzo del gestionale (Impostazioni → Studio)}"
 echo "  Fidelity card:  ${CARD_LINK:-dominio non impostato (CARD_BASE_URL nel .env)}"
+echo "  Richieste web:  ${BOOKING_LINK:-dominio non impostato (BOOKING_BASE_URL nel .env)}"
 echo "  Backup:         $BACKUP_STATUS"
 if [ "$NEW_DATA_KEY" -eq 1 ]; then
   echo
@@ -751,6 +800,17 @@ if [ -n "$CARD_LINK" ]; then
   else
     echo "  Per le fidelity card (${CARD_HOST}) un altro Proxy Host, che mostra solo le carte (apri anche la porta $KPORT):"
     echo "    Scheme: http   Forward Hostname: ${HOST_IP:-<ip-di-questo-server>}   Forward Port: $KPORT"
+  fi
+fi
+if [ -n "$BOOKING_LINK" ]; then
+  BOOKING_HOST=${BOOKING_LINK#*://}
+  BOOKING_HOST=${BOOKING_HOST%%/*}
+  if [ "$MODE" = npm ]; then
+    echo "  Per le richieste web (${BOOKING_HOST}) un altro Proxy Host, che mostra solo il modulo di richiesta:"
+    echo "    Scheme: http   Forward Hostname: $INSTANCE_NAME-app   Forward Port: 8083"
+  else
+    echo "  Per le richieste web (${BOOKING_HOST}) un altro Proxy Host, che mostra solo il modulo di richiesta (apri anche la porta $BPORT):"
+    echo "    Scheme: http   Forward Hostname: ${HOST_IP:-<ip-di-questo-server>}   Forward Port: $BPORT"
   fi
 fi
 if [ -n "$CONFIRM_LINK" ]; then

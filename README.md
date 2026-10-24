@@ -325,7 +325,7 @@ Il modulo è **spento di default**: si attiva in *Impostazioni → Moduli → Ri
 
 ### Come funziona e come è protetto
 
-- **Codice monouso a tempo.** Aprendo la pagina il server emette un codice casuale di 128 bit **firmato** (HMAC-SHA256 con
+- **Codice monouso a tempo.** Aprendo la pagina il server emette un codice casuale di 192 bit **firmato** (HMAC-SHA256 con
   la chiave dell'app) che vale **10 minuti** e **una sola volta**: all'invio il suo identificativo viene registrato con la
   richiesta (indice univoco), quindi rinviare lo stesso modulo o riusare il codice dà errore. Mentre il cliente scrive il
   codice si rinnova da solo (ultimi 2 minuti), fino a 30 minuti in tutto; un codice scaduto o già usato non si rinnova.

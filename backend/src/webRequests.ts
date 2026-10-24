@@ -54,11 +54,11 @@ export function bookingBaseUrl(): string | null {
 // v1.<nonce>.<apertura>.<emissione>.<firma>: apertura = quando il cliente ha aperto il modulo
 // (non cambia nei rinnovi), emissione = quando è stato emesso questo codice.
 
-const NONCE_RE = /^[A-Za-z0-9_-]{22}$/
+const NONCE_RE = /^[A-Za-z0-9_-]{32}$/
 const sig = (key: Buffer, payload: string) => createHmac('sha256', key).update(`booking|${payload}`).digest('base64url')
 
 export function issueToken(key: Buffer, now: number, startedAt = now): { token: string; nonce: string } {
-  const nonce = randomBytes(16).toString('base64url')
+  const nonce = randomBytes(24).toString('base64url')
   const payload = `v1.${nonce}.${startedAt}.${now}`
   return { token: `${payload}.${sig(key, payload)}`, nonce }
 }

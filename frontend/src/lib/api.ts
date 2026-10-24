@@ -13,6 +13,7 @@ import type {
   DoctorRecordRow,
 } from '../../../shared/types.ts'
 import type { Category } from '../../../shared/catalog.ts'
+import type { PublicLoyaltyCard } from '../../../shared/loyalty.ts'
 
 export interface AppSettings {
   studioName: string
@@ -31,7 +32,7 @@ export interface AppSettings {
   /** Modello grafico dei volantini: "Smile" (colorato) o "Mint" (pulito, tecnologico). */
   flyerStyle: 'smile' | 'mint'
   /** Moduli visibili (disattivato = nascosto, i dati restano). */
-  modules: { appointments: boolean; campaigns: boolean; giftcards: boolean }
+  modules: { appointments: boolean; campaigns: boolean; giftcards: boolean; loyalty: boolean }
   /** Indirizzo pubblico dell'app per i link di conferma (vuoto = quello del browser). */
   publicUrl: string
 }
@@ -182,6 +183,7 @@ export const api = {
   appointmentNoShow: (id: number, noShow: boolean) => request<Appointment>('POST', `/api/appointments/${id}/no-show`, { noShow }),
   appointmentConfirmation: (id: number, confirmed: boolean) =>
     request<Appointment>('POST', `/api/appointments/${id}/confirmation`, { confirmed }),
+  publicCard: (token: string) => request<PublicLoyaltyCard>('GET', `/api/public/cards/${encodeURIComponent(token)}`),
   publicAppointment: (token: string) => request<PublicAppointment>('GET', `/api/public/appointments/${encodeURIComponent(token)}`),
   confirmAppointment: (token: string) =>
     request<PublicAppointment>('POST', `/api/public/appointments/${encodeURIComponent(token)}/confirm`),

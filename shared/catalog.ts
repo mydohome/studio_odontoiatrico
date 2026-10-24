@@ -54,7 +54,8 @@ export const DEFAULT_CATEGORIES: Category[] = [
  * così tutte le schede e i calcoli leggono le stesse categorie senza doverle passare ovunque.
  */
 export const CATEGORIES: CategoryInfo[] = []
-export const CATEGORY_BY_ID: Record<CategoryId, CategoryInfo> = {}
+// Senza prototipo: un id arrivato dall'esterno come «constructor» o «__proto__» non risulta una categoria.
+export const CATEGORY_BY_ID: Record<CategoryId, CategoryInfo> = Object.create(null)
 
 export function setCategories(list: Category[]): void {
   const sorted = [...list].sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label))

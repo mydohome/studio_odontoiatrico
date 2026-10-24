@@ -290,6 +290,40 @@ if grep -q 'CONFIRM_PORT' docker-compose.yml && [ -z "$(env_get CONFIRM_PORT)" ]
   done
 fi
 
+# Porta delle fidelity card (solo con NPM su un altro server): come per le conferme, una libera tra 8200 e 8219.
+if grep -q 'CARD_PORT' docker-compose.yml && [ -z "$(env_get CARD_PORT)" ]; then
+  for p in $(seq 8200 8219); do
+    if ! port_busy "$p"; then
+      printf '\n# Porta pubblicata per le fidelity card (aggiunta da update.sh)\nCARD_PORT=%s\n' "$p" >>.env
+      ok "Porta per le fidelity card: $p (CARD_PORT nel .env)."
+      break
+    fi
+  done
+fi
+
+# Chiave che firma i cookie di accesso: nelle installazioni vecchie sta nel database (quindi anche nei backup
+# e nei dump: chi ne ha una copia potrebbe costruire un cookie valido). Si sposta nel .env con lo stesso valore
+# (nessuno deve rifare l'accesso) e il backend toglie la copia dal database all'avvio.
+if [ -z "$(env_get SESSION_SECRET)" ] && grep -q 'SESSION_SECRET' docker-compose.yml; then
+  sess=''
+  if [ -n "$(docker compose ps --status running -q db 2>/dev/null)" ]; then
+    sess=$(docker compose exec -T db sh -c 'psql -X -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<<"SELECT value FROM settings WHERE key='sessionSecret'" 2>/dev/null | head -n1 | tr -d '\r\n') || true
+  fi
+  if ! [[ "$sess" =~ ^[A-Za-z0-9_-]{16,}$ ]]; then
+    if command -v openssl >/dev/null 2>&1; then
+      sess=$(openssl rand -base64 48 | tr -d '\n=' | tr '+/' '-_')
+    else
+      sess=$(head -c 48 /dev/urandom | od -An -v -tx1 | tr -d ' \n')
+    fi
+  fi
+  if grep -q '^SESSION_SECRET=' .env; then
+    sed -i "s|^SESSION_SECRET=.*|SESSION_SECRET='$sess'|" .env
+  else
+    printf "\n# Chiave che firma i cookie di accesso (aggiunta da update.sh)\nSESSION_SECRET='%s'\n" "$sess" >>.env
+  fi
+  ok "Chiave delle sessioni spostata nel .env (non resta più nel database né nei backup)."
+fi
+
 # Chiave che cifra i dati dei pazienti: si genera una volta sola e poi non va più cambiata.
 if [ -z "$(env_get DATA_KEY)" ]; then
   if grep -q 'DATA_KEY' docker-compose.yml; then

@@ -55,8 +55,8 @@ export function generateDemo(services: Service[], from: string, to: string) {
     const dayFactor = dow === 6 ? 0.4 : 1
     const items = new Map<string, number>()
     for (const s of services) {
-      const base = BASE[s.id] ?? 0.5
-      const q = poisson(base * dayFactor * (SEASON[s.category] ?? FLAT)[month], rand)
+      const base = Object.hasOwn(BASE, s.id) ? BASE[s.id] : 0.5
+      const q = poisson(base * dayFactor * (Object.hasOwn(SEASON, s.category) ? SEASON[s.category] : FLAT)[month], rand)
       if (q > 0) items.set(s.id, q)
     }
     days.set(d, items)

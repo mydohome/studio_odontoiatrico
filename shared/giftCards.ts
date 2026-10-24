@@ -2,6 +2,8 @@
 // Tutto il modulo sta in questo file, in backend/src/giftCards.ts e in frontend/src/giftcards/:
 // per eliminarlo vedi la sezione "Gift card" del README.
 
+import { CODE_ALPHABET, checkChar } from './codes.ts'
+
 /** Credito in euro oppure un elenco di prestazioni (es. 1 controllo + 1 igiene). */
 export type GiftCardKind = 'credito' | 'prestazioni'
 
@@ -88,26 +90,9 @@ export interface GiftCardInput {
 
 // ---------- Codice ----------
 
-/** Caratteri senza ambiguità (niente 0/O, 1/I): si leggono e si dettano senza errori. */
-export const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+export { CODE_ALPHABET, checkChar }
 const PREFIX = 'GC'
 const BODY = 10
-
-/**
- * Carattere di controllo (algoritmo di Luhn mod N, come per le carte di credito): individua ogni
- * carattere sbagliato e quasi tutti gli scambi tra due caratteri vicini.
- */
-export function checkChar(body: string): string {
-  const n = CODE_ALPHABET.length
-  let factor = 2
-  let sum = 0
-  for (let i = body.length - 1; i >= 0; i--) {
-    const addend = factor * CODE_ALPHABET.indexOf(body[i])
-    sum += Math.floor(addend / n) + (addend % n)
-    factor = factor === 2 ? 1 : 2
-  }
-  return CODE_ALPHABET[(n - (sum % n)) % n]
-}
 
 /** Codice completo da caratteri casuali: GC + 10 caratteri + controllo (es. GC7KQ2MXP4RTH). */
 export function codeFromRandom(bytes: Uint8Array): string {

@@ -174,6 +174,15 @@ free_confirm_port() {
   printf '8180'
 }
 
+# Prima porta libera per le fidelity card tra 8200 e 8219 (diversa da quelle già scelte).
+free_card_port() {
+  local p
+  for p in $(seq 8200 8219); do
+    [ "$p" != "${PORT:-}" ] && [ "$p" != "${CPORT:-}" ] && ! port_in_use "$p" && { printf '%s' "$p"; return; }
+  done
+  printf '8200'
+}
+
 # Indirizzo dei link di conferma: vuoto oppure http(s)://host[/percorso], senza / finale.
 normalize_url() {
   local u=$1
@@ -288,6 +297,8 @@ OLD_PORT=''
 OLD_TZ=''
 OLD_CONFIRM_URL=''
 OLD_CONFIRM_PORT=''
+OLD_CARD_URL=''
+OLD_CARD_PORT=''
 OLD_INSTANCE=''
 FRESH_INSTALL=1
 REWRITE_ENV=1
@@ -308,6 +319,8 @@ if [ -f "$ENV_FILE" ]; then
   OLD_TZ=$(env_get TZ "$ENV_FILE")
   OLD_CONFIRM_URL=$(env_get CONFIRM_URL "$ENV_FILE")
   OLD_CONFIRM_PORT=$(env_get CONFIRM_PORT "$ENV_FILE")
+  OLD_CARD_URL=$(env_get CARD_BASE_URL "$ENV_FILE")
+  OLD_CARD_PORT=$(env_get CARD_PORT "$ENV_FILE")
   # Installazioni create prima dell'introduzione delle istanze: nome storico.
   OLD_INSTANCE=$(env_get INSTANCE "$ENV_FILE")
   OLD_INSTANCE=${OLD_INSTANCE:-studio-odontoiatrico}
@@ -341,6 +354,8 @@ PORT=${OLD_PORT:-80}
 TIMEZONE=${OLD_TZ:-Europe/Rome}
 CONFIRM_LINK=$OLD_CONFIRM_URL
 CPORT=${OLD_CONFIRM_PORT:-8180}
+CARD_LINK=$OLD_CARD_URL
+KPORT=${OLD_CARD_PORT:-8200}
 INSTANCE_NAME=${ARG_INSTANCE:-${OLD_INSTANCE:-studio-odontoiatrico}}
 if [ "$REWRITE_ENV" -eq 1 ]; then
   # Nome dell'istanza: prefisso di container, immagini e reti. Permette più studi sullo stesso
@@ -426,6 +441,34 @@ if [ "$REWRITE_ENV" -eq 1 ]; then
     done
   fi
 
+  # Fidelity card (carta a timbri): dominio dedicato, separato dal gestionale (facoltativo).
+  [ "$ASSUME_YES" -eq 1 ] || info "Fidelity card: i link e i QR delle carte stanno su un dominio dedicato (es. carte.dominio.it), che mostra solo le carte. Invio senza indirizzo = non le usi ancora; \"-\" toglie quello impostato. Si può aggiungere dopo nel .env (CARD_BASE_URL)."
+  while :; do
+    ans=$(ask "Indirizzo delle fidelity card (es. https://carte.dominio.it)" "${CARD_BASE_URL:-$OLD_CARD_URL}")
+    [ "$ans" = - ] && ans=''
+    if CARD_LINK=$(normalize_url "$ans"); then break; fi
+    [ "$ASSUME_YES" -eq 1 ] && die "Indirizzo delle fidelity card non valido: $ans"
+    warn "Indirizzo non valido: scrivi per esempio https://carte.dominio.it (oppure invio per nessuno)."
+  done
+  if [ "$MODE" = network ]; then
+    DEFAULT_KPORT=${CARD_PORT:-${OLD_CARD_PORT:-}}
+    [ -n "$DEFAULT_KPORT" ] || DEFAULT_KPORT=$(free_card_port)
+    while :; do
+      KPORT=$(ask "Porta per le fidelity card (solo carte)" "$DEFAULT_KPORT")
+      if ! [[ "$KPORT" =~ ^[0-9]+$ ]] || [ "$KPORT" -lt 1 ] || [ "$KPORT" -gt 65535 ] || [ "$KPORT" = "$PORT" ] || [ "$KPORT" = "$CPORT" ]; then
+        [ "$ASSUME_YES" -eq 1 ] && die "Porta per le fidelity card non valida: $KPORT"
+        warn "Inserisci un numero tra 1 e 65535 diverso dalle porte già scelte ($PORT, $CPORT)."
+        continue
+      fi
+      if [ "$KPORT" != "$OLD_CARD_PORT" ] && port_in_use "$KPORT"; then
+        [ "$ASSUME_YES" -eq 1 ] && die "La porta $KPORT è già in uso su questo server. Scegline un'altra con CARD_PORT=..."
+        warn "La porta $KPORT è già in uso su questo server: scegline un'altra (es. $(free_card_port))."
+        continue
+      fi
+      break
+    done
+  fi
+
   # Fuso orario.
   DEFAULT_TZ=${TZ:-${OLD_TZ:-Europe/Rome}}
   while :; do
@@ -472,6 +515,11 @@ HTTP_PORT=$PORT
 CONFIRM_URL=$CONFIRM_LINK
 # Porta pubblicata per le conferme (solo con $TPL_NETWORK; in NPM sullo stesso host si usa la 8081 del container)
 CONFIRM_PORT=$CPORT
+
+# Fidelity card su un dominio dedicato (vuoto = non usate)
+CARD_BASE_URL=$CARD_LINK
+# Porta pubblicata per le carte (solo con $TPL_NETWORK; in NPM sullo stesso host si usa la 8082 del container)
+CARD_PORT=$KPORT
 
 # Fuso orario (determina il "giorno di oggi")
 TZ=$TIMEZONE
@@ -664,6 +712,7 @@ if [ "$CREATE_USER" -eq 1 ]; then
 fi
 echo "  Fuso orario:    $TIMEZONE"
 echo "  Link conferma:  ${CONFIRM_LINK:-stesso indirizzo del gestionale (Impostazioni → Studio)}"
+echo "  Fidelity card:  ${CARD_LINK:-dominio non impostato (CARD_BASE_URL nel .env)}"
 echo "  Backup:         $BACKUP_STATUS"
 if [ "$NEW_DATA_KEY" -eq 1 ]; then
   echo
@@ -692,6 +741,17 @@ else
   fi
   echo "  Apri le porte $PORT${CONFIRM_LINK:+ e $CPORT} nel firewall, possibilmente solo verso l'IP del server NPM"
   echo "  (su OCI: Security List + iptables, vedi README)."
+fi
+if [ -n "$CARD_LINK" ]; then
+  CARD_HOST=${CARD_LINK#*://}
+  CARD_HOST=${CARD_HOST%%/*}
+  if [ "$MODE" = npm ]; then
+    echo "  Per le fidelity card (${CARD_HOST}) un altro Proxy Host, che mostra solo le carte:"
+    echo "    Scheme: http   Forward Hostname: $INSTANCE_NAME-app   Forward Port: 8082"
+  else
+    echo "  Per le fidelity card (${CARD_HOST}) un altro Proxy Host, che mostra solo le carte (apri anche la porta $KPORT):"
+    echo "    Scheme: http   Forward Hostname: ${HOST_IP:-<ip-di-questo-server>}   Forward Port: $KPORT"
+  fi
 fi
 if [ -n "$CONFIRM_LINK" ]; then
   echo "  Con le conferme su un dominio separato il gestionale può restare chiuso al pubblico:"

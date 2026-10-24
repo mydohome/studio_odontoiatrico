@@ -10,6 +10,7 @@
 # 3) Nel NPM remoto crea due "Proxy Host":
 #      gestionale (es. studio.dominio.it):  http / <IP di questo server> / HTTP_PORT
 #      conferme   (es. conferma.dominio.it): http / <IP di questo server> / CONFIRM_PORT (predefinita 8180)
+#      carte      (es. carte.dominio.it, solo se usi le fidelity card): http / <IP di questo server> / CARD_PORT (predefinita 8200)
 #      SSL: certificato Let's Encrypt + "Force SSL"; sul gestionale conviene una Access List
 #
 # Regole applicate:
@@ -35,6 +36,8 @@ services:
       - "${HTTP_PORT:-80}:80"
       # Solo conferme degli appuntamenti (dominio pubblico dei link): nessun accesso al gestionale.
       - "${CONFIRM_PORT:-8180}:8081"
+      # Solo fidelity card (dominio dedicato alle carte): nessun accesso al gestionale.
+      - "${CARD_PORT:-8200}:8082"
     networks:
       - web
       - backend
@@ -72,6 +75,8 @@ services:
       TZ: ${TZ:-Europe/Rome}
       # Indirizzo dei link di conferma (es. https://conferma.dominio.it), se diverso dal gestionale.
       CONFIRM_URL: ${CONFIRM_URL:-}
+      # Dominio dedicato alle fidelity card (es. https://carte.dominio.it), diverso dal gestionale.
+      CARD_BASE_URL: ${CARD_BASE_URL:-}
     depends_on:
       db:
         condition: service_healthy

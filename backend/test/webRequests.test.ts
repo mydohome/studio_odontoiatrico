@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { TOKEN_MAX_TOTAL_MS, TOKEN_TTL_MS } from '../../shared/webRequests.ts'
-import { issueToken, parseBooking, verifyToken, WebRequestError, WindowLimiter } from '../src/webRequests.ts'
+import { issueToken, parseBooking, verifyToken, WebRequestError, WindowLimiter } from '../src/bookingCore.ts'
+import { inboxKeys, open, seal } from '../src/inboxCrypto.ts'
 
 const key = Buffer.alloc(32, 7)
 const T0 = 1_800_000_000_000
@@ -90,4 +91,21 @@ test('il limite per IP scatta e poi si libera', () => {
   assert.equal(l.blocked('a', 20), true)
   assert.equal(l.blocked('b', 20), false)
   assert.equal(l.blocked('a', 1001), false)
+})
+
+test('sigillo della inbox: solo il gestionale riapre, e solo per la richiesta giusta', () => {
+  const k = inboxKeys(Buffer.alloc(32, 5))
+  const sealed = seal(k.publicRaw, '{"name":"Mario"}', 'nonce-1')
+  assert.ok(!sealed.includes('Mario'))
+  assert.equal(open(k.privateKey, sealed, 'nonce-1'), '{"name":"Mario"}')
+  // un altro identificativo, un'altra chiave o un sigillo manomesso non si aprono
+  assert.equal(open(k.privateKey, sealed, 'nonce-2'), null)
+  assert.equal(open(inboxKeys(Buffer.alloc(32, 6)).privateKey, sealed, 'nonce-1'), null)
+  const parts = sealed.split('.')
+  parts[3] = parts[3].slice(0, -4) + 'AAAA'
+  assert.equal(open(k.privateKey, parts.join('.'), 'nonce-1'), null)
+  for (const bad of ['', 's1', 's1.a.b.c', 'x.y.z.w', sealed + '.extra']) assert.equal(open(k.privateKey, bad, 'nonce-1'), null)
+  // ogni sigillo è diverso (chiave temporanea) e la chiave pubblica non permette di aprire
+  assert.notEqual(seal(k.publicRaw, 'a', 'n'), seal(k.publicRaw, 'a', 'n'))
+  assert.deepEqual(inboxKeys(Buffer.alloc(32, 5)).publicRaw, k.publicRaw)
 })

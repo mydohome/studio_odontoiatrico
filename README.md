@@ -334,12 +334,29 @@ Il modulo è **spento di default**: si attiva in *Impostazioni → Moduli → Ri
   per compilare, al massimo **3 richieste all'ora e 8 al giorno per indirizzo IP**, limite di codici emessi e di invii
   respinti per IP, limite di Nginx sulle API del modulo e, **davanti a tutto, la sfida di Cloudflare** (vedi sotto).
   Oltre **200 richieste da gestire** il modulo smette di accettarne e invita a telefonare.
-- **Isolamento.** Sulla porta **8083** il container risponde **soltanto** alla pagina `/prenota`, alle sue risorse e alle
-  API `/api/public/requests/…` (controllo in Nginx e nel backend con `X-Public-Gateway: requests`). Gestionale, accesso e
-  le altre API sono 404 da quel dominio; viceversa, quelle API non rispondono dal dominio del gestionale.
+- **Container separato.** La pagina pubblica non gira nel gestionale ma nel container **`booking`** (stessa immagine,
+  altro programma: `bookingServer.ts`). Non riceve `DATA_KEY`, `SESSION_SECRET` né la password principale del database;
+  ha il filesystem in sola lettura e nessun permesso speciale; sta su reti interne proprie, quindi **non raggiunge né
+  `api` né Internet** e `api` non raggiunge lui. Sulla porta **8083** Nginx lo fa rispondere **soltanto** alla pagina
+  `/prenota`, alle sue risorse e alle API `/api/public/requests/…` (controllo anche nel container con
+  `X-Public-Gateway: requests`); gestionale, accesso e altre API sono 404 da quel dominio, e quelle API non rispondono
+  dal dominio del gestionale.
+- **Database con un utente limitato.** Il container si collega con l'utente `booking_inbox`, che vede **solo lo schema
+  `inbox`**: può inserire richieste, codici usati e contatori e leggere le impostazioni pubblicate dal gestionale. Su
+  `appointments`, `users`, `settings` e il resto ottiene «permesso negato», e **non può leggere nemmeno le richieste** che
+  ha scritto. Anche violando il container, un attaccante non trova pazienti, utenti o agenda.
+- **Richieste sigillate.** Il container cifra nome, telefono e testo con una **chiave pubblica** (X25519 + AES-256-GCM) e
+  non sa riaprirli. La chiave privata la ricava solo il gestionale da `DATA_KEY`: **non c'è un segreto in più da
+  custodire**. Il gestionale legge la inbox **ogni 10 secondi**, **ricontrolla ogni richiesta** come se arrivasse da
+  fuori (sigillo valido per quella richiesta, campi e lunghezze, tetto di 200 in attesa), la salva nell'agenda cifrata
+  con `DATA_KEY` e la toglie dalla inbox; una richiesta non valida viene scartata. Il badge compare quindi con circa 10
+  secondi di ritardo. Se il gestionale è fermo le richieste restano in coda e arrivano alla ripartenza.
+- **Interruttore.** Attivare o spegnere il modulo, o cambiare l'informativa, si fa dal gestionale come sempre: lo stato
+  viene pubblicato nella inbox subito e ogni 10 secondi. Se il gestionale non lo aggiorna per più di **5 minuti** (fermo
+  o guasto), la pagina si chiude da sola.
 - **Dati.** Nome, telefono e testo sono **cifrati con `DATA_KEY`** come quelli dei pazienti. Si registrano data e versione
-  del **consenso** (con l'indirizzo dell'informativa mostrata) e un'**impronta** dell'IP (HMAC, non l'indirizzo) usata solo
-  per i limiti, che si azzera dopo **7 giorni**. Le richieste **non gestite si cancellano dopo 30 giorni**; quelle fissate
+  del **consenso** (con l'indirizzo dell'informativa mostrata). L'indirizzo IP non si salva: solo un'impronta con chiave
+  per i limiti, tenuta **un giorno**. Le richieste **non gestite si cancellano dopo 30 giorni**; quelle fissate
   diventano appuntamenti normali. Il modulo invita a non scrivere dati sulla salute.
 - **Informativa.** Il consenso rimanda alla pagina privacy del sito, il cui indirizzo si imposta nelle Impostazioni del
   modulo: **finché manca, il modulo online resta chiuso**. Il testo dell'informativa va redatto con chi si occupa di privacy
@@ -349,7 +366,10 @@ Il modulo è **spento di default**: si attiva in *Impostazioni → Moduli → Ri
 
 Sostituisci `prenota.dominio.it` con il tuo dominio.
 
-**1. Sul server** (cartella dell'istanza): `./studio update`, poi nel `.env` aggiungi
+**1. Sul server** (cartella dell'istanza): `./studio update`. Aggiunge nel `.env` `BOOKING_SECRET` e `BOOKING_DB_PASSWORD`
+(generate, non vanno condivise), sostituisce `docker-compose.yml` con il template aggiornato (copia del precedente
+salvata) e avvia il nuovo container `booking`: se avevi personalizzato il compose non lo tocca e avvisa, e va unito a
+mano con il template. Poi nel `.env` aggiungi
 
 ```
 BOOKING_BASE_URL=https://prenota.dominio.it
@@ -419,19 +439,26 @@ arrivate restano). Per toglierlo del tutto:
    ```bash
    ./studio db
    DELETE FROM appointments WHERE day IS NULL AND web_request_at IS NOT NULL;
+   DROP SCHEMA inbox CASCADE;
+   DROP OWNED BY booking_inbox;
+   DROP ROLE booking_inbox;
    ALTER TABLE appointments DROP COLUMN web_request_at, DROP COLUMN web_slot, DROP COLUMN web_nonce, DROP COLUMN web_consent, DROP COLUMN web_ip_hash;
    DELETE FROM settings WHERE key IN ('moduleRequests', 'bookingPrivacyUrl');
    ```
 
 ### Test
 
-I test del modulo (codice firmato, scadenza e rinnovi, validazione, limiti) girano con `npm test` nella cartella `backend`.
-La prova su PostgreSQL (rotte, cifratura, codice monouso, limiti per IP, trappola, stato «richiesta web», pulizia dopo 30 giorni)
-parte con un database di prova:
+I test del modulo (codice firmato, scadenza e rinnovi, validazione, limiti, sigillo della inbox) girano con `npm test`
+nella cartella `backend`. La prova su PostgreSQL parte con un database di prova (serve un utente amministratore: crea
+lo schema e l'utente della inbox) e controlla tra l'altro che l'utente del container pubblico riceva «permesso negato»
+su tutto tranne la inbox, che la inbox contenga solo testo sigillato, l'importazione con richieste manomesse o non
+valide, il codice monouso anche dopo l'importazione, i limiti per IP, il tetto di richieste e la pulizia:
 
 ```bash
 TEST_DATABASE_URL=postgres://studio:studio@localhost:5432/prova npm test   # cancella le richieste web di quel database
 ```
+
+Per vedere cosa fa il container: `./studio logs booking -f`.
 
 ## Amministrazione: il comando `./studio`
 
@@ -744,6 +771,8 @@ Microsoft Authenticator, Authy, 2FAS, Aegis…): standard TOTP, funziona senza i
 | `CARD_BASE_URL` | Dominio delle fidelity card (`https://carte.dominio.it`), vedi la sezione *Fidelity card*. |
 | `CARD_PORT` | Porta pubblicata per le carte, solo con `_deploy_network_example.yml` (predefinita 8200; `update.sh` ne assegna una libera se manca). |
 | `BOOKING_BASE_URL` | Dominio delle richieste web (`https://prenota.dominio.it`), vedi la sezione *Richieste web*. |
+| `BOOKING_SECRET` | Chiave che firma i codici dei moduli, solo per il container `booking` (generata da `setup.sh`/`update.sh`). |
+| `BOOKING_DB_PASSWORD` | Password dell'utente `booking_inbox` del database, che vede solo la inbox (generata). |
 | `BOOKING_PORT` | Porta pubblicata per le richieste web, solo con `_deploy_network_example.yml` (predefinita 8220; `update.sh` ne assegna una libera tra 8220 e 8239 se manca). |
 | `CONFIRM_PORT` | Porta pubblicata per le conferme, solo con `_deploy_network_example.yml` (predefinita 8180; `update.sh` ne assegna una libera se manca). |
 | `TZ` | Fuso orario, determina il "giorno di oggi" (predefinito `Europe/Rome`). |

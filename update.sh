@@ -301,6 +301,17 @@ if grep -q 'CARD_PORT' docker-compose.yml && [ -z "$(env_get CARD_PORT)" ]; then
   done
 fi
 
+# Porta delle richieste web (solo con NPM su un altro server): una libera tra 8220 e 8239.
+if grep -q 'BOOKING_PORT' docker-compose.yml && [ -z "$(env_get BOOKING_PORT)" ]; then
+  for p in $(seq 8220 8239); do
+    if ! port_busy "$p"; then
+      printf '\n# Porta pubblicata per le richieste web (aggiunta da update.sh)\nBOOKING_PORT=%s\n' "$p" >>.env
+      ok "Porta per le richieste web: $p (BOOKING_PORT nel .env)."
+      break
+    fi
+  done
+fi
+
 # Chiave che firma i cookie di accesso: nelle installazioni vecchie sta nel database (quindi anche nei backup
 # e nei dump: chi ne ha una copia potrebbe costruire un cookie valido). Si sposta nel .env con lo stesso valore
 # (nessuno deve rifare l'accesso) e il backend toglie la copia dal database all'avvio.

@@ -309,6 +309,14 @@ export async function listToReschedule(): Promise<Appointment[]> {
   return rows.map(toAppointment)
 }
 
+/** Richieste arrivate dal sito, dalla più vecchia. */
+export async function listWebRequests(): Promise<Appointment[]> {
+  const { rows } = await pool.query(
+    `SELECT ${COLUMNS} FROM ${FROM} WHERE a.day IS NULL AND a.web_request_at IS NOT NULL ORDER BY a.web_request_at, a.id`,
+  )
+  return rows.map(toAppointment)
+}
+
 /** Chiamata al paziente senza risposta (per sapere chi è già stato cercato). */
 export async function markCalled(id: number): Promise<Appointment> {
   const r = await pool.query('UPDATE appointments SET call_count = call_count + 1, last_call_at = now() WHERE id=$1', [id])

@@ -19,6 +19,7 @@ import {
   markCalled,
   markSent,
   migrateAppointments,
+  listWebRequests,
   parseAppointment,
   searchAppointments,
   setManualConfirmation,
@@ -341,6 +342,8 @@ app.addHook('onRequest', async (req, reply) => {
   const open = ['/api/login', '/api/logout', '/api/health', '/api/me']
   // Secondo passaggio dell'accesso: si autorizza con il biglietto, non con la sessione.
   if (open.includes(path) || path.startsWith('/api/login/2fa')) return
+  // Richieste web: solo dal proprio dominio dedicato (gateway), mai dal gestionale.
+  if (path.startsWith('/api/public/requests/')) throw new HttpError(404, 'Non trovato')
   // Pagina di conferma degli appuntamenti: il paziente non ha un account, il codice nel link basta.
   if (path.startsWith('/api/public/')) return
   // Il logo si può leggere senza accesso (pagina di login); caricarlo o eliminarlo no.
@@ -744,6 +747,8 @@ app.get('/api/appointments/search', async (req) => {
 })
 
 app.get('/api/appointments/patients', async () => listPatients())
+
+app.get('/api/appointments/web-requests', async () => listWebRequests())
 
 app.get('/api/appointments/to-reschedule', async () => listToReschedule())
 

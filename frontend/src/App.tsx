@@ -1,6 +1,6 @@
 import { BarChart3, CalendarDays, ClipboardPlus, Gift, Loader2, Megaphone, Settings, Stamp } from 'lucide-react'
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
-import { ToastProvider } from './components/Toast.tsx'
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import { ToastProvider, useToast } from './components/Toast.tsx'
 import { Tooth } from './components/Tooth.tsx'
 import { api, setUnauthorizedHandler, type SessionUser, type StudioBrand } from './lib/api.ts'
 import { useCustomLogo } from './lib/logo.ts'
@@ -73,15 +73,45 @@ function FullLoader() {
 function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const [chosenTab, setTab] = useState<TabId>(tabFromHash)
   const data = useAppData()
+  const notify = useToast()
+  // Richieste web in attesa: contatore sulla scheda Appuntamenti e avviso quando ne arriva una nuova.
+  const [requestCount, setRequestCount] = useState(0)
+  const lastCount = useRef<number | null>(null)
+  const onAgenda = useRef(true)
+  const requestsOn = data.settings.modules.requests && data.settings.modules.appointments
   // Schede dei moduli disattivati: nascoste; se si era su una di quelle si va alla prima visibile.
   const visibleTabs = TABS.filter((t) => !t.module || data.settings.modules[t.module])
   const tab = visibleTabs.some((t) => t.id === chosenTab) ? chosenTab : visibleTabs[0].id
+  onAgenda.current = tab === 'appuntamenti'
   // Logo caricato dallo studio: se è quello scelto, compare anche nell'intestazione dell'app.
   const headerLogo = useCustomLogo(data.settings.logoType === 'custom' ? data.settings.logoVersion : 0)
 
   useEffect(() => {
     document.title = `${data.settings.studioName} · Prestazioni e campagne`
   }, [data.settings.studioName])
+
+  useEffect(() => {
+    if (!requestsOn) {
+      setRequestCount(0)
+      lastCount.current = null
+      return
+    }
+    const apply = (n: number, announce: boolean) => {
+      if (announce && !onAgenda.current && lastCount.current !== null && n > lastCount.current) notify(n === 1 ? 'Nuova richiesta web' : `${n} richieste web da gestire`)
+      lastCount.current = n
+      setRequestCount(n)
+    }
+    const poll = () => document.visibilityState === 'visible' && api.webRequestCount().then((r) => apply(r.count, true), () => {})
+    poll()
+    const t = window.setInterval(poll, 60_000)
+    // L'agenda aperta aggiorna il contatore e avvisa da sé: qui basta seguirlo.
+    const onEvent = (e: Event) => apply((e as CustomEvent<number>).detail, false)
+    window.addEventListener('web-requests', onEvent)
+    return () => {
+      window.clearInterval(t)
+      window.removeEventListener('web-requests', onEvent)
+    }
+  }, [requestsOn, notify])
 
   useEffect(() => {
     const onHash = () => setTab(tabFromHash())
@@ -113,6 +143,11 @@ function Shell({ user, onLogout }: { user: SessionUser; onLogout: () => void }) 
               <button key={t.id} className="tab" role="tab" aria-selected={tab === t.id} onClick={() => go(t.id)}>
                 {t.icon}
                 <span className="tab-label">{t.label}</span>
+                {t.id === 'appuntamenti' && requestCount > 0 && (
+                  <span className="tab-badge" title={`${requestCount} richieste web da gestire`} aria-label={`${requestCount} richieste web da gestire`}>
+                    {requestCount}
+                  </span>
+                )}
               </button>
             ))}
           </nav>

@@ -1,8 +1,9 @@
-import { AlertTriangle, CalendarClock, CalendarDays, CalendarX2, Check, CheckCheck, ChevronLeft, ChevronRight, Loader2, MessageCircle, Phone, PhoneMissed, Plus } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CalendarDays, CalendarX2, Check, CheckCheck, ChevronLeft, ChevronRight, Inbox, Loader2, MessageCircle, Phone, PhoneMissed, Plus } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { confirmUntil, endTime } from '../../../shared/appointments.ts'
 import { addDays, formatDay, formatLongDay, formatWeek, fromISO, isValidISO, startOfWeek, today, WEEKDAYS_SHORT } from '../../../shared/dates.ts'
 import type { Appointment, AppointmentInput, AppointmentStatus, ScheduledAppointment } from '../../../shared/types.ts'
+import { SLOT_LABEL } from '../../../shared/webRequests.ts'
 import AppointmentDetail from '../components/AppointmentDetail.tsx'
 import AppointmentForm from '../components/AppointmentForm.tsx'
 import AppointmentSearch from '../components/AppointmentSearch.tsx'
@@ -52,7 +53,7 @@ function useNow() {
   return now
 }
 
-type FormState = { id?: number; initial: AppointmentInput; wasConfirmed?: boolean; previous?: { day: string; time: string } | null } | null
+type FormState = { id?: number; initial: AppointmentInput; wasConfirmed?: boolean; previous?: { day: string; time: string } | null; web?: boolean } | null
 
 export default function Appuntamenti({ data }: { data: AppDataState }) {
   const notify = useToast()
@@ -65,12 +66,16 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
   const [pending, setPending] = useState<ScheduledAppointment[]>([])
   // Da riprogrammare: senza data e ora.
   const [toResched, setToResched] = useState<Appointment[]>([])
+  // Richieste arrivate dal sito web: senza data, da richiamare.
+  const [requests, setRequests] = useState<Appointment[]>([])
+  const requestsOn = data.settings.modules.requests
   const [loading, setLoading] = useState(true)
   const [openId, setOpenId] = useState<number | null>(null)
   // Appuntamento aperto dalla ricerca: può non essere tra quelli caricati per il periodo mostrato.
   const [found, setFound] = useState<Appointment | null>(null)
   const [form, setForm] = useState<FormState>(null)
   const known = useRef<Map<number, AppointmentStatus>>(new Map())
+  const knownRequests = useRef<Set<number> | null>(null)
 
   const from = view === 'giorno' ? anchor : startOfWeek(anchor)
   const to = view === 'giorno' ? anchor : addDays(from, 6)
@@ -89,7 +94,12 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
       if (!quiet) setLoading(true)
       try {
         const t = today()
-        const [l, p, r] = await Promise.all([api.appointments(from, to), api.appointments(t, confirmUntil(t)), api.toReschedule()])
+        const [l, p, r, w] = await Promise.all([
+          api.appointments(from, to),
+          api.appointments(t, confirmUntil(t)),
+          api.toReschedule(),
+          requestsOn ? api.webRequests() : Promise.resolve([] as Appointment[]),
+        ])
         const all = [...new Map([...l, ...p].map((a) => [a.id, a])).values()]
         // Avvisa delle conferme arrivate dal link mentre la pagina era aperta.
         if (quiet) {
@@ -100,17 +110,24 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
             }
           }
         }
+        // Nuove richieste dal sito: avviso solo nell'app (le prime volte si memorizzano senza avvisare).
+        if (quiet && knownRequests.current) {
+          for (const a of w) if (!knownRequests.current.has(a.id)) notify(`Nuova richiesta web: ${a.patientName}`)
+        }
+        knownRequests.current = new Set(w.map((a) => a.id))
         known.current = new Map(all.map((a) => [a.id, a.status]))
         setList(l)
         setPending(p)
         setToResched(r)
+        setRequests(w)
+        window.dispatchEvent(new CustomEvent('web-requests', { detail: w.length }))
       } catch (e) {
         if (!quiet) notify((e as Error).message, 'error')
       } finally {
         setLoading(false)
       }
     },
-    [from, to, notify],
+    [from, to, notify, requestsOn],
   )
 
   useEffect(() => {
@@ -141,11 +158,18 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
     const t = today()
     setPending((l) => upsert(l, (d) => d >= t && d <= confirmUntil(t)))
     setList((l) => upsert(l, (d) => d >= from && d <= to))
-    setToResched((l) => (isScheduled(a) ? l.filter((x) => x.id !== a.id) : l.some((x) => x.id === a.id) ? l.map((x) => (x.id === a.id ? a : x)) : [...l, a]))
+    const upsertUnscheduled = (l: Appointment[], belongs: boolean) =>
+      !belongs ? l.filter((x) => x.id !== a.id) : l.some((x) => x.id === a.id) ? l.map((x) => (x.id === a.id ? a : x)) : [...l, a]
+    setToResched((l) => upsertUnscheduled(l, !isScheduled(a) && a.status === 'da-riprogrammare'))
+    setRequests((l) => {
+      const next = upsertUnscheduled(l, a.status === 'richiesta-web')
+      window.dispatchEvent(new CustomEvent('web-requests', { detail: next.length }))
+      return next
+    })
   }
 
   const opened: Appointment | null =
-    openId !== null ? list.find((a) => a.id === openId) ?? pending.find((a) => a.id === openId) ?? toResched.find((a) => a.id === openId) ?? (found?.id === openId ? found : null) : null
+    openId !== null ? list.find((a) => a.id === openId) ?? pending.find((a) => a.id === openId) ?? toResched.find((a) => a.id === openId) ?? requests.find((a) => a.id === openId) ?? (found?.id === openId ? found : null) : null
 
   /** Modulo di modifica; per un appuntamento da riprogrammare, la scelta della nuova data. */
   const editForm = (a: Appointment) =>
@@ -162,8 +186,13 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
         patientPhone: a.patientPhone,
         serviceId: a.serviceId,
         doctorId: a.doctorId,
-        notes: a.notes,
+        // Richiesta web: il testo del cliente e la fascia oraria preferita diventano note da rivedere.
+        notes:
+          a.status === 'richiesta-web'
+            ? [a.notes, a.webSlot && a.webSlot !== 'indifferente' ? `Fascia preferita: ${SLOT_LABEL[a.webSlot].toLowerCase()}` : ''].filter(Boolean).join('\n')
+            : a.notes,
       },
+      web: a.status === 'richiesta-web',
     })
 
   const quick = async (fn: () => Promise<Appointment>, ok: string) => {
@@ -191,7 +220,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
     if (!form) return
     const saved = form.id ? await api.updateAppointment(form.id, value) : await api.createAppointment(value)
     setForm(null)
-    notify(form.previous ? 'Appuntamento riprogrammato' : form.id ? 'Appuntamento aggiornato' : 'Appuntamento creato')
+    notify(form.web ? 'Richiesta web trasformata in appuntamento' : form.previous ? 'Appuntamento riprogrammato' : form.id ? 'Appuntamento aggiornato' : 'Appuntamento creato')
     replace(saved)
     // Fuori dal periodo mostrato: la vista si sposta sul giorno dell'appuntamento (e lo ricarica).
     if (isScheduled(saved) && (saved.day < from || saved.day > to)) setAnchor(saved.day)
@@ -207,11 +236,12 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
   }, [view, anchor, from, list])
 
   const counts = useMemo(() => {
-    const c: Record<AppointmentStatus, number> = { 'confermato-link': 0, 'confermato-manuale': 0, inviato: 0, 'da-inviare': 0, 'non-presentato': 0, 'da-riprogrammare': 0 }
+    const c: Record<AppointmentStatus, number> = { 'confermato-link': 0, 'confermato-manuale': 0, inviato: 0, 'da-inviare': 0, 'non-presentato': 0, 'da-riprogrammare': 0, 'richiesta-web': 0 }
     for (const a of list) c[a.status]++
     c['da-riprogrammare'] = toResched.length
+    c['richiesta-web'] = requests.length
     return c
-  }, [list, toResched])
+  }, [list, toResched, requests])
 
   const label = view === 'giorno' ? formatLongDay(anchor) : formatWeek(from)
   const step = view === 'giorno' ? 1 : 7
@@ -226,6 +256,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
       <div className="appt-layout">
         {/* A sinistra le cose da fare, compatte; il calendario occupa il resto dello schermo. */}
         <aside className="appt-side" aria-label="Da fare">
+          {(requestsOn || requests.length > 0) && <WebRequests list={requests} onOpen={setOpenId} onPlan={editForm} />}
           <ToReschedule list={toResched} onOpen={setOpenId} onPlan={editForm} />
           <ToConfirm
             list={pending}
@@ -329,6 +360,11 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
               setList((l) => l.filter((x) => x.id !== opened.id))
               setPending((l) => l.filter((x) => x.id !== opened.id))
               setToResched((l) => l.filter((x) => x.id !== opened.id))
+              setRequests((l) => {
+                const next = l.filter((x) => x.id !== opened.id)
+                window.dispatchEvent(new CustomEvent('web-requests', { detail: next.length }))
+                return next
+              })
               setOpenId(null)
               notify('Appuntamento eliminato')
             } catch (e) {
@@ -340,7 +376,7 @@ export default function Appuntamenti({ data }: { data: AppDataState }) {
 
       {form && (
         <AppointmentForm
-          title={form.previous !== undefined && form.previous !== null ? 'Riprogramma appuntamento' : form.id ? 'Modifica appuntamento' : 'Nuovo appuntamento'}
+          title={form.web ? 'Fissa appuntamento da richiesta web' : form.previous !== undefined && form.previous !== null ? 'Riprogramma appuntamento' : form.id ? 'Modifica appuntamento' : 'Nuovo appuntamento'}
           initial={form.initial}
           editingId={form.id}
           wasConfirmed={form.wasConfirmed}
@@ -717,6 +753,43 @@ function ToConfirm({
           </div>
         ))
       )}
+    </section>
+  )
+}
+
+// ---------- Richieste dal sito web ----------
+
+function WebRequests({ list, onOpen, onPlan }: { list: Appointment[]; onOpen: (id: number) => void; onPlan: (a: Appointment) => void }) {
+  return (
+    <section className={`card to-web ${list.length ? 'has-items' : ''}`} aria-labelledby="wr-title">
+      <div className="to-confirm-head">
+        <h2 id="wr-title">
+          <Inbox size={17} /> Richieste web
+          {list.length > 0 && <span className="to-confirm-count to-web-count">{list.length}</span>}
+        </h2>
+        {!list.length && <span className="small muted">Nessuna</span>}
+      </div>
+      {list.map((a) => (
+        <div key={a.id} className="side-row st-web">
+          <button className="side-row-main" onClick={() => onOpen(a.id)} title={`${a.patientName}: apri la richiesta`}>
+            <strong className="side-row-name">{a.patientName}</strong>
+          </button>
+          <div className="side-row-sub small">
+            <span className="muted" title={a.webRequestAt ? new Date(a.webRequestAt).toLocaleString('it-IT') : undefined}>
+              {a.webRequestAt ? `arrivata ${ago(a.webRequestAt)}` : 'dal sito'}
+              {a.webSlot && a.webSlot !== 'indifferente' ? ` · ${SLOT_LABEL[a.webSlot].toLowerCase()}` : ''}
+            </span>
+          </div>
+          <div className="side-row-actions">
+            <button className="btn btn-sm btn-web-solid" onClick={() => onPlan(a)} title="Scegli prestazione, medico, data e ora dopo aver sentito il cliente">
+              <CalendarClock size={14} /> Fissa
+            </button>
+            <a className="btn btn-sm btn-icon" href={`tel:${a.patientPhone.replace(/[^\d+]/g, '')}`} title={`Chiama ${a.patientPhone}`} aria-label={`Chiama ${a.patientPhone}`}>
+              <Phone size={14} />
+            </a>
+          </div>
+        </div>
+      ))}
     </section>
   )
 }

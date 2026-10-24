@@ -1,8 +1,9 @@
-import { CalendarClock, CalendarX2, Check, ClipboardCheck, Copy, Link2, MessageCircle, Pencil, Phone, RotateCcw, Trash2, TriangleAlert, UserCheck, UserX, X } from 'lucide-react'
+import { CalendarClock, CalendarX2, Check, ClipboardCheck, Copy, Inbox, Link2, MessageCircle, Pencil, Phone, RotateCcw, Trash2, TriangleAlert, UserCheck, UserX, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { endTime, LINK_DAYS_AFTER, linkExpiry, whatsAppLink, whatsAppWebLink } from '../../../shared/appointments.ts'
 import { formatDay, formatLongDay, today } from '../../../shared/dates.ts'
 import type { Appointment, ScheduledAppointment } from '../../../shared/types.ts'
+import { SLOT_LABEL } from '../../../shared/webRequests.ts'
 import { api, type AppSettings } from '../lib/api.ts'
 import { confirmUrl, isScheduled, linkWarning, messageFor, needsReminder, STATUS } from '../lib/appointments.ts'
 import { DoctorBadge } from './DoctorBadge.tsx'
@@ -53,6 +54,7 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
   const [busy, setBusy] = useState(false)
   const status = STATUS[a.status]
   const scheduled = isScheduled(a)
+  const web = a.status === 'richiesta-web'
   const confirmed = !!a.confirmedAt
   const noShow = !!a.noShowAt
   // "Non presentato" si può segnare dal giorno dell'appuntamento in poi.
@@ -101,7 +103,10 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
   }
 
   const remove = async () => {
-    if (!window.confirm(`Eliminare l'appuntamento di ${a.patientName}? Il link di conferma smetterà di funzionare.`)) return
+    const text = web
+      ? `Scartare la richiesta di ${a.patientName}? Verrà eliminata definitivamente.`
+      : `Eliminare l'appuntamento di ${a.patientName}? Il link di conferma smetterà di funzionare.`
+    if (!window.confirm(text)) return
     setBusy(true)
     try {
       await onDelete()
@@ -130,6 +135,15 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
                   <strong>{formatLongDay(a.day)}</strong> · {a.time}–{endTime(a.time, a.duration)}
                 </span>
               </div>
+            ) : web ? (
+              <div>
+                <Inbox size={16} />
+                <span>
+                  <strong>Richiesta dal sito</strong>
+                  {a.webRequestAt ? ` · ${stamp(a.webRequestAt)}` : ''}
+                  {a.webSlot ? ` · richiamare: ${SLOT_LABEL[a.webSlot].toLowerCase()}` : ''}
+                </span>
+              </div>
             ) : (
               <div>
                 <CalendarX2 size={16} />
@@ -151,7 +165,7 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
             {a.notes && <p className="appt-notes">{a.notes}</p>}
             <ul className="appt-history small muted">
               <li>
-                Creato {stamp(a.createdAt)}
+                {web ? 'Ricevuta dal sito web' : 'Creato'} {stamp(a.createdAt)}
                 {a.createdBy ? ` da ${a.createdBy}` : ''}
               </li>
               {a.rescheduleAt && <li>Da riprogrammare dal {stamp(a.rescheduleAt)}</li>}
@@ -185,6 +199,14 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
             </div>
           ) : scheduled ? (
             <MessageSection appointment={a} settings={settings} onChange={onChange} />
+          ) : web ? (
+            <div className="alert alert-web small">
+              <Inbox size={18} style={{ flex: 'none' }} />
+              <span>
+                Richiesta arrivata dal sito: richiama il cliente, poi con <strong>Fissa appuntamento</strong> scegli prestazione, medico, data e ora.
+                Da lì si prosegue come per ogni appuntamento (messaggio da inviare e conferma). Se non serve, <strong>Scarta</strong> la richiesta.
+              </span>
+            </div>
           ) : (
             <div className="alert alert-resched small">
               <CalendarX2 size={18} style={{ flex: 'none' }} />
@@ -198,7 +220,7 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
 
         <div className="modal-foot appt-detail-foot">
           <button type="button" className="btn btn-sm btn-ghost btn-danger" onClick={remove} disabled={busy}>
-            <Trash2 size={15} /> Elimina
+            <Trash2 size={15} /> {web ? 'Scarta' : 'Elimina'}
           </button>
           <span style={{ flex: 1 }} />
           {scheduled ? (
@@ -235,6 +257,10 @@ export default function AppointmentDetail({ appointment: a, settings, onChange, 
                 <Pencil size={15} /> Modifica
               </button>
             </>
+          ) : web ? (
+            <button type="button" className="btn btn-sm btn-web-solid" onClick={onEdit} disabled={busy} title="Scegli prestazione, medico, data e ora dopo aver sentito il cliente">
+              <CalendarClock size={15} /> Fissa appuntamento
+            </button>
           ) : (
             <button type="button" className="btn btn-sm btn-resched-solid" onClick={onEdit} disabled={busy}>
               <CalendarClock size={15} /> Riprogramma

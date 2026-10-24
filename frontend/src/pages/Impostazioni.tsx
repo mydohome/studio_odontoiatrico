@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Building2, CalendarDays, Check, ChevronRight, Database, LayoutGrid, ShieldCheck, Stamp, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
+import { Inbox, ArrowDown, ArrowLeft, ArrowUp, Building2, CalendarDays, Check, ChevronRight, Database, LayoutGrid, ShieldCheck, Stamp, Download, FileSpreadsheet, ImageUp, Gift, LogOut, Megaphone, Plus, RotateCcw, Save, Sparkles, Trash2, Upload, User } from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import Sicurezza from './Sicurezza.tsx'
 import { badgeColor, CATEGORIES, type Category } from '../../../shared/catalog.ts'
@@ -44,7 +44,7 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
   // Studio, Dati e Moduli si aprono in un menu a parte; medici, categorie e prestazioni restano qui.
   const [section, setSection] = useState<Section | null>(null)
   const m = data.settings.modules
-  const activeModules = [m.appointments, m.campaigns, m.giftcards, m.loyalty].filter(Boolean).length
+  const activeModules = [m.appointments, m.campaigns, m.giftcards, m.loyalty, m.requests].filter(Boolean).length
   const manualDays = new Set(data.records.filter((r) => r.q - (r.a ?? 0) > 0).map((r) => r.d)).size
 
   const SECTIONS: { id: Section; label: string; text: string; icon: ReactNode }[] = [
@@ -120,7 +120,9 @@ export default function Impostazioni({ data, user, onLogout }: Props) {
   )
 }
 
-const MODULES: { id: 'appointments' | 'campaigns' | 'giftcards' | 'loyalty'; label: string; text: string; icon: ReactNode }[] = [
+type ModuleId = 'appointments' | 'campaigns' | 'giftcards' | 'loyalty' | 'requests'
+
+const MODULES: { id: ModuleId; label: string; text: string; icon: ReactNode }[] = [
   {
     id: 'appointments',
     label: 'Appuntamenti',
@@ -145,6 +147,12 @@ const MODULES: { id: 'appointments' | 'campaigns' | 'giftcards' | 'loyalty'; lab
     text: 'Carta a timbri digitale: ogni visita un timbro, al traguardo un premio. Pagina pubblica sul dominio delle carte, scanner QR per lo staff. Spento: la scheda sparisce, ma le carte restano salvate.',
     icon: <Stamp size={17} />,
   },
+  {
+    id: 'requests',
+    label: 'Richieste web',
+    text: "Il link «Prenota appuntamento» del sito apre un modulo su un dominio dedicato: la richiesta arriva nell'agenda come «richiesta web», da richiamare e categorizzare. Richiede il modulo Appuntamenti. Spento: il modulo online smette di rispondere, le richieste già arrivate restano.",
+    icon: <Inbox size={17} />,
+  },
 ]
 
 /** Moduli dell'app: si possono nascondere senza perdere i dati, e riattivare quando servono. */
@@ -153,7 +161,7 @@ function ModulesCard({ data }: { data: AppDataState }) {
   const [saving, setSaving] = useState(false)
   const modules = data.settings.modules
 
-  const toggle = async (id: 'appointments' | 'campaigns' | 'giftcards' | 'loyalty', value: boolean) => {
+  const toggle = async (id: ModuleId, value: boolean) => {
     setSaving(true)
     try {
       data.setSettings(await api.saveSettings({ modules: { ...modules, [id]: value } }))
@@ -183,6 +191,57 @@ function ModulesCard({ data }: { data: AppDataState }) {
           </label>
         </div>
       ))}
+      {modules.requests && <WebRequestsSettings />}
+    </div>
+  )
+}
+
+/** Indirizzo del modulo da mettere nel sito e informativa privacy richiesta dal consenso. */
+function WebRequestsSettings() {
+  const notify = useToast()
+  const [info, setInfo] = useState<{ baseUrl: string | null; privacyUrl: string } | null>(null)
+  const [privacy, setPrivacy] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.webRequestsInfo().then((i) => {
+      setInfo(i)
+      setPrivacy(i.privacyUrl)
+    }, (e) => notify((e as Error).message, 'error'))
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const i = await api.saveWebRequestsInfo(privacy)
+      setInfo(i)
+      setPrivacy(i.privacyUrl)
+      notify('Informativa salvata')
+    } catch (err) {
+      notify((err as Error).message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!info) return null
+  const link = info.baseUrl ? `${info.baseUrl}/prenota` : null
+  return (
+    <div className="setting-sub">
+      <p className="small">
+        <strong>Link per il sito:</strong>{' '}
+        {link ? <code>{link}</code> : <span className="muted">dominio non impostato: aggiungi BOOKING_BASE_URL nel file .env del server (vedi README) e riavvia con ./studio restart.</span>}
+      </p>
+      <label className="field-label" htmlFor="booking-privacy">
+        Indirizzo dell'informativa privacy (pagina del sito)
+      </label>
+      <div className="row-actions">
+        <input id="booking-privacy" className="input" type="url" placeholder="https://www.tuostudio.it/privacy" value={privacy} onChange={(e) => setPrivacy(e.target.value)} />
+        <button className="btn btn-primary" disabled={saving || privacy.trim() === info.privacyUrl} onClick={save}>
+          <Save size={15} /> Salva
+        </button>
+      </div>
+      {!info.privacyUrl && <p className="small muted">Finché manca l'informativa il modulo online resta chiuso: il cliente deve poter leggere come usi i suoi dati prima di acconsentire.</p>}
     </div>
   )
 }

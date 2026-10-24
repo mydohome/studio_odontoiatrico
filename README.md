@@ -137,6 +137,23 @@ Le installazioni create prima dell'introduzione delle istanze continuano a usare
 | `<istanza>-api` | solo `backend` | `no-new-privileges`, `cap_drop: ALL`, utente non root |
 | `<istanza>-db` | solo `backend` | `no-new-privileges` |
 
+### Intestazioni di sicurezza, chiavi e aggiornamenti
+
+- **Politica di sicurezza dei contenuti (CSP)** su tutte le pagine dell'app (gestionale, conferme, carte): gli script si
+  eseguono solo dai file dell'app, quindi un testo iniettato in una pagina non può far partire codice, e le pagine non
+  possono caricare risorse né inviare dati ad altri domini. È in `frontend/nginx/csp.conf`. In più `Permissions-Policy`
+  (la fotocamera è consentita solo al gestionale, per lo scanner delle fidelity card), `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff` e `Referrer-Policy`. Se aggiungi funzioni che caricano risorse da altri domini, vanno
+  elencate in `csp.conf`. **HSTS** (forza https) si attiva in NPM: sul Proxy Host, scheda *SSL* → *HSTS Enabled*.
+- **Chiave delle sessioni (`SESSION_SECRET`)** nel `.env`, non nel database: così non finisce nei backup e nei dump.
+  `./studio update` la sposta nel `.env` nelle installazioni vecchie, mantenendo lo stesso valore (nessuno deve rifare
+  l'accesso). Insieme a `DATA_KEY` è un segreto da custodire.
+- **Import Excel**: un file che da decomprimere supera 80 MB, o con più di 200.000 righe, viene rifiutato prima di aprirlo
+  (protegge da file «bomba»).
+- **Aggiornamenti**: `./studio update` ricostruisce le immagini con quelle di base aggiornate (Node, Nginx, PostgreSQL). Se
+  non lo lanci spesso, programmalo con `./studio update --install-cron`. Le dipendenze dei pacchetti si controllano con
+  `npm audit` nelle cartelle `backend` e `frontend` (oggi 0 vulnerabilità).
+
 ### Limiti ai tentativi di accesso e IP reale (NPM, Cloudflare)
 
 - **Accesso:** ogni 15 minuti al massimo 10 tentativi per nome utente dallo stesso IP, 30 errori per IP (con

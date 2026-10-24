@@ -177,7 +177,38 @@ export interface ParsedImport {
   errors: string[]
 }
 
+/** Un .xlsx è uno zip: oltre queste dimensioni da decomprimere (o righe) il file non si apre. */
+export const MAX_IMPORT_UNZIPPED = 80 * 1024 * 1024
+export const MAX_IMPORT_ROWS = 200_000
+
+/**
+ * Dimensione totale dei file contenuti nello zip, letta dall'indice finale (senza decomprimere):
+ * serve a rifiutare i file «bomba» che da pochi MB occuperebbero gigabyte di memoria. Null se non è uno zip.
+ */
+export function zipUncompressedSize(buf: Buffer): number | null {
+  const min = Math.max(0, buf.length - 22 - 0xffff)
+  let eocd = -1
+  for (let i = buf.length - 22; i >= min; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      eocd = i
+      break
+    }
+  }
+  if (eocd < 0) return null
+  const entries = buf.readUInt16LE(eocd + 10)
+  let pos = buf.readUInt32LE(eocd + 16)
+  let total = 0
+  for (let n = 0; n < entries; n++) {
+    if (pos + 46 > buf.length || buf.readUInt32LE(pos) !== 0x02014b50) return null
+    total += buf.readUInt32LE(pos + 24)
+    pos += 46 + buf.readUInt16LE(pos + 28) + buf.readUInt16LE(pos + 30) + buf.readUInt16LE(pos + 32)
+  }
+  return total
+}
+
 export async function parseImport(buf: Buffer, services: Service[]): Promise<ParsedImport> {
+  const unzipped = zipUncompressedSize(buf)
+  if (unzipped !== null && unzipped > MAX_IMPORT_UNZIPPED) throw new Error('Il file Excel è troppo grande da aprire: dividilo in più file.')
   const wb = new ExcelJS.Workbook()
   try {
     await wb.xlsx.load(buf as unknown as ArrayBuffer)
@@ -186,6 +217,7 @@ export async function parseImport(buf: Buffer, services: Service[]): Promise<Par
   }
   const ws = wb.getWorksheet('Dati') ?? wb.worksheets[0]
   if (!ws) throw new Error('Il file non contiene fogli.')
+  if (ws.rowCount > MAX_IMPORT_ROWS) throw new Error(`Il foglio ha troppe righe (massimo ${MAX_IMPORT_ROWS}): dividilo in più file.`)
 
   const lookup = new Map<string, string>()
   for (const s of services) {

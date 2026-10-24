@@ -84,6 +84,8 @@ let SECRET: Buffer = Buffer.alloc(0)
 
 async function loadSecret() {
   let secret = process.env.SESSION_SECRET || (await getSetting('sessionSecret'))
+  // Chiave nel .env (consigliato): la copia nel database, che finirebbe in backup e dump, si toglie.
+  if (process.env.SESSION_SECRET) await pool.query(`DELETE FROM settings WHERE key = 'sessionSecret'`)
   if (!secret) {
     secret = randomBytes(32).toString('base64url')
     await setSetting('sessionSecret', secret)

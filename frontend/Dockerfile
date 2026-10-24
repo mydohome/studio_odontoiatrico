@@ -11,6 +11,7 @@ RUN node scripts/real-ip.mjs
 
 FROM nginx:1.29-alpine
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx/csp.conf /etc/nginx/csp.conf
 COPY --from=build /app/frontend/nginx/real-ip.conf /etc/nginx/conf.d/00-real-ip.conf
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
 # 80: gestionale; 8081: solo conferme degli appuntamenti; 8082: solo fidelity card (domini pubblici).

@@ -960,6 +960,9 @@ In alternativa, *Esporta tutto in Excel* produce un file reimportabile con tutte
 
 ## Sviluppo locale
 
+Per chi sviluppa o usa un agente AI: **`AGENTS.md`** raccoglie architettura, comandi, convenzioni, regole di sicurezza e
+processo di lavoro del progetto (usalo come prompt di partenza).
+
 Serve Node 22.18+ (o 24) e un PostgreSQL raggiungibile.
 
 ```bash
